@@ -1,0 +1,28 @@
+{
+  "units": "USD_trillions",
+  "market": {
+    "cash_equities": 140,
+    "bonds": null,
+    "derivatives_notional": 846,
+    "total": 140
+  },
+  "state": {
+    "global_gdp": 117,
+    "total": 117
+  },
+  "community": {
+    "nonprofit_sector_estimate": null,
+    "coops_mutuals_estimate": null,
+    "household_unpaid_estimate": null,
+    "total": null
+  },
+  "notes": {
+    "sources": [
+      "IMF / World economy nominal GDP estimate (2025)",
+      "Visual Capitalist / SIFMA global equity market cap references",
+      "BIS OTC derivatives statistics at end-June 2025",
+      "Investopedia: derivatives notional vs gross market value"
+    ],
+    "last_updated": "2026-02-09"
+  }
+}

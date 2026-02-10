@@ -1,0 +1,309 @@
+:root {
+  color-scheme: dark;
+  font-family: "Avenir Next", "Avenir", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0f1115;
+  color: #f5f5f5;
+}
+
+#root,
+.app {
+  width: 100vw;
+  height: 100vh;
+}
+
+.app {
+  position: relative;
+  overflow: hidden;
+}
+
+.iov-stage {
+  width: 100%;
+  height: 100%;
+}
+
+.iov-stage {
+  position: relative;
+  background:
+    radial-gradient(68% 46% at 50% 12%, rgba(168, 198, 238, 0.5) 0%, rgba(227, 236, 248, 0) 72%),
+    linear-gradient(180deg, #eff5fb 0%, #e4edf8 56%, #dee8f3 100%);
+}
+
+.iov-atmosphere {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(42% 36% at 23% 26%, rgba(95, 146, 222, 0.14), transparent 70%),
+    radial-gradient(45% 42% at 76% 30%, rgba(201, 129, 81, 0.12), transparent 72%),
+    radial-gradient(70% 30% at 50% 84%, rgba(99, 158, 68, 0.08), transparent 78%);
+}
+
+.iov-panel {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  width: min(390px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(105, 139, 187, 0.5);
+  background: linear-gradient(180deg, rgba(8, 17, 32, 0.93), rgba(10, 19, 35, 0.9));
+  box-shadow: 0 18px 40px rgba(8, 20, 37, 0.42);
+  backdrop-filter: blur(9px);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.iov-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.iov-panel-kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+  color: rgba(196, 218, 248, 0.9);
+}
+
+.iov-presentation-toggle {
+  border: 1px solid rgba(170, 200, 244, 0.56);
+  background: rgba(27, 43, 70, 0.95);
+  color: rgba(243, 248, 255, 0.98);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+.iov-presentation-toggle:hover {
+  background: rgba(43, 66, 102, 0.96);
+}
+
+.iov-phase-headline {
+  border: 1px solid rgba(190, 217, 255, 0.38);
+  background: linear-gradient(180deg, rgba(22, 38, 64, 0.74), rgba(16, 30, 53, 0.68));
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(232, 242, 255, 0.98);
+  line-height: 1.35;
+}
+
+.iov-panel-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #f7fbff;
+}
+
+.iov-panel.is-presentation {
+  width: min(440px, calc(100vw - 24px));
+  padding: 18px;
+}
+
+.iov-panel.is-presentation .iov-panel-title {
+  font-size: 27px;
+}
+
+.iov-panel.is-presentation .iov-panel-definition,
+.iov-panel.is-presentation .iov-panel-meaning,
+.iov-panel.is-presentation .iov-phase-headline {
+  font-size: 14px;
+}
+
+.iov-panel.is-presentation .iov-panel-value-line {
+  font-size: 13px;
+}
+
+.iov-panel-definition,
+.iov-panel-meaning {
+  color: rgba(236, 244, 255, 0.9);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.iov-panel-section-label {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(188, 211, 247, 0.96);
+}
+
+.iov-panel-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.iov-panel-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(175, 201, 241, 0.24);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: rgba(20, 33, 56, 0.62);
+  font-size: 12px;
+  color: rgba(235, 243, 255, 0.96);
+}
+
+.iov-panel-legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25) inset;
+}
+
+.iov-panel-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iov-tag {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(229, 236, 246, 0.87);
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 5px 9px;
+}
+
+.iov-tag.is-active {
+  border-color: rgba(117, 177, 255, 0.62);
+  background: rgba(78, 133, 209, 0.28);
+  color: #edf5ff;
+}
+
+.iov-panel-buttons,
+.iov-panel-focus-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iov-panel-buttons button,
+.iov-panel-focus-buttons button {
+  border: 1px solid rgba(169, 198, 237, 0.42);
+  background: rgba(24, 40, 67, 0.95);
+  color: rgba(245, 250, 255, 0.98);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 150ms ease;
+}
+
+.iov-panel-buttons button:hover,
+.iov-panel-focus-buttons button:hover {
+  background: rgba(48, 74, 116, 0.94);
+}
+
+.iov-panel-shortcuts {
+  color: rgba(213, 226, 247, 0.82);
+  font-size: 11px;
+}
+
+.iov-panel-transfer-tip {
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(224, 238, 255, 0.95);
+}
+
+.iov-panel-transfer-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(174, 214, 255, 0.98);
+}
+
+.iov-panel-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iov-panel-value-line {
+  font-size: 12px;
+  color: rgba(236, 244, 255, 0.98);
+}
+
+.iov-panel-value-subline {
+  font-size: 11px;
+  color: rgba(213, 226, 246, 0.92);
+}
+
+.iov-tooltip {
+  position: fixed;
+  max-width: 260px;
+  pointer-events: none;
+  z-index: 20;
+  background: rgba(8, 14, 27, 0.96);
+  border: 1px solid rgba(163, 198, 246, 0.5);
+  border-radius: 10px;
+  padding: 8px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.iov-tooltip-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #edf4ff;
+}
+
+.iov-tooltip-body {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(221, 230, 246, 0.8);
+  line-height: 1.4;
+}
+
+.iov-concept {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  color: rgba(24, 43, 74, 0.9);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.45);
+}
+
+.iov-selection-indicator {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 10;
+  font-size: 12px;
+  color: rgba(34, 53, 86, 0.78);
+  pointer-events: none;
+}
+
+@media (max-width: 900px) {
+  .iov-panel {
+    width: min(360px, calc(100vw - 24px));
+    left: 12px;
+    bottom: 12px;
+  }
+
+  .iov-selection-indicator {
+    display: none;
+  }
+}

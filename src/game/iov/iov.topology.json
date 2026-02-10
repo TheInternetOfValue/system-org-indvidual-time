@@ -1,0 +1,40 @@
+{
+  "concept": "Internet of Value — Market / State / Community",
+  "regions": [
+    {
+      "id": "market",
+      "label": "Market",
+      "position": { "x": -6, "y": 0, "z": 0 },
+      "palette": ["#2f5d9b", "#78a7e3"],
+      "shape": { "type": "tower", "height": 18, "baseWidth": 6, "taper": 0.55 },
+      "notes": "Market tower combines cash markets and derivatives into one scaled pillar."
+    },
+    {
+      "id": "state",
+      "label": "State",
+      "position": { "x": 6, "y": 0, "z": 0 },
+      "palette": ["#8f5b35", "#b97a4a", "#6f4022"],
+      "shape": { "type": "tower", "height": 14, "baseWidth": 7, "taper": 0.75 },
+      "notes": "GDP / public finances / taxation capacity."
+    },
+    {
+      "id": "community",
+      "label": "Community",
+      "position": { "x": 0, "y": -6, "z": 0 },
+      "palette": ["#5f8f67", "#7fa886", "#496f50"],
+      "shape": { "type": "base", "width": 18, "depth": 6, "height": 3 },
+      "notes": "Co-ops, nonprofits, households, trust networks. Wide, load-bearing."
+    },
+    {
+      "id": "crony_bridge",
+      "label": "Crony Bridge",
+      "position": { "x": 0, "y": 10, "z": 0 },
+      "palette": ["#6b737d", "#98a1ab"],
+      "shape": { "type": "bridge", "length": 14, "thickness": 1 },
+      "notes": "Top-layer interlock: regulatory capture, bailouts, revolving doors."
+    }
+  ],
+  "toggles": [
+    { "id": "communityErosion", "label": "Erode Community base (stress test)", "default": false }
+  ]
+}

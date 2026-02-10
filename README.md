@@ -17,6 +17,9 @@ The interface includes:
 - Click-to-assemble phases (Market, State, Community, Bridge)
 - Brick transfer interaction (top bricks can be reclaimed into Community)
 - Tooltip + left info panel with definitions and values
+- Presentation Mode toggle for cleaner demo/readability view
+- Dynamic phase headline messaging (build/reveal state text)
+- Legend chips for Market/State/Community/Bridge color mapping
 - Log-scale height mapping driven by values data
 
 ---
@@ -102,24 +105,18 @@ Implementation details:
 - No recolor during flight (source brick color is preserved)
 - Values panel wired from JSON loader
 - Build-phase triggering from UI/keys
-- Derivatives mist removed (currently disabled)
+- Presentation Mode toggle in panel (condensed content for demos)
+- Dynamic phase headline updates on build actions (buttons + keyboard)
+- Legend chips for immediate region-color readability
+- Derivatives mist pipeline exists but is currently disabled by default
 - Added non-color split cue for Market cash vs derivatives (white split band guide)
+- Updated region identity palette (deep blue / burnt brown / muted green / graphite)
 
 ---
 
 ## ⚠️ Current Gaps / Known Issues
 
-### 1) Color readability remains inconsistent across environments
-Despite multiple lighting/material passes, some displays still show pillars too dark.
-
-Current mitigation:
-- explicit Market split guide text + structural split band
-- unlit/basic color material path for brick readability
-
-Planned stable fix:
-- dedicated “high-contrast mode” toggle with strict palette + unlit materials + no shadows on brick bodies
-
-### 2) Shadow artifacts in dense contact zones
+### 1) Shadow artifacts in dense contact zones
 There have been z-fighting / shadow-acne artifacts near Community connectors.
 
 Current mitigation:
@@ -129,6 +126,9 @@ Current mitigation:
 
 Planned stable fix:
 - shadow profile presets (`clean`, `cinematic`) and stricter depth offsets for contact areas
+
+### 2) Derivatives mist toggle is not yet exposed in panel metadata
+The scene supports `derivativesMist`, but `src/game/iov/iov.topology.json` currently exposes only `communityErosion` in panel toggles.
 
 ---
 
@@ -163,7 +163,6 @@ npm run test -- --run
 ## 🔭 Next Recommended Steps
 
 1. Add `renderMode: "high_contrast" | "cinematic"` toggle in `IovTopologyScene`.
-2. Add explicit legend chips (Cash, Derivatives, State, Community) in panel.
-3. Add optional stripe/hatch texture for derivatives segment to avoid color-only dependence.
+2. Add optional stripe/hatch texture for derivatives segment to avoid color-only dependence.
+3. Expose `derivativesMist` toggle in `src/game/iov/iov.topology.json` when ready for demos.
 4. Add screenshot regression checks for known visibility states.
-

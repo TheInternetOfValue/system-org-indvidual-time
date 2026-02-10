@@ -128,7 +128,40 @@ At default camera and default viewport:
 - Removed `vertexColors: true` from `MeshBasicMaterial` as it was interfering with instanced colors.
 - Instance colors now display correctly via `setColorAt()`.
 
-6. ✅ Balanced cross-pillar scaling for better visual proportions
+5. ✅ Darker brick outlines for better definition
+- Changed edge overlays from light colors (`#f5f8ff`, `#ffd66b`) to dark blue-grey (`#2a3b4d`, `#4a5568`).
+- Increased opacity slightly (0.32 vs 0.24) for better visibility against bright brick faces.
+- This creates stronger contrast and makes individual bricks appear more distinct.
+
+6. ✅ Reduced pastel intensity by 10-15% for more serious aesthetic
+- Lowered minimum lightness floors: cash 0.65→0.585, derivatives 0.75→0.675, state 0.7→0.63, community 0.75→0.675
+- Bridge darkened further to 0.55 for better "sitting above" appearance
+- Creates more serious, less toy-like aesthetic
+
+7. ✅ Added flag poles with pillar identification
+- Small vertical poles extending from top of each pillar (Market, State, Community only)
+- Rectangular flags with black text on white background
+- Labels: "MARKET", "STATE", "COMMUNITY"
+- Bridge excluded as it lacks brick structure
+- Flags animate with region reveal (appear/disappear with pillars)
+
+8. ✅ Added bridge identification text
+- Text labels "CRONY" and "BRIDGE" carved into the top faces of bridge support pillars
+- Uses dark graphite color (#2a3b4d) matching bridge edge theme
+- Text planes positioned flat on pillar tops with slight forward offset for visibility
+- Labels animate with bridge reveal (scale with support pillars)
+- Provides clear identification for the bridge structure without traditional brick stacking
+
+9. ✅ Added individual letters on bridge bricks
+- Each bridge brick displays a single bold red letter spelling "CRONY BRIDGE" (12 characters including space)
+- Text appears only on camera-facing bricks (one side of the bridge) for optimal visibility
+- First 12 camera-facing bricks show letters, remaining bricks are blank (no repetition)
+- Uses bright red color (#dc2626) for high contrast against graphite bridge material
+- Canvas-generated textures applied to individual brick faces
+- Creates "carved" appearance with letters appearing to be etched into each brick
+- Bridge bricks use individual meshes instead of instancing for unique text per brick
+
+10. ✅ Balanced cross-pillar scaling for better visual proportions
 - Reduced market height scale from 1.6x to 1.2x (22 layers vs 29)
 - Increased community scale from 0.35x to 0.8x with max height 6 (6 layers vs 2)
 - State remains at 1x scale (12 layers)

@@ -1,4 +1,4 @@
-# Internet of Value — Market / State / Community
+# What is the System and its Value?
 
 This repository contains an interactive visualization that models how value accumulates, distributes, and interlocks across three major economic subsystems:
 
@@ -140,16 +140,15 @@ Fixed in recent update:
 - Increased min lightness floors (0.65-0.75 range) for all regions
 - Colors now clearly readable at default camera distance in both normal and presentation modes
 
-### ✅ 4) Cross-pillar scaling balance (RESOLVED)
-Previously, extreme scaling multipliers created poor visual proportions:
-- Market: 1.6x scale (29 layers for 986T)
-- State: 1x scale (12 layers for 117T)  
-- Community: 0.35x scale (2 layers for 13T)
-
-Fixed:
-- Market scale reduced to 1.2x (22 layers)
-- Community scale increased to 0.8x with max 6 layers
-- Better proportions: Market 1.8x State, State 2x Community
+### ✅ 5) Enhanced visual polish (RESOLVED)
+Added flag poles and refined color palette:
+- Small flag poles extending from top of Market, State, and Community pillars
+- Rectangular flags with text labels for clear identification
+- Reduced pastel intensity by 10-15% for more serious aesthetic  
+- Bridge further darkened for better "sitting above" appearance
+- Added bridge identification text carved into support pillars ("CRONY" and "BRIDGE")
+- Added individual letters carved into each bridge brick spelling "CRONY BRIDGE" in bold red (only on camera-facing bricks, first 12 bricks show letters)
+- All changes maintain existing interactions and performance
 
 ---
 

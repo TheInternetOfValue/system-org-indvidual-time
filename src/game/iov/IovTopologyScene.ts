@@ -82,6 +82,8 @@ interface RegionRuntime {
   topY: number;
   topCapCenter: THREE.Vector3;
   accentColor: THREE.Color;
+  flagPole?: THREE.Mesh;
+  flag?: THREE.Mesh;
 }
 
 interface IovSceneCallbacks {
@@ -254,6 +256,7 @@ export class IovTopologyScene {
 
   private readonly cronyMarkers = new THREE.Group();
   private readonly bridgeSupports = new THREE.Group();
+  private readonly bridgeBricks = new THREE.Group();
   private readonly marketSplitGuide = new THREE.Group();
   private bridgeTopY = 10;
   private bridgeStartY = 10;
@@ -453,7 +456,7 @@ export class IovTopologyScene {
     });
     this.regions.clear();
 
-    this.structureGroup.remove(this.cronyMarkers, this.bridgeSupports, this.marketSplitGuide);
+    this.structureGroup.remove(this.cronyMarkers, this.bridgeSupports, this.bridgeBricks, this.marketSplitGuide);
     this.fxGroup.remove(this.slotMarkers);
     this.slotMarkers.children.forEach((child) => {
       const line = child as THREE.LineSegments;
@@ -495,6 +498,16 @@ export class IovTopologyScene {
     this.disposeRegionObjects();
     this.regions.clear();
     this.bridgeSupports.clear();
+    this.bridgeBricks.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      mesh.geometry.dispose();
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      if (material.map) {
+        material.map.dispose();
+      }
+      material.dispose();
+    });
+    this.bridgeBricks.clear();
     this.marketSplitGuide.clear();
     this.cronyMarkers.clear();
     this.communitySlots.length = 0;
@@ -571,11 +584,15 @@ export class IovTopologyScene {
     runtime.mesh.visible = visible;
     runtime.edgeGroup.visible = visible;
     if (runtime.studs) runtime.studs.visible = visible;
+    if (runtime.flagPole) runtime.flagPole.visible = visible;
+    if (runtime.flag) runtime.flag.visible = visible;
 
     const yScale = Math.max(0.001, reveal);
     runtime.mesh.scale.y = yScale;
     runtime.edgeGroup.scale.y = yScale;
     if (runtime.studs) runtime.studs.scale.y = yScale;
+    if (runtime.flagPole) runtime.flagPole.scale.y = yScale;
+    if (runtime.flag) runtime.flag.scale.y = yScale;
 
     if (regionId === "market") {
       if (this.derivativesMist) {
@@ -596,10 +613,10 @@ export class IovTopologyScene {
   private setBridgeDecorReveal(reveal: number) {
     const visible = reveal > 0.01;
     this.bridgeSupports.visible = visible;
-    this.cronyMarkers.visible = visible;
+    this.bridgeBricks.visible = visible;
     const yScale = Math.max(0.001, reveal);
     this.bridgeSupports.scale.y = yScale;
-    this.cronyMarkers.scale.y = yScale;
+    this.bridgeBricks.scale.y = yScale;
   }
 
   private setupSceneLook() {
@@ -694,6 +711,9 @@ export class IovTopologyScene {
       this.structureGroup.add(runtime.mesh, runtime.edgeGroup);
       if (runtime.studs) this.structureGroup.add(runtime.studs);
 
+      // Add flag poles to top bricks
+      this.addFlagPole(config, runtime);
+
       if (config.id === "community") {
         this.communityBaseTopY = runtime.topY;
       }
@@ -773,6 +793,81 @@ export class IovTopologyScene {
       topCapCenter: this.computeTopCapCenter(bricks, center),
       accentColor,
     };
+  }
+
+  private addFlagPole(config: IovRegionConfig, runtime: RegionRuntime) {
+    // Skip bridge - it doesn't have brick structure like towers/bases
+    if ((config.id as string) === 'crony_bridge') {
+      return;
+    }
+    const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.5, 8);
+    const poleMaterial = new THREE.MeshBasicMaterial({ color: '#4a5568' });
+    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+
+    // Position pole extending from top of pillar
+    pole.position.set(
+      runtime.center.x,
+      runtime.topY + 0.75, // Half the pole height above the top
+      runtime.center.z
+    );
+
+    // Create flag (small plane with text texture)
+    const flagGeometry = new THREE.PlaneGeometry(1.2, 0.6);
+
+    // Create canvas for flag text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    canvas.width = 128;
+    canvas.height = 64;
+
+    // Clear with white background
+    context.fillStyle = 'white';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Add black border
+    context.strokeStyle = 'black';
+    context.lineWidth = 2;
+    context.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+
+    // Draw text
+    context.fillStyle = 'black';
+    context.font = 'bold 16px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    let flagText = config.label.toUpperCase();
+    if (config.id === 'crony_bridge') {
+      flagText = 'CRONY BRIDGE';
+    }
+
+    context.fillText(flagText, canvas.width / 2, canvas.height / 2);
+
+    const flagTexture = new THREE.CanvasTexture(canvas);
+    const flagMaterial = new THREE.MeshBasicMaterial({
+      map: flagTexture,
+      transparent: false,
+      side: THREE.DoubleSide
+    });
+
+    const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+
+    // Position flag at top of pole, slightly offset
+    flag.position.set(
+      runtime.center.x + 0.7, // Offset to the side
+      runtime.topY + 1.4, // At top of pole
+      runtime.center.z
+    );
+
+    // Rotate flag to face camera-ish
+    flag.rotation.y = Math.PI * 0.1; // Slight angle
+
+    // Add to scene
+    this.structureGroup.add(pole);
+    this.structureGroup.add(flag);
+
+    // Store references for reveal control
+    runtime.flagPole = pole;
+    runtime.flag = flag;
   }
 
   // Shared world coordinate system and anchors:
@@ -987,15 +1082,34 @@ export class IovTopologyScene {
         const arch = Math.sin(t * Math.PI) * STEP_Y * IOV_TOPOLOGY_CONFIG.bridge.sagAmplitude;
         const layerBaseY = lerp(startY, endY, t) + arch;
         for (let z = 0; z < 2; z += 1) {
-          addBrick(
-            new THREE.Vector3(
-              center.x + (x - (config.shape.length - 1) * 0.5) * STEP_XZ,
-              layerBaseY + y * STEP_Y,
-              center.z + (z - 0.5) * STEP_XZ * 0.64
-            ),
-            true,
-            true
+          // Create individual mesh for bridge brick with text
+          const position = new THREE.Vector3(
+            center.x + (x - (config.shape.length - 1) * 0.5) * STEP_XZ,
+            layerBaseY + y * STEP_Y,
+            center.z + (z - 0.5) * STEP_XZ * 0.64
           );
+
+          // Create text texture for this brick
+          const brickIndex = y * config.shape.length * 2 + x * 2 + z;
+          // Only put text on bricks facing the camera (z=1, positive Z direction - closer to camera)
+          const isCameraFacing = z === 1;
+          const cameraFacingBrickIndex = x; // 0-13 for camera-facing bricks
+          const textTexture = this.createBridgeBrickText(cameraFacingBrickIndex, isCameraFacing);
+
+          const brickMaterial = new THREE.MeshBasicMaterial({
+            color: getIdentityColor(config.id),
+            map: textTexture
+          });
+          ensureMinLightness(brickMaterial.color, getTargetMinLightness(config.id));
+
+          const brickMesh = new THREE.Mesh(this.brickGeometry, brickMaterial);
+          brickMesh.position.copy(position);
+          brickMesh.castShadow = true;
+          brickMesh.receiveShadow = false;
+          brickMesh.userData.regionId = config.id;
+
+          // Add to bridge group instead of using instanced mesh
+          this.bridgeBricks.add(brickMesh);
         }
       }
     }
@@ -1128,7 +1242,133 @@ export class IovTopologyScene {
     addSupport(market.center.x + 1.2, TOPOLOGY_Z, this.bridgeStartY);
     addSupport(state.center.x - 1.2, TOPOLOGY_Z, this.bridgeEndY);
 
+    // Add bridge identification text to supports
+    this.addBridgeTextLabels();
+
     this.structureGroup.add(this.bridgeSupports);
+    this.structureGroup.add(this.bridgeBricks);
+  }
+
+  private addBridgeTextLabels() {
+    const market = this.regions.get("market");
+    const state = this.regions.get("state");
+    if (!market || !state) return;
+
+    // Create canvas for bridge text
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    canvas.width = 256;
+    canvas.height = 128;
+
+    // Clear with transparent background
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw text in dark graphite color to match bridge theme
+    context.fillStyle = '#2a3b4d'; // Dark graphite matching bridge edges
+    context.font = 'bold 24px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    // Draw "CRONY" on left support (market side)
+    context.fillText('CRONY', canvas.width / 2, canvas.height / 2);
+
+    const leftTexture = new THREE.CanvasTexture(canvas);
+    const leftMaterial = new THREE.MeshBasicMaterial({
+      map: leftTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      opacity: 0.8
+    });
+
+    const leftTextPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.4),
+      leftMaterial
+    );
+
+    // Position on left support (market side) - "carved" into the top face
+    leftTextPlane.position.set(
+      market.center.x + 1.2,
+      this.bridgeStartY + 0.1, // Just above the support top
+      TOPOLOGY_Z + 0.16 // Slightly in front of the support face
+    );
+    leftTextPlane.rotation.x = -Math.PI / 2; // Lay flat on top
+    leftTextPlane.rotation.z = Math.PI / 2; // Rotate to read correctly
+
+    // Create separate canvas for "BRIDGE" on right support
+    const rightCanvas = document.createElement('canvas');
+    const rightContext = rightCanvas.getContext('2d')!;
+    rightCanvas.width = 256;
+    rightCanvas.height = 128;
+
+    rightContext.clearRect(0, 0, rightCanvas.width, rightCanvas.height);
+    rightContext.fillStyle = '#2a3b4d';
+    rightContext.font = 'bold 24px Arial';
+    rightContext.textAlign = 'center';
+    rightContext.textBaseline = 'middle';
+
+    rightContext.fillText('BRIDGE', rightCanvas.width / 2, rightCanvas.height / 2);
+
+    const rightTexture = new THREE.CanvasTexture(rightCanvas);
+    const rightMaterial = new THREE.MeshBasicMaterial({
+      map: rightTexture,
+      transparent: true,
+      side: THREE.DoubleSide,
+      opacity: 0.8
+    });
+
+    const rightTextPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.4),
+      rightMaterial
+    );
+
+    // Position on right support (state side)
+    rightTextPlane.position.set(
+      state.center.x - 1.2,
+      this.bridgeEndY + 0.1,
+      TOPOLOGY_Z + 0.16
+    );
+    rightTextPlane.rotation.x = -Math.PI / 2;
+    rightTextPlane.rotation.z = Math.PI / 2;
+
+    // Add text planes to bridge supports group
+    this.bridgeSupports.add(leftTextPlane);
+    this.bridgeSupports.add(rightTextPlane);
+  }
+
+  private createBridgeBrickText(brickIndex: number, isCameraFacing: boolean): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d')!;
+    canvas.width = 128;
+    canvas.height = 64;
+
+    // Clear with transparent background
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Only put text on camera-facing bricks
+    if (isCameraFacing) {
+      // Define the text to spell out (CRONY BRIDGE = 12 characters including space)
+      const bridgeText = "CRONY BRIDGE";
+
+      // Only show letters for the first 12 camera-facing bricks, leave the rest blank
+      if (brickIndex < bridgeText.length) {
+        const letter = bridgeText.charAt(brickIndex);
+
+        // Draw the letter in bold red
+        context.fillStyle = '#dc2626'; // Bright red color
+        context.font = 'bold 48px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+
+        context.fillText(letter, canvas.width / 2, canvas.height / 2);
+      }
+    }
+    // Non-camera-facing bricks and remaining bricks stay blank (transparent)
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+
+    return texture;
   }
 
   private buildMarketSplitGuide() {
@@ -1679,11 +1919,11 @@ const getTargetMinLightness = (
   segment?: "cash" | "derivatives"
 ) => {
   if (regionId === "market") {
-    return segment === "derivatives" ? 0.75 : 0.65;
+    return segment === "derivatives" ? 0.675 : 0.585; // Reduced 10% for less pastel intensity
   }
-  if (regionId === "state") return 0.7;
-  if (regionId === "community") return 0.75;
-  return 0.65;
+  if (regionId === "state") return 0.63; // Reduced 10%
+  if (regionId === "community") return 0.675; // Reduced 10%
+  return 0.55; // Bridge: reduced 15% for darker "sitting above" appearance
 };
 
 const ensureMinLightness = (color: THREE.Color, minLightness: number) => {

@@ -54,7 +54,7 @@ const IovTopologyPanel = ({
   return (
     <div className={`iov-panel ${presentationMode ? "is-presentation" : ""}`}>
       <div className="iov-panel-header">
-        <div className="iov-panel-kicker">IoV Topology</div>
+        <div className="iov-panel-kicker">What is the System and its Value?</div>
         <button
           type="button"
           className="iov-presentation-toggle"

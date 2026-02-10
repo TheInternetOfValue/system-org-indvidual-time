@@ -45,9 +45,9 @@ const IovTopologyPanel = ({
       ? marketCash + values.market.derivatives_notional
       : null;
   const legendItems = [
-    { id: "market", label: "Market", color: "#2f5d9b" },
-    { id: "state", label: "State", color: "#8f5b35" },
-    { id: "community", label: "Community", color: "#5f8f67" },
+    { id: "market", label: "Market", color: "#1f7a34" },
+    { id: "state", label: "State", color: "#c43a2f" },
+    { id: "community", label: "Community", color: "#d9b114" },
     { id: "bridge", label: "Bridge", color: "#5f6670" },
   ] as const;
 

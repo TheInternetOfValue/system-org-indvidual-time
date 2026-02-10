@@ -23,3 +23,6 @@
   - `empty` -> `build_market` -> `build_state` -> `build_community` -> `reveal_bridge`.
 - Reclaim animation preserves original brick color in flight.
 - State change feedback uses pulse/outline effects instead of recoloring brick identity.
+
+## Color Rendering
+- Detailed rendering diagnosis and target semantics are in `docs/IOV_COLOR_RENDERING.md`.

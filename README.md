@@ -130,6 +130,27 @@ Planned stable fix:
 ### 2) Derivatives mist toggle is not yet exposed in panel metadata
 The scene supports `derivativesMist`, but `src/game/iov/iov.topology.json` currently exposes only `communityErosion` in panel toggles.
 
+### ✅ 3) Color rendering visibility (RESOLVED)
+Previously, brick faces appeared nearly black despite palette adjustments due to:
+- Material configuration issue (`vertexColors: true` interfering with instanced colors)
+- Insufficient minimum lightness floors for spatial averaging at distance
+
+Fixed in recent update:
+- Removed `vertexColors: true` from `MeshBasicMaterial`
+- Increased min lightness floors (0.65-0.75 range) for all regions
+- Colors now clearly readable at default camera distance in both normal and presentation modes
+
+### ✅ 4) Cross-pillar scaling balance (RESOLVED)
+Previously, extreme scaling multipliers created poor visual proportions:
+- Market: 1.6x scale (29 layers for 986T)
+- State: 1x scale (12 layers for 117T)  
+- Community: 0.35x scale (2 layers for 13T)
+
+Fixed:
+- Market scale reduced to 1.2x (22 layers)
+- Community scale increased to 0.8x with max 6 layers
+- Better proportions: Market 1.8x State, State 2x Community
+
 ---
 
 ## 🛠️ Development

@@ -123,7 +123,7 @@ export const IOV_TOPOLOGY_CONFIG = {
     z: 0,
   },
   pillars: {
-    marketHeightScale: 1.6,
+    marketHeightScale: 1.2, // Reduced from 1.6 for better balance
     stateHeightScale: 1,
     minHeightLayers: 3,
     logScaleMultiplier: 6,
@@ -845,7 +845,7 @@ export class IovTopologyScene {
       segment?: "cash" | "derivatives"
     ) => {
       const color = (forcedColor ?? identityColor).clone();
-      ensureMinLightness(color, 0.58);
+      ensureMinLightness(color, getTargetMinLightness(config.id, segment));
       // Keep exact region color identity; no per-brick hue/lightness drift.
       bricks.push({ position, color, isTopLayer, isTopCap, segment });
     };
@@ -871,11 +871,13 @@ export class IovTopologyScene {
       const layerCount = Math.max(config.shape.height, scaledLayers, marketMinVsState);
       const topWidth = Math.max(2, Math.round(config.shape.baseWidth * config.shape.taper));
       const capLayers = Math.max(1, Math.floor(layerCount * 0.01));
-      const cashMarketColor = new THREE.Color("#2f5d9b");
-      const derivativesMarketColor = new THREE.Color("#78a7e3");
+      const cashMarketColor = new THREE.Color("#1f7a34");
+      const derivativesMarketColor = new THREE.Color("#6edc8a");
+      // Adjust derivative share to make cash portion more visually prominent
+      // Cash (140T) should appear comparable to State (117T) in height
       const derivativeShare =
         config.id === "market" && totals.market && totals.marketDerivatives
-          ? THREE.MathUtils.clamp(totals.marketDerivatives / totals.market, 0.08, 0.9)
+          ? Math.min(0.6, THREE.MathUtils.clamp(totals.marketDerivatives / totals.market, 0.08, 0.9))
           : 0;
       const derivativeLayerStart = Math.floor(layerCount * (1 - derivativeShare));
       if (config.id === "market") {
@@ -922,8 +924,8 @@ export class IovTopologyScene {
       const height = Math.max(
         IOV_TOPOLOGY_CONFIG.community.height,
         Math.min(
-          3,
-          this.mapValueToLayers(totals.community, IOV_TOPOLOGY_CONFIG.community.height, 0.35)
+          6, // Allow community to be taller for better visibility
+          this.mapValueToLayers(totals.community, IOV_TOPOLOGY_CONFIG.community.height, 0.8) // Increased from 0.35 to 0.8
         )
       );
 
@@ -1005,10 +1007,7 @@ export class IovTopologyScene {
     const identityColor = getIdentityColor(config.id);
     const accentColor = new THREE.Color(identityColor ?? config.palette[0] ?? "#9fb0d3");
 
-    const material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      color: "#ffffff",
-    });
+    const material = new THREE.MeshBasicMaterial();
 
     const mesh = new THREE.InstancedMesh(this.brickGeometry, material, bricks.length);
     mesh.userData.regionId = config.id;
@@ -1034,12 +1033,12 @@ export class IovTopologyScene {
   private createRegionEdges(config: IovRegionConfig, bricks: BrickInstance[]) {
     const group = new THREE.Group();
     const material = new THREE.LineBasicMaterial({
-      color: "#f5f8ff",
+      color: "#2a3b4d",
       transparent: true,
-      opacity: config.id === "crony_bridge" ? 0.3 : 0.24,
+      opacity: config.id === "crony_bridge" ? 0.4 : 0.32,
     });
     const topCapMaterial = new THREE.LineBasicMaterial({
-      color: "#ffd66b",
+      color: "#4a5568",
       transparent: true,
       opacity: 0.65,
     });
@@ -1673,6 +1672,18 @@ const lerp = (start: number, end: number, t: number) => start + (end - start) * 
 const getIdentityColor = (regionId: RegionId) => {
   if (regionId === "crony_bridge") return IOV_IDENTITY_COLORS.bridge;
   return IOV_IDENTITY_COLORS[regionId];
+};
+
+const getTargetMinLightness = (
+  regionId: RegionId,
+  segment?: "cash" | "derivatives"
+) => {
+  if (regionId === "market") {
+    return segment === "derivatives" ? 0.75 : 0.65;
+  }
+  if (regionId === "state") return 0.7;
+  if (regionId === "community") return 0.75;
+  return 0.65;
 };
 
 const ensureMinLightness = (color: THREE.Color, minLightness: number) => {

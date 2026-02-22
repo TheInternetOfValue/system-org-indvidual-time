@@ -43,6 +43,7 @@ public/
     iov_values.json              # Editable data values (USD trillions)
 docs/
   IOV_DESIGN.md                  # Coordinate and motion notes
+  IOV_SEMANTIC_ZOOM_PROJECT.md   # Living plan/status for semantic zoom expansion
 ```
 
 ---

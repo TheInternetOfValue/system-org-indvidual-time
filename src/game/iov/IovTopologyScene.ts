@@ -12,6 +12,7 @@ import {
 
 export type RegionId = "market" | "state" | "community" | "crony_bridge";
 export type ToggleId = "derivativesMist" | "communityErosion";
+export type BrickInteractionMode = "inspect" | "reclaim";
 
 export interface Position3 {
   x: number;
@@ -62,6 +63,12 @@ export interface IovTopologyData {
   toggles: IovToggleConfig[];
 }
 
+export interface SelectedBrickInfo {
+  regionId: RegionId;
+  instanceId: number;
+  canTransfer: boolean;
+}
+
 interface BrickInstance {
   position: THREE.Vector3;
   color: THREE.Color;
@@ -90,6 +97,7 @@ interface IovSceneCallbacks {
   onHoverChange?: (regionId: RegionId | null) => void;
   onSelectChange?: (regionId: RegionId) => void;
   onTransferCountChange?: (count: number) => void;
+  onBrickSelectionChange?: (selection: SelectedBrickInfo | null) => void;
 }
 
 interface ActiveTransfer {
@@ -201,6 +209,8 @@ export class IovTopologyScene {
   private readonly regions = new Map<RegionId, RegionRuntime>();
   private hoveredRegionId: RegionId | null = null;
   private selectedRegionId: RegionId = "community";
+  private selectedBrickInfo: SelectedBrickInfo | null = null;
+  private brickInteractionMode: BrickInteractionMode = "inspect";
 
   private readonly brickGeometry = new THREE.BoxGeometry(BRICK_W, BRICK_H, BRICK_D);
   private readonly edgeGeometry = new THREE.EdgesGeometry(this.brickGeometry);
@@ -339,6 +349,14 @@ export class IovTopologyScene {
     return DEFAULT_MEANING_BY_REGION[regionId];
   }
 
+  getSelectedBrickInfo() {
+    return this.selectedBrickInfo;
+  }
+
+  setBrickInteractionMode(mode: BrickInteractionMode) {
+    this.brickInteractionMode = mode;
+  }
+
   resize(width: number, height: number) {
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
@@ -399,13 +417,16 @@ export class IovTopologyScene {
     const mesh = first.object as THREE.InstancedMesh;
     const regionId = mesh.userData.regionId as RegionId;
     const instanceId = first.instanceId ?? -1;
-    this.setSelectionMarker(mesh, instanceId);
+    if (instanceId < 0) return;
 
-    if (this.startTransferAnimation(regionId, instanceId)) {
+    if (this.brickInteractionMode === "reclaim" && this.startTransferAnimation(regionId, instanceId)) {
+      this.clearSelectedBrick();
       this.selectRegion("community");
       return;
     }
 
+    this.setSelectionMarker(mesh, instanceId);
+    this.setSelectedBrick(regionId, instanceId);
     this.selectRegion(regionId);
   }
 
@@ -415,6 +436,7 @@ export class IovTopologyScene {
   }
 
   triggerFormation(regionId: RegionId) {
+    this.clearSelectedBrick();
     this.regionRevealTarget[regionId] = 1;
     if (regionId === "crony_bridge") {
       // Bridge semantics depend on top caps, so ensure towers/community are present first.
@@ -521,6 +543,7 @@ export class IovTopologyScene {
   }
 
   private rebuildTopologyFromValues() {
+    this.clearSelectedBrick();
     this.disposeRegionObjects();
     this.regions.clear();
     this.bridgeSupports.clear();
@@ -1537,6 +1560,9 @@ export class IovTopologyScene {
   }
 
   private rebuildRegionWithBricks(runtime: RegionRuntime, bricks: BrickInstance[]) {
+    if (this.selectedBrickInfo?.regionId === runtime.config.id) {
+      this.clearSelectedBrick();
+    }
     this.structureGroup.remove(runtime.mesh, runtime.edgeGroup);
     if (runtime.studs) this.structureGroup.remove(runtime.studs);
 
@@ -1887,6 +1913,21 @@ export class IovTopologyScene {
     this.selectedOutline.position.copy(position);
     this.selectedOutline.quaternion.copy(rotation);
     this.selectedOutline.scale.set(1.04, 1.04, 1.04);
+  }
+
+  private setSelectedBrick(regionId: RegionId, instanceId: number) {
+    this.selectedBrickInfo = {
+      regionId,
+      instanceId,
+      canTransfer: this.canTransferBrick(regionId, instanceId),
+    };
+    this.callbacks.onBrickSelectionChange?.(this.selectedBrickInfo);
+  }
+
+  private clearSelectedBrick() {
+    this.selectedBrickInfo = null;
+    this.selectedOutline.visible = false;
+    this.callbacks.onBrickSelectionChange?.(null);
   }
 
   private getInstanceTransform(mesh: THREE.InstancedMesh, instanceId: number) {

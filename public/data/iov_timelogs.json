@@ -1,0 +1,330 @@
+{
+  "version": "0.1.0",
+  "units": "daily_logs",
+  "notes": {
+    "sources": [
+      "the-internet-of-value-spec/specs/protocols/value-capture/spec.md",
+      "the-internet-of-value-spec/specs/protocols/wellbeing/spec.md",
+      "the-internet-of-value-spec/specs/protocols/saocommons/spec.md"
+    ],
+    "last_updated": "2026-02-22"
+  },
+  "profiles": {
+    "Trader": [
+      {
+        "id": "trader-log-1",
+        "timestamp": "2026-02-18T08:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-18T08:00:00Z",
+            "~~~EndTime": "2026-02-18T10:00:00Z",
+            "~~~Duration": 2
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Credit-risk analysis and open note",
+            "~~~TaskType": "market-analysis",
+            "~~~Intent": "improve-community-liquidity"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Published methodology memo",
+            "~~~EvidenceLink": "proof://trader/2026-02-18/memo",
+            "~~~ArtifactType": "memo"
+          },
+          "~~Attribution": {
+            "~~~Community": "IOV Commons",
+            "~~~Project": "Market Transparency",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.78,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.11
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.64,
+            "~~~EarningOutput": 0.58,
+            "~~~OrgBuildingOutput": 0.41,
+            "~~~SkillApplication": "Risk communication",
+            "~~~CommunityContext": "Shared review loop"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "peer-reviewed",
+            "~~~ReviewerSet": "market-council-3",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.016,
+          "aura_delta": 0.03
+        }
+      },
+      {
+        "id": "trader-log-2",
+        "timestamp": "2026-02-19T08:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-19T08:00:00Z",
+            "~~~EndTime": "2026-02-19T11:00:00Z",
+            "~~~Duration": 3
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Mentored junior analyst",
+            "~~~TaskType": "knowledge-transfer",
+            "~~~Intent": "reduce-asymmetry"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Recorded mentoring notes",
+            "~~~EvidenceLink": "proof://trader/2026-02-19/mentoring",
+            "~~~ArtifactType": "notes"
+          },
+          "~~Attribution": {
+            "~~~Community": "IOV Commons",
+            "~~~Project": "Capability Build",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.82,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.09
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.68,
+            "~~~EarningOutput": 0.51,
+            "~~~OrgBuildingOutput": 0.62,
+            "~~~SkillApplication": "Coaching",
+            "~~~CommunityContext": "Shared learning pod"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "validated",
+            "~~~ReviewerSet": "learning-node-4",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.02,
+          "aura_delta": 0.035
+        }
+      }
+    ],
+    "Civil Servant": [
+      {
+        "id": "state-log-1",
+        "timestamp": "2026-02-18T09:30:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-18T09:30:00Z",
+            "~~~EndTime": "2026-02-18T11:30:00Z",
+            "~~~Duration": 2
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Public service workflow redesign",
+            "~~~TaskType": "service-ops",
+            "~~~Intent": "improve-access"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Submitted process map",
+            "~~~EvidenceLink": "proof://state/2026-02-18/process-map",
+            "~~~ArtifactType": "diagram"
+          },
+          "~~Attribution": {
+            "~~~Community": "Public Office",
+            "~~~Project": "Citizen Access",
+            "~~~ContributorRole": "Civil Servant"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.74,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.07
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.57,
+            "~~~EarningOutput": 0.43,
+            "~~~OrgBuildingOutput": 0.66,
+            "~~~SkillApplication": "Process design",
+            "~~~CommunityContext": "Service team"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "team-review",
+            "~~~ReviewerSet": "office-panel-3",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.014,
+          "aura_delta": 0.026
+        }
+      }
+    ],
+    "Caregiver": [
+      {
+        "id": "community-log-1",
+        "timestamp": "2026-02-18T06:30:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-18T06:30:00Z",
+            "~~~EndTime": "2026-02-18T09:30:00Z",
+            "~~~Duration": 3
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Mutual aid and household support",
+            "~~~TaskType": "care-work",
+            "~~~Intent": "community-stability"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Care circle witness attestations",
+            "~~~EvidenceLink": "proof://community/2026-02-18/care-circle",
+            "~~~ArtifactType": "attestation"
+          },
+          "~~Attribution": {
+            "~~~Community": "Local Mutual Aid",
+            "~~~Project": "Neighborhood Support",
+            "~~~ContributorRole": "Caregiver"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.8,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.04
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.49,
+            "~~~EarningOutput": 0.31,
+            "~~~OrgBuildingOutput": 0.72,
+            "~~~SkillApplication": "Coordination",
+            "~~~CommunityContext": "Neighborhood collective"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "community-validation",
+            "~~~ReviewerSet": "care-circle-5",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.017,
+          "aura_delta": 0.031
+        }
+      }
+    ]
+  },
+  "overrides": {
+    "Trader-13": [
+      {
+        "id": "trader13-log-1",
+        "timestamp": "2026-02-20T08:10:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-20T08:10:00Z",
+            "~~~EndTime": "2026-02-20T10:40:00Z",
+            "~~~Duration": 2.5
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Designed fair-access market mechanism",
+            "~~~TaskType": "protocol-design",
+            "~~~Intent": "equity-improvement"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Design doc + simulation output",
+            "~~~EvidenceLink": "proof://trader13/2026-02-20/fair-access",
+            "~~~ArtifactType": "design+sim"
+          },
+          "~~Attribution": {
+            "~~~Community": "IOV Commons",
+            "~~~Project": "Fair Access",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.88,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.05
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.73,
+            "~~~EarningOutput": 0.62,
+            "~~~OrgBuildingOutput": 0.69,
+            "~~~SkillApplication": "Market protocol design",
+            "~~~CommunityContext": "Cross-pillar design review"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "cross-review",
+            "~~~ReviewerSet": "bridge-panel-6",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.026,
+          "aura_delta": 0.046
+        }
+      },
+      {
+        "id": "trader13-log-2",
+        "timestamp": "2026-02-21T07:55:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-21T07:55:00Z",
+            "~~~EndTime": "2026-02-21T09:55:00Z",
+            "~~~Duration": 2
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Mentored two community builders",
+            "~~~TaskType": "mentoring",
+            "~~~Intent": "skill-distribution"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Mentoring checklist + replay notes",
+            "~~~EvidenceLink": "proof://trader13/2026-02-21/mentoring",
+            "~~~ArtifactType": "checklist"
+          },
+          "~~Attribution": {
+            "~~~Community": "Community Growth Pod",
+            "~~~Project": "Bridge Transfer",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.84,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.06
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.78,
+            "~~~EarningOutput": 0.44,
+            "~~~OrgBuildingOutput": 0.74,
+            "~~~SkillApplication": "Facilitation",
+            "~~~CommunityContext": "Cross-pillar mentoring"
+          }
+        },
+        "~SAOcommons": {
+          "~~Validation": {
+            "~~~EvidenceReview": "mentor-review",
+            "~~~ReviewerSet": "commons-panel-4",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.023,
+          "aura_delta": 0.04
+        }
+      }
+    ]
+  }
+}

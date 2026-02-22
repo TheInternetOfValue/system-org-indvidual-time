@@ -47,6 +47,98 @@ body {
     radial-gradient(70% 30% at 50% 84%, rgba(99, 158, 68, 0.08), transparent 78%);
 }
 
+.iov-breadcrumb {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 16;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.iov-breadcrumb button {
+  border: 1px solid rgba(139, 166, 205, 0.42);
+  background: rgba(12, 27, 46, 0.86);
+  color: rgba(236, 245, 255, 0.97);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.iov-breadcrumb button.is-active {
+  background: rgba(55, 94, 146, 0.9);
+  border-color: rgba(156, 194, 248, 0.62);
+}
+
+.iov-breadcrumb-back {
+  background: rgba(58, 83, 118, 0.9);
+}
+
+.iov-semantic-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 14;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.iov-semantic-card {
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid rgba(109, 147, 201, 0.48);
+  border-radius: 12px;
+  background: rgba(8, 20, 36, 0.9);
+  box-shadow: 0 10px 34px rgba(8, 16, 28, 0.38);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+.iov-semantic-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #f2f7ff;
+}
+
+.iov-semantic-body {
+  font-size: 13px;
+  color: rgba(224, 236, 251, 0.95);
+  line-height: 1.45;
+}
+
+.iov-semantic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iov-semantic-actions button,
+.iov-panel-buttons button:disabled {
+  border: 1px solid rgba(164, 194, 234, 0.45);
+  background: rgba(26, 44, 72, 0.95);
+  color: rgba(246, 250, 255, 0.98);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.iov-panel-buttons button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
+.iov-semantic-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .iov-panel {
   position: absolute;
   left: 16px;
@@ -116,6 +208,18 @@ body {
 }
 
 .iov-mobile-build-row {
+  display: none;
+}
+
+.iov-mobile-semantic-row {
+  display: none;
+}
+
+.iov-mobile-person-row {
+  display: none;
+}
+
+.iov-mobile-layer-rail {
   display: none;
 }
 
@@ -248,6 +352,11 @@ body {
   background: rgba(48, 74, 116, 0.94);
 }
 
+.iov-panel-buttons button.is-active {
+  background: rgba(67, 108, 168, 0.98);
+  border-color: rgba(185, 213, 255, 0.78);
+}
+
 .iov-panel-shortcuts {
   color: rgba(213, 226, 247, 0.82);
   font-size: 11px;
@@ -279,6 +388,74 @@ body {
 .iov-panel-value-subline {
   font-size: 11px;
   color: rgba(213, 226, 246, 0.92);
+}
+
+.iov-panel-mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.iov-panel-mode-toggle button {
+  border: 1px solid rgba(169, 198, 237, 0.42);
+  background: rgba(24, 40, 67, 0.95);
+  color: rgba(245, 250, 255, 0.98);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.iov-panel-mode-toggle button.is-active {
+  background: rgba(67, 108, 168, 0.98);
+  border-color: rgba(185, 213, 255, 0.78);
+}
+
+.iov-panel-mode-toggle-compact button {
+  min-width: 56px;
+}
+
+.iov-panel-layer-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.iov-panel-layer-pill {
+  border: 1px solid rgba(177, 205, 244, 0.36);
+  background: rgba(18, 31, 54, 0.76);
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10px;
+  color: rgba(224, 236, 252, 0.9);
+}
+
+.iov-panel-layer-pill.is-active {
+  border-color: rgba(232, 211, 137, 0.82);
+  background: rgba(64, 88, 130, 0.92);
+  color: rgba(248, 253, 255, 1);
+}
+
+.iov-panel-log-chain {
+  display: grid;
+  gap: 7px;
+}
+
+.iov-panel-log-card {
+  border: 1px solid rgba(167, 198, 238, 0.28);
+  background: rgba(14, 27, 46, 0.66);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.iov-panel-log-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(245, 250, 255, 0.95);
 }
 
 .iov-tooltip {
@@ -329,6 +506,21 @@ body {
 }
 
 @media (max-width: 900px) {
+  .iov-breadcrumb {
+    top: 8px;
+    right: 8px;
+  }
+
+  .iov-breadcrumb button {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
+
+  .iov-semantic-card {
+    width: calc(100vw - 20px);
+    margin-bottom: min(48svh, 330px);
+  }
+
   .iov-panel {
     width: auto;
     left: 10px;
@@ -380,6 +572,79 @@ body {
 
   .iov-mobile-build-row button:hover {
     background: rgba(48, 74, 116, 0.94);
+  }
+
+  .iov-mobile-semantic-row {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 1fr;
+    gap: 7px;
+  }
+
+  .iov-mobile-semantic-row button {
+    border: 1px solid rgba(169, 198, 237, 0.42);
+    background: rgba(24, 40, 67, 0.95);
+    color: rgba(245, 250, 255, 0.98);
+    border-radius: 8px;
+    padding: 7px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .iov-mobile-semantic-row button.is-active {
+    background: rgba(67, 108, 168, 0.98);
+    border-color: rgba(185, 213, 255, 0.78);
+  }
+
+  .iov-mobile-semantic-row button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .iov-mobile-person-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .iov-mobile-person-row button {
+    border: 1px solid rgba(169, 198, 237, 0.42);
+    background: rgba(24, 40, 67, 0.95);
+    color: rgba(245, 250, 255, 0.98);
+    border-radius: 8px;
+    padding: 7px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .iov-mobile-person-row button.is-active {
+    background: rgba(67, 108, 168, 0.98);
+    border-color: rgba(185, 213, 255, 0.78);
+  }
+
+  .iov-mobile-layer-rail {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 3px;
+    scrollbar-width: thin;
+  }
+
+  .iov-mobile-layer-pill {
+    border: 1px solid rgba(177, 205, 244, 0.36);
+    background: rgba(18, 31, 54, 0.76);
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 10px;
+    color: rgba(224, 236, 252, 0.9);
+    white-space: nowrap;
+  }
+
+  .iov-mobile-layer-pill.is-active {
+    border-color: rgba(232, 211, 137, 0.82);
+    background: rgba(64, 88, 130, 0.92);
+    color: rgba(248, 253, 255, 1);
   }
 
   .iov-panel.is-mobile .iov-panel-focus-buttons {

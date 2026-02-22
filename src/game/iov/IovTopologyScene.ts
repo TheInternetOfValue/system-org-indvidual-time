@@ -270,6 +270,7 @@ export class IovTopologyScene {
   private values: IovValues = DEFAULT_IOV_VALUES;
 
   private elapsed = 0;
+  private isMobileViewport = false;
   private readonly regionReveal: Record<RegionId, number> = {
     market: 0,
     state: 0,
@@ -341,6 +342,31 @@ export class IovTopologyScene {
   resize(width: number, height: number) {
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
+  }
+
+  setViewportProfile(isMobile: boolean) {
+    if (this.isMobileViewport === isMobile) return;
+    this.isMobileViewport = isMobile;
+
+    if (isMobile) {
+      // On phones, keep the model higher in frame so the bottom sheet does not hide it.
+      this.camera.fov = 50;
+      this.camera.position.set(0, 17, 40);
+      this.controls.target.set(0, 8, 0);
+      this.controls.minDistance = 16;
+      this.controls.maxDistance = 52;
+      this.controls.maxPolarAngle = 1.36;
+    } else {
+      this.camera.fov = 42;
+      this.camera.position.set(0, 15, 35);
+      this.controls.target.set(0, 6, 0);
+      this.controls.minDistance = 12;
+      this.controls.maxDistance = 48;
+      this.controls.maxPolarAngle = 1.32;
+    }
+
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
   }
 
   setPointerFromCanvas(x: number, y: number, width: number, height: number) {

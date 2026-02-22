@@ -33,6 +33,7 @@ const buildInitialToggles = (data: IovTopologyData) =>
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<IovTopologyScene | null>(null);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
   const [selectedRegionId, setSelectedRegionId] = useState<RegionId>("community");
   const [hoveredRegionId, setHoveredRegionId] = useState<RegionId | null>(null);
@@ -95,7 +96,10 @@ const IovTopologyCanvas = () => {
 
     const resize = () => {
       const { clientWidth, clientHeight } = container;
+      const nextIsMobile = clientWidth <= 900;
+      setIsMobile(nextIsMobile);
       renderer.setSize(clientWidth, clientHeight);
+      scene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
       composer?.setSize(clientWidth, clientHeight);
       if (ssaoPass) {
@@ -245,6 +249,7 @@ const IovTopologyCanvas = () => {
         data={topologyData}
         selectedRegionId={selectedRegionId}
         toggles={toggles}
+        isMobile={isMobile}
         phaseHeadline={phaseHeadline}
         presentationMode={presentationMode}
         meaningText={

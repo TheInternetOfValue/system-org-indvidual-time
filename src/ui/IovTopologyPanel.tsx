@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type {
   IovTopologyData,
   RegionId,
@@ -17,6 +18,7 @@ interface IovTopologyPanelProps {
   values: IovValues;
   meaningText: string;
   transferredCount: number;
+  isMobile: boolean;
   onToggle: (toggleId: ToggleId) => void;
   onBuild: (regionId: RegionId) => void;
   onTogglePresentationMode: () => void;
@@ -31,10 +33,17 @@ const IovTopologyPanel = ({
   values,
   meaningText,
   transferredCount,
+  isMobile,
   onToggle,
   onBuild,
   onTogglePresentationMode,
 }: IovTopologyPanelProps) => {
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+
+  useEffect(() => {
+    setMobileExpanded(!isMobile);
+  }, [isMobile]);
+
   const selected = data.regions.find((region) => region.id === selectedRegionId);
   const marketCash =
     values.market.total ??
@@ -52,17 +61,53 @@ const IovTopologyPanel = ({
   ] as const;
 
   return (
-    <div className={`iov-panel ${presentationMode ? "is-presentation" : ""}`}>
+    <div
+      className={`iov-panel ${presentationMode ? "is-presentation" : ""} ${
+        isMobile ? "is-mobile" : ""
+      } ${isMobile && !mobileExpanded ? "is-collapsed" : ""}`}
+    >
       <div className="iov-panel-header">
         <div className="iov-panel-kicker">What is the System and its Value?</div>
-        <button
-          type="button"
-          className="iov-presentation-toggle"
-          onClick={onTogglePresentationMode}
-        >
-          {presentationMode ? "Exit Presentation" : "Presentation Mode"}
+        <div className="iov-panel-header-actions">
+          <button
+            type="button"
+            className="iov-presentation-toggle"
+            onClick={onTogglePresentationMode}
+          >
+            {presentationMode ? "Exit Presentation" : "Presentation Mode"}
+          </button>
+          {isMobile && (
+            <button
+              type="button"
+              className="iov-mobile-expand"
+              onClick={() => setMobileExpanded((prev) => !prev)}
+            >
+              {mobileExpanded ? "Hide details" : "Show details"}
+            </button>
+          )}
+        </div>
+      </div>
+      {isMobile && (
+        <div className="iov-mobile-summary">
+          <strong>{selected?.label ?? "Region"}</strong>
+          <span>Reclaimed bricks: {transferredCount}</span>
+        </div>
+      )}
+      <div className="iov-mobile-build-row">
+        <button type="button" onClick={() => onBuild("market")}>
+          Market
+        </button>
+        <button type="button" onClick={() => onBuild("state")}>
+          State
+        </button>
+        <button type="button" onClick={() => onBuild("community")}>
+          Community
+        </button>
+        <button type="button" onClick={() => onBuild("crony_bridge")}>
+          Bridge
         </button>
       </div>
+      <div className="iov-panel-content">
       <div className="iov-phase-headline">{phaseHeadline}</div>
       <div className="iov-panel-title">{selected?.label ?? "Region"}</div>
       <div className="iov-panel-definition">{selected?.notes}</div>
@@ -179,6 +224,7 @@ const IovTopologyPanel = ({
       </div>
 
       <div className="iov-panel-shortcuts">Shortcuts: 1 Market, 2 State, 3 Community, 4 Bridge</div>
+      </div>
     </div>
   );
 };

@@ -402,7 +402,7 @@ export class ValueLogScene {
 
   commit(personId: string, roleHint?: string): IovValueLogEntry {
     this.isCommitting = true; // Trigger the drop
-    const entry = this.buildEntry(personId, roleHint);
+    const entry = this.buildEntry(personId, roleHint || "");
     this.committedCount += 1;
 
     // Trigger completion if callback exists
@@ -1155,33 +1155,60 @@ export class ValueLogScene {
     return { position, lookAt };
   }
 
+  getDraft() {
+    return this.draft;
+  }
+
+  // --- Restored Original Methods ---
+
   private updatePointerHover() {
     const hit = this.raycastInteractive();
     this.hoveredContext = hit?.type === "context" ? hit.key : null;
     this.hoveredDomain = hit?.type === "domain" ? hit.domain : null;
     this.updateContextNodes();
     this.updateDomainNodes();
+    document.body.style.cursor = hit ? "pointer" : "default";
   }
 
   private raycastInteractive():
     | { type: "clock" }
+    | { type: "stage"; id: StageVisual["id"] } // Added stage back in case needed
     | { type: "context"; key: WellbeingContextNode }
     | { type: "domain"; domain: DomainNodeVisual["domain"] }
     | null {
+    
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    
+    // Check stage cards
+    const stageIntersects = this.raycaster.intersectObjects(this.stageCards.map(c => c.mesh), false);
+    if (stageIntersects.length > 0) {
+      const hit = stageIntersects[0];
+      if (hit) {
+        const card = this.stageCards.find(c => c.mesh === hit.object);
+        if (card) return { type: "stage", id: card.id };
+      }
+    }
+
     const targets: THREE.Object3D[] = [];
+    // Prioritize context interaction based on step
     if (this.step === "select_time") {
-      if (this.clockDial) targets.push(this.clockDial);
+        const bgIntersect = this.raycaster.intersectObject(this.sliceArc);
+        if (bgIntersect.length > 0) return { type: "clock" };
+        if (this.clockDial) targets.push(this.clockDial);
     }
-    if (this.step === "select_wellbeing") {
-      this.contextNodes.forEach((node) => targets.push(node.mesh));
-    }
-    if (this.step === "select_performance" && this.draft.wellbeingNode === "~~Performance") {
-      this.domainNodes.forEach((node) => targets.push(node.mesh));
-    }
+    
+    // Always check context nodes if visible (allow navigation)
+    this.contextNodes.forEach((node) => {
+        if (node.mesh.visible) targets.push(node.mesh);
+    });
+
+    // Check domain nodes if visible
+    this.domainNodes.forEach((node) => {
+        if (node.mesh.visible) targets.push(node.mesh);
+    });
 
     if (targets.length === 0) return null;
 
-    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
     const intersections = this.raycaster.intersectObjects(targets, false);
     const object = intersections[0]?.object;
     if (!object) return null;
@@ -1221,7 +1248,7 @@ export class ValueLogScene {
     material.emissiveIntensity = 0.28;
   }
 
-  private buildEntry(personId: string, roleHint?: string): IovValueLogEntry {
+  private buildEntry(personId: string, roleHint: string): IovValueLogEntry {
     const outcome = this.outcome;
     const startIso = toIsoOrNow(this.draft.startTime);
     const endIso = toIsoOrNow(this.draft.endTime);
@@ -1251,7 +1278,7 @@ export class ValueLogScene {
         "~~Attribution": {
           "~~~Community": this.draft.community,
           "~~~Project": this.draft.project,
-          "~~~ContributorRole": roleHint ?? this.draft.contributorRole,
+          "~~~ContributorRole": roleHint || this.draft.contributorRole,
         },
         "~~Integrity": {
           "~~~ProofQuality": this.draft.proofQuality,

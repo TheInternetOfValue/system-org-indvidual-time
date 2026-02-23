@@ -1,6 +1,6 @@
 import type { RegionId } from "./IovTopologyScene";
 
-export type SemanticZoomLevel = "topology" | "block" | "person" | "valuelog";
+export type SemanticZoomLevel = "topology" | "block" | "person" | "valuelog" | "impact";
 
 export interface SemanticZoomState {
   level: SemanticZoomLevel;
@@ -20,6 +20,7 @@ export type SemanticZoomEvent =
   | { type: "OPEN_BLOCK" }
   | { type: "OPEN_PERSON"; personId: string }
   | { type: "OPEN_VALUELOG" }
+  | { type: "OPEN_IMPACT" }
   | { type: "NAV_BACK" }
   | { type: "SET_LEVEL"; level: SemanticZoomLevel };
 
@@ -97,8 +98,34 @@ export class IovSemanticZoomController {
           },
         };
         return this.state;
+      
+      case "OPEN_IMPACT":
+        if (prev.level !== "valuelog") return prev;
+        this.state = {
+          ...prev,
+          level: "impact",
+          transition: {
+            from: "valuelog",
+            to: "impact",
+            startedAt: now(),
+          },
+        };
+        return this.state;
 
       case "NAV_BACK":
+        if (prev.level === "impact") {
+          // If in impact, back goes to person (skipping valuelog creation)
+          this.state = {
+            ...prev,
+            level: "person",
+            transition: {
+                from: "impact",
+                to: "person",
+                startedAt: now(),
+            }
+          };
+          return this.state;
+        }
         if (prev.level === "valuelog") {
           this.state = {
             ...prev,

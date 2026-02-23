@@ -24,6 +24,7 @@ import {
   PersonIdentityScene,
   type PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
+import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
 import {
   ValueLogScene,
   WIZARD_STEP_ORDER,
@@ -44,6 +45,7 @@ import {
 import {
   DEFAULT_IOV_VALUELOGS,
   type IovValueLogEntry,
+  type IovTimeLogEntry,
   loadIovValuelogs,
   resolvePersonValuelogs,
 } from "@/game/iov/iovTimelogs";
@@ -64,6 +66,7 @@ const IovTopologyCanvas = () => {
   const sceneRef = useRef<IovTopologyScene | null>(null);
   const blockSceneRef = useRef<BlockInteriorScene | null>(null);
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
+  const impactSceneRef = useRef<PersonImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
@@ -135,7 +138,30 @@ const IovTopologyCanvas = () => {
       },
     });
     personSceneRef.current = personScene;
-    const valueLogScene = new ValueLogScene(renderer.domElement);
+    
+    // Impact Scene - Visualization only, no interaction
+    const impactScene = new PersonImpactScene();
+    impactSceneRef.current = impactScene;
+
+    const onImpactComplete = () => {
+        applySemanticTransition("person");
+        // Also update local state to reflect new log? 
+        // Ideally we'd append the log to PersonIdentityScene here
+    };
+
+    const valueLogScene = new ValueLogScene(renderer.domElement, (outcome) => {
+        // When Value Log is committed:
+        if (impactSceneRef.current && valueLogSceneRef.current) {
+            semanticLevelRef.current = "impact";
+            // Get the draft directly to pass to impact
+            // Note: In real app we might pass the 'outcome' or full log
+            // For visual demo, the draft has the tags (Learning/Earning) we need for color
+            const draft = valueLogSceneRef.current.getDraft(); 
+            impactSceneRef.current.playImpact(draft, onImpactComplete);
+        } else {
+            onImpactComplete();
+        }
+    });
     valueLogSceneRef.current = valueLogScene;
 
     let composer: EffectComposer | null = null;
@@ -167,6 +193,7 @@ const IovTopologyCanvas = () => {
       scene.setViewportProfile(nextIsMobile);
       blockScene.setViewportProfile(nextIsMobile);
       personScene.setViewportProfile(nextIsMobile);
+      impactScene.resize(clientWidth, clientHeight);
       valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
       blockScene.resize(clientWidth, clientHeight);
@@ -212,6 +239,9 @@ const IovTopologyCanvas = () => {
           personSummaryAccumulator = 0;
           setPersonSummary(personScene.getSummary());
         }
+      } else if (semanticLevelRef.current === "impact") {
+        impactSceneRef.current?.update(delta);
+        renderer.render(impactSceneRef.current!.scene, impactSceneRef.current!.camera);
       } else {
         valueLogScene.update(delta);
         valueLogScene.render(renderer);
@@ -405,7 +435,8 @@ const IovTopologyCanvas = () => {
     );
   };
 
-  const applySemanticTransition = (level: SemanticZoomLevel) => {
+  const applySemanticTransition = (level: SemanticZoomLevel, contextData?: any) => {
+    const prevLevel = semanticLevelRef.current;
     semanticLevelRef.current = level;
     setSemanticLevel(level);
     if (level === "topology") {
@@ -418,7 +449,13 @@ const IovTopologyCanvas = () => {
       );
     } else if (level === "person") {
       setPhaseHeadline("Inspecting one person's wellbeing identity.");
+      
       personSceneRef.current?.setDetailMode("identity");
+      // Impact handled by separate scene now
+      
+    } else if (level === "impact") {
+      setPhaseHeadline("Value committed: Impact visualization.");
+      // Logic handled via handleValueLogCommit transaction flow
     } else {
       setPhaseHeadline(
         "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
@@ -543,6 +580,15 @@ const IovTopologyCanvas = () => {
 
   const handleValueLogNext = () => {
     const currentIndex = WIZARD_STEP_ORDER.indexOf(valueLogStep);
+    
+    // Check if we are at the last step (Outcome) and clicking Next implies Commit
+    if (valueLogStep === "show_outcome") {
+        // Trigger the transition to Impact Scene
+        const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
+        applySemanticTransition(next.level);
+        return;
+    }
+
     const next =
       WIZARD_STEP_ORDER[Math.min(WIZARD_STEP_ORDER.length - 1, currentIndex + 1)] ??
       valueLogStep;
@@ -567,34 +613,45 @@ const IovTopologyCanvas = () => {
   const handleValueLogCommit = () => {
     if (!selectedPersonId) return;
     const entry = valueLogSceneRef.current?.commit(selectedPersonId);
-    if (!entry) return;
+    // Grab the draft before resetting or moving on
+    const finalDraft = valueLogSceneRef.current?.getDraft();
+    if (!entry || !finalDraft) return;
     
-    // Smooth transition:
-    // 1. Commit triggers ripple in local scene (already handled by .commit())
-    // 2. Wait 1.8s for ripple to expand and fill view
-    // 3. Then transition to PersonIdentityScene
-    
-    setPhaseHeadline("Committing time slice...");
-    
-    setTimeout(() => {
+    // 1. Trigger Transition to Impact Scene
+    const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
+    applySemanticTransition("impact");
+
+    setPhaseHeadline("Committing time slice: Impact visualization...");
+
+    // 2. Start Impact Sequence
+    if (impactSceneRef.current) {
+        impactSceneRef.current.playImpact(finalDraft, () => {
+            // 3. Callback when animation finishes
+            const nextLogs = [...activePersonLogs, entry];
+            setActivePersonLogs(nextLogs);
+            
+            // Pass to PersonIdentityScene
+            personSceneRef.current?.setTimelineLogs(nextLogs);
+            
+            // Update Summaries
+            setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+            setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+            
+            // Reset wizard step for next time
+            setValueLogStep("select_time");
+            
+            // Auto-navigate back to person view using direct SET_LEVEL
+            const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+            applySemanticTransition(back.level);
+        });
+    } else {
+        // Fallback if scene ref missing
         const nextLogs = [...activePersonLogs, entry];
         setActivePersonLogs(nextLogs);
-        
-        // Pass to PersonIdentityScene
-        personSceneRef.current?.setTimelineLogs(nextLogs);
-        
-        // Update Summaries
-        setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-        setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
-        
-        // Reset wizard step for next time
         setValueLogStep("select_time");
-        
-        // Auto-navigate back to person view to see the aura update
-        const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-        applySemanticTransition(next.level);
-        setPhaseHeadline("Time slice committed: wellbeing and aura state updated.");
-    }, 1200);
+        const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+        applySemanticTransition(back.level);
+    }
   };
 
   return (

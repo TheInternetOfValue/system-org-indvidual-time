@@ -44,6 +44,7 @@ public/
 docs/
   IOV_DESIGN.md                  # Coordinate and motion notes
   IOV_SEMANTIC_ZOOM_PROJECT.md   # Living plan/status for semantic zoom expansion
+  LLM_HANDOFF_CONTEXT.md         # Current handoff brief for the next LLM
 ```
 
 ---

@@ -3,15 +3,16 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { RegionId } from "./IovTopologyScene";
 import { PersonStateEngine } from "./PersonStateEngine";
 import {
-  formatLogForCaption,
+  formatValueLogForCaption,
   type IovTimeLogEntry,
+  type WellbeingContextNode,
 } from "./iovTimelogs";
 import {
   WELLBEING_IDENTITY_LAYERS,
   type WellbeingIdentityLayer,
 } from "./wellbeingIdentityProtocol";
 
-export type PersonDetailMode = "identity" | "daily_logs";
+export type PersonDetailMode = "identity" | "valuelog";
 
 export interface PersonIdentitySummary {
   personId: string;
@@ -34,6 +35,9 @@ export interface PersonIdentitySummary {
   currentLogCaption: string;
   directImpactLayers: string[];
   derivedImpactLayers: string[];
+  wellbeingContextNode: WellbeingContextNode | null;
+  saocommonsEnabled: boolean;
+  saocommonsDomains: string[];
 }
 
 interface PersonIdentityCallbacks {
@@ -86,9 +90,13 @@ export class PersonIdentityScene {
   private readonly orbitPlaneY = 1.48;
   private lastProcessedLogCount = 0;
   private pulseEnergy = 0.1;
+  private pulseDirection: 1 | -1 = 1;
   private pulsePhase = 0;
-  private readonly directImpactLayers = ["Story", "Skills"];
-  private readonly derivedImpactLayers = ["IdentityState"];
+  private directImpactLayers: string[] = [];
+  private derivedImpactLayers: string[] = ["IdentityState"];
+  private wellbeingContextNode: WellbeingContextNode | null = null;
+  private saocommonsEnabled = false;
+  private saocommonsDomains: string[] = [];
   private readonly timelineRing = new THREE.Mesh(
     new THREE.TorusGeometry(1.36, 0.032, 10, 140),
     new THREE.MeshBasicMaterial({
@@ -165,10 +173,11 @@ export class PersonIdentityScene {
     this.stateEngine.setLogs(logs);
     this.stateEngine.play();
     const snapshot = this.stateEngine.getSnapshot();
-    this.latestCaption = formatLogForCaption(snapshot.currentLog);
+    this.latestCaption = formatValueLogForCaption(snapshot.currentLog);
     this.lastProcessedLogCount = snapshot.processedLogs;
     this.pulseEnergy = 0.14;
     this.pulsePhase = 0;
+    this.syncLogContext(snapshot.currentLog);
   }
 
   setDetailMode(mode: PersonDetailMode) {
@@ -223,6 +232,9 @@ export class PersonIdentityScene {
       currentLogCaption: this.latestCaption,
       directImpactLayers: [...this.directImpactLayers],
       derivedImpactLayers: [...this.derivedImpactLayers],
+      wellbeingContextNode: this.wellbeingContextNode,
+      saocommonsEnabled: this.saocommonsEnabled,
+      saocommonsDomains: [...this.saocommonsDomains],
     };
   }
 
@@ -516,26 +528,36 @@ export class PersonIdentityScene {
   ) {
     const time = performance.now() * 0.001;
     const strength = snapshot.auraStrength;
-    this.latestCaption = formatLogForCaption(snapshot.currentLog);
-    this.pulseEnergy = Math.max(0.04, this.pulseEnergy - deltaSeconds * 0.08);
+    this.latestCaption = formatValueLogForCaption(snapshot.currentLog);
+    this.pulseEnergy = Math.max(0.03, this.pulseEnergy - deltaSeconds * 0.08);
     this.pulsePhase += deltaSeconds * (0.42 + strength * 0.6);
+    const directionalBoost = this.pulseDirection === 1 ? this.pulseEnergy : -this.pulseEnergy * 0.55;
 
     this.fieldBands.forEach((band, index) => {
       const mat = band.material as THREE.MeshBasicMaterial;
       const baseOpacity = (band.userData.baseOpacity as number | undefined) ?? 0.05;
       const breathing = Math.sin(time * (0.6 + index * 0.2) + index) * 0.014;
-      mat.opacity = baseOpacity + strength * 0.12 + this.pulseEnergy * 0.28 + breathing;
+      mat.opacity = Math.max(
+        0.012,
+        baseOpacity + strength * 0.12 + directionalBoost * 0.28 + breathing
+      );
       band.rotation.z += deltaSeconds * ((band.userData.spin as number | undefined) ?? 0.02);
     });
 
     this.pulseWaves.forEach((wave) => {
       const offset = (wave.userData.offset as number | undefined) ?? 0;
       const progress = (this.pulsePhase + offset) % 1;
-      const scale = 0.95 + progress * 5.6;
+      const scale =
+        this.pulseDirection === 1
+          ? 0.95 + progress * 5.6
+          : 1.45 - progress * 0.6;
       wave.scale.setScalar(scale);
       const mat = wave.material as THREE.MeshBasicMaterial;
       const envelope = Math.max(0, 1 - progress);
-      mat.opacity = envelope * (0.08 + this.pulseEnergy * 0.85);
+      mat.opacity =
+        this.pulseDirection === 1
+          ? envelope * (0.08 + this.pulseEnergy * 0.85)
+          : envelope * (0.04 + this.pulseEnergy * 0.32);
     });
   }
 
@@ -543,15 +565,20 @@ export class PersonIdentityScene {
     deltaSeconds: number,
     snapshot: ReturnType<PersonStateEngine["getSnapshot"]>
   ) {
-    const directKeys = new Set(["story", "skills"]);
-    const derivedKeys = new Set(["identity_state"]);
+    const toLayerKey = (label: string) =>
+      label
+        .replace(/([a-z])([A-Z])/g, "$1_$2")
+        .replace(/\s+/g, "_")
+        .toLowerCase();
+    const directKeys = new Set(this.directImpactLayers.map(toLayerKey));
+    const derivedKeys = new Set(this.derivedImpactLayers.map(toLayerKey));
     const activityImpact = this.extractActivityImpact(snapshot.currentLog);
 
     this.layerRings.forEach((ringNode) => {
       const material = ringNode.mesh.material as THREE.MeshBasicMaterial;
       const isDirect = directKeys.has(ringNode.key);
       const isDerived = derivedKeys.has(ringNode.key);
-      const baseline = this.personViewMode === "daily_logs" ? 0.42 : 0.65;
+      const baseline = this.personViewMode === "valuelog" ? 0.42 : 0.65;
       const boost = isDirect
         ? 0.16 + activityImpact * 0.32 + this.pulseEnergy * 0.22
         : isDerived
@@ -605,27 +632,52 @@ export class PersonIdentityScene {
     );
 
     const ringMat = this.timelineRing.material as THREE.MeshBasicMaterial;
-    const modeBoost = this.personViewMode === "daily_logs" ? 0.24 : 0;
+    const modeBoost = this.personViewMode === "valuelog" ? 0.24 : 0;
     ringMat.opacity = 0.35 + snapshot.auraStrength * 0.35 + modeBoost;
     this.timelineRing.rotation.z += deltaSeconds * 0.06;
   }
 
   private onLogAdvanced(log: IovTimeLogEntry | null) {
-    const impact = this.extractActivityImpact(log);
+    this.syncLogContext(log);
+    const impact = Math.abs(this.extractActivityImpact(log));
     // Log events inject new outward energy into the orbit field.
     this.pulseEnergy = Math.min(1.35, 0.2 + impact * 0.95);
+    this.pulseDirection = this.extractActivityImpact(log) >= 0 ? 1 : -1;
     this.pulsePhase = 0;
   }
 
   private extractActivityImpact(log: IovTimeLogEntry | null) {
     if (!log) return 0.4;
-    const perf = log["~WellbeingProtocol"]["~~Performance"];
-    const aggregate =
-      (perf["~~~LearningOutput"] +
-        perf["~~~EarningOutput"] +
-        perf["~~~OrgBuildingOutput"]) /
-      3;
-    return Math.min(1, Math.max(0.1, aggregate));
+    const context = log["~WellbeingProtocol"]["~~Context"];
+    const base = Math.min(1, Math.max(0.1, context["~~~SignalScore"]));
+    if (context["~~~ImpactDirection"] === "decrease") return -base;
+    if (context["~~~ImpactDirection"] === "neutral") return 0.1;
+    return base;
+  }
+
+  private syncLogContext(log: IovTimeLogEntry | null) {
+    if (!log) {
+      this.wellbeingContextNode = null;
+      this.saocommonsEnabled = false;
+      this.saocommonsDomains = [];
+      this.directImpactLayers = [];
+      this.derivedImpactLayers = ["IdentityState"];
+      return;
+    }
+
+    const context = log["~WellbeingProtocol"]["~~Context"];
+    const activation = log["~SAOcommons"]["~~Activation"];
+    this.wellbeingContextNode = context["~~~PrimaryNode"];
+    this.saocommonsEnabled = activation["~~~Enabled"];
+    this.saocommonsDomains = activation["~~~Domains"].map((domain) => domain.replace("~~", ""));
+
+    if (context["~~~PrimaryNode"] === "~~Performance") {
+      this.directImpactLayers = ["Story", "Skills"];
+      this.derivedImpactLayers = ["IdentityState"];
+    } else {
+      this.directImpactLayers = [];
+      this.derivedImpactLayers = ["IdentityState"];
+    }
   }
 
   private updateHover() {
@@ -651,7 +703,7 @@ export class PersonIdentityScene {
   }
 
   private applyModeVisualState() {
-    const isDailyLogs = this.personViewMode === "daily_logs";
+    const isDailyLogs = this.personViewMode === "valuelog";
 
     // Mobile keeps labels available in Identity mode through panel rail;
     // in-scene labels are shown only when there is enough viewport room.

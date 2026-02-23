@@ -85,13 +85,37 @@ export class PersonStateEngine {
     if (!log) return;
 
     const hint = log._engine;
-    const perf = log["~WellbeingProtocol"]["~~Performance"];
-    const computedDelta =
-      ((perf["~~~LearningOutput"] + perf["~~~EarningOutput"] + perf["~~~OrgBuildingOutput"]) / 3) *
-        0.015 +
-      (log["~SAOcommons"]["~~Validation"]["~~~ValidationDecision"] === "approved" ? 0.006 : -0.004);
+    const context = log["~WellbeingProtocol"]["~~Context"];
+    const signalScore = context["~~~SignalScore"];
+    const direction =
+      context["~~~ImpactDirection"] === "decrease"
+        ? -1
+        : context["~~~ImpactDirection"] === "neutral"
+          ? 0
+          : 1;
+
+    let computedDelta = direction * ((signalScore - 0.5) * 0.035);
+    if (context["~~~PrimaryNode"] === "~~Performance") {
+      const perf = log["~WellbeingProtocol"]["~~Performance"];
+      if (perf) {
+        const perfScore =
+          (perf["~~~LearningOutput"] +
+            perf["~~~EarningOutput"] +
+            perf["~~~OrgBuildingOutput"]) /
+          3;
+        computedDelta += (perfScore - 0.5) * 0.024;
+      }
+
+      const activation = log["~SAOcommons"]["~~Activation"];
+      const validation = log["~SAOcommons"]["~~Validation"];
+      if (activation["~~~Enabled"]) {
+        computedDelta +=
+          validation?.["~~~ValidationDecision"] === "approved" ? 0.006 : -0.004;
+      }
+    }
+
     const delta = hint?.wellbeing_delta ?? computedDelta;
-    const auraDelta = hint?.aura_delta ?? Math.max(-0.02, delta * 1.8);
+    const auraDelta = hint?.aura_delta ?? Math.max(-0.06, Math.min(0.06, delta * 2.2));
 
     this.wellbeingScore = clamp01(this.wellbeingScore + delta);
     this.auraStrength = clamp01(0.32 + this.wellbeingScore * 0.66 + auraDelta * 0.3);

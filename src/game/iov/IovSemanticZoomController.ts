@@ -1,6 +1,6 @@
 import type { RegionId } from "./IovTopologyScene";
 
-export type SemanticZoomLevel = "topology" | "block" | "person";
+export type SemanticZoomLevel = "topology" | "block" | "person" | "valuelog";
 
 export interface SemanticZoomState {
   level: SemanticZoomLevel;
@@ -19,6 +19,7 @@ export type SemanticZoomEvent =
   | { type: "CLEAR_BRICK_SELECTION" }
   | { type: "OPEN_BLOCK" }
   | { type: "OPEN_PERSON"; personId: string }
+  | { type: "OPEN_VALUELOG" }
   | { type: "NAV_BACK" }
   | { type: "SET_LEVEL"; level: SemanticZoomLevel };
 
@@ -84,7 +85,32 @@ export class IovSemanticZoomController {
         };
         return this.state;
 
+      case "OPEN_VALUELOG":
+        if (prev.level !== "person") return prev;
+        this.state = {
+          ...prev,
+          level: "valuelog",
+          transition: {
+            from: "person",
+            to: "valuelog",
+            startedAt: now(),
+          },
+        };
+        return this.state;
+
       case "NAV_BACK":
+        if (prev.level === "valuelog") {
+          this.state = {
+            ...prev,
+            level: "person",
+            transition: {
+              from: "valuelog",
+              to: "person",
+              startedAt: now(),
+            },
+          };
+          return this.state;
+        }
         if (prev.level === "person") {
           this.state = {
             ...prev,
@@ -133,19 +159,29 @@ export class IovSemanticZoomController {
 
 export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
   const items: Array<{ level: SemanticZoomLevel; label: string; active: boolean }> = [
-    { level: "topology", label: "Topology", active: state.level === "topology" },
+    { level: "topology", label: "System", active: state.level === "topology" },
   ];
 
-  if (state.level === "block" || state.level === "person") {
+  if (state.level === "block" || state.level === "person" || state.level === "valuelog") {
     const label =
-      state.selectedBrickId !== null ? `Brick #${state.selectedBrickId + 1}` : "Brick";
+      state.selectedBrickId !== null
+        ? `Organization #${state.selectedBrickId + 1}`
+        : "Organization";
     items.push({ level: "block", label, active: state.level === "block" });
   }
 
-  if (state.level === "person") {
+  if (state.level === "person" || state.level === "valuelog") {
     items.push({
       level: "person",
-      label: state.selectedPersonId ?? "Person",
+      label: "Person",
+      active: state.level === "person",
+    });
+  }
+
+  if (state.level === "valuelog") {
+    items.push({
+      level: "valuelog",
+      label: "Time Slice",
       active: true,
     });
   }

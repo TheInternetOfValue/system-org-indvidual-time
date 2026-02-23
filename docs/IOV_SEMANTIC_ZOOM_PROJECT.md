@@ -1,5 +1,8 @@
 # IoV Semantic Zoom Project (Living Document)
 
+Handoff companion:
+- `docs/LLM_HANDOFF_CONTEXT.md` (plain-language transfer brief for next LLM, including known UX failures and required next-pass contract)
+
 ## Purpose
 Build the next narrative layer of the Internet of Value experience through semantic zoom:
 
@@ -48,7 +51,7 @@ Narrative chain:
   - Back actions from each deep level.
 - Keep person-level composition split into two state bands:
   - `Identity Band` (slow-changing): GivenIdentity, EarnedIdentity, RentedIdentity, MoralCompass, Story, Skills, IdentityState, ConsentAndDisclosure.
-  - `TimeLog Band` (fast-changing): `~ValueCaptureProtocol -> ~WellbeingProtocol -> ~SAOcommons` entries replayed as a timeline.
+  - `ValueLog Band` (fast-changing): `~ValueCaptureProtocol -> ~WellbeingProtocol -> ~SAOcommons` entries replayed as a timeline.
 
 ## Delivery Phases
 
@@ -192,15 +195,15 @@ Status: `in_progress`
 - Map person profile -> identity attributes.
 - Add schema/type guards + fallback behavior.
 - Add deterministic linkage:
-  - selected person -> resolved protocol timelog stream
-  - timelog replay -> wellbeing delta -> aura delta
+  - selected person -> resolved protocol ValueLog stream
+  - ValueLog replay -> wellbeing delta -> aura delta
 
 #### Phase 4 Progress (current pass)
 - Added canonical protocol vocabulary module for evolution layer:
   - `src/game/iov/iovProtocolVocabulary.ts`
   - mirrors `~ValueCaptureProtocol`, `~WellbeingProtocol`, `~SAOcommons` from spec lock.
 - Added timeline data source:
-  - `public/data/iov_timelogs.json`
+  - `public/data/iov_valuelogs.json` (preferred) with fallback to `public/data/iov_timelogs.json`.
   - uses canonical protocol keys with profile-level logs and person override (`Trader-13`).
 - Added timeline loader + resolver:
   - `src/game/iov/iovTimelogs.ts`
@@ -225,11 +228,11 @@ Status: `in_progress`
 #### Phase 5 Progress (current pass)
 - Added person sub-mode split in UI:
   - `Identity` mode for stable identity layers.
-  - `Daily Logs` mode for canonical protocol replay inspection.
+  - `ValueLog` mode for canonical protocol replay inspection.
 - Added mobile-safe person controls:
   - quick row for mode/play/next-log actions.
   - horizontal identity-layer rail so labels remain visible on phones.
-- Added explicit protocol chain visibility in panel (Daily Logs mode):
+- Added explicit protocol chain visibility in panel (ValueLog mode):
   - `~ValueCaptureProtocol`
   - `~WellbeingProtocol`
   - `~SAOcommons`
@@ -237,6 +240,64 @@ Status: `in_progress`
   - play/pause
   - next-log step
   - playback speed presets.
+
+#### Phase 5 Progress (latest)
+- Split `person` and `valuelog` into distinct semantic levels:
+  - `person` renders identity-orbit scene.
+  - `valuelog` renders a separate pipeline scene.
+- Added dedicated ValueLog pipeline module:
+  - `src/game/iov/ValueLogScene.ts`
+  - visual stages: `TimeSlice -> ValueCapture -> Wellbeing -> SAOcommons -> Outcome`.
+- Added stepwise ValueLog composer in panel:
+  - 1) time slice
+  - 2) value capture
+  - 3) wellbeing context
+  - 4) performance tags (L/E/O, gated by `~~Performance`)
+  - 5) compute deltas
+  - 6) commit ValueLog.
+- Added canonical context/activation fields in value log entries:
+  - `~WellbeingProtocol.~~Context`
+  - `~SAOcommons.~~Activation`.
+- Build is currently passing (`npm run build`).
+
+#### Phase 5 Progress (clock + vocabulary pass)
+- Renamed semantic breadcrumb vocabulary for narrative clarity:
+  - `Topology -> System`
+  - `Brick -> Organization`
+  - `Person -> Person`
+  - `ValueLog -> Time Slice`
+- Replaced ValueLog lane scene with a clock-centered Time Slice scene:
+  - explicit start/end hands
+  - highlighted time-slice arc
+  - moving token along selected slice
+  - wellbeing node ring (`~~Physiology..~~Performance`)
+  - conditional SAO domains (`~~Learning/~~Earning/~~OrgBuilding`) when Performance is active
+  - outward aura bands that react to delta sign/magnitude.
+- Updated panel copy to match the new vocabulary:
+  - `Open Time Slice`
+  - `Time Slice Composer`
+  - `Commit Time Slice`.
+
+#### Phase 5 Progress (interaction-led reveal pass)
+- Time Slice scene now reveals by step instead of showing all layers at once:
+  - `time_slice/value_capture`: clock + slice only
+  - `wellbeing_context`: wellbeing nodes only
+  - `performance_tags`: SAO domains only when `~~Performance` is selected
+  - `compute/commit`: outcome bars + aura bands.
+- Added step-based camera framing so each step focuses on the active decision area.
+- Removed center semantic overlay card while in Time Slice mode to reduce visual conflict with composer UI.
+
+#### Phase 5 Progress (direct manipulation pass)
+- Added direct in-scene interaction for Time Slice scene:
+  - click clock dial to advance from slice selection into context stage
+  - click wellbeing context nodes to set `~~Context` and auto-route to next relevant stage
+  - click `~~Learning/~~Earning/~~OrgBuilding` nodes to toggle SAO tags in Performance mode.
+- Added `OrbitControls` to Time Slice scene:
+  - pan/orbit/zoom now works like other semantic levels.
+- Reduced in-scene clutter:
+  - hidden large stage labels
+  - smaller node labels
+  - panel guidance updated (`Next/Prev optional`).
 
 ## Initial Task Breakdown (Actionable)
 1. Create semantic zoom state model and event list.
@@ -300,13 +361,13 @@ After each implementation pass:
 - 2026-02-22: Phase 2 completed with `BlockInteriorScene`, instanced people, hover/select interactions, and block summary panel wiring.
 - 2026-02-22: Phase 2 refinement completed with Inspect/Reclaim click mode split, mobile-visible Open Brick action, and stylized humanoid people visuals.
 - 2026-02-22: Phase 3 completed with orbit/aura-based `PersonIdentityScene` and canonical wellbeing-identity vocabulary integration.
-- 2026-02-22: Phase 4 started with canonical protocol vocabulary, `iov_timelogs.json`, person-state timeline engine, and aura evolution wiring.
+- 2026-02-22: Phase 4 started with canonical protocol vocabulary, `iov_valuelogs.json` (fallback `iov_timelogs.json`), person-state timeline engine, and aura evolution wiring.
 - 2026-02-22: Project model explicitly aligned to "system -> brick -> people -> person identity -> daily protocol logs" narrative with clear slow-vs-fast state separation.
-- 2026-02-22: Added person-mode `Identity | Daily Logs` split, mobile layer rail, explicit canonical protocol cards, and timeline playback controls for auditable breathing-layer evolution.
+- 2026-02-22: Added person/value split with separate `ValueLog` semantic level, explicit canonical protocol cards, and timeline playback controls for auditable breathing-layer evolution.
 - 2026-02-22: Reworked person aura from center sphere pulse to orbit-field pulse bands/waves; daily logs now explicitly drive Story/Skills (direct) and IdentityState (derived) in the panel narrative.
 
 ## Next Up
-1. Add `public/data/iov_people.json` to bind canonical identity attributes per person (stable band) without mixing timelog state.
+1. Add `public/data/iov_people.json` to bind canonical identity attributes per person (stable band) without mixing ValueLog state.
 2. Replace mobile person overlay card with compact anchored variant so controls do not occlude the avatar/orbit center.
 3. Add per-log drilldown depth:
    expandable sections for `~~TimeSlice`, `~~Activity`, `~~Proof`, `~~Validation`.

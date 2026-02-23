@@ -1,6 +1,14 @@
 import type { RegionId } from "./IovTopologyScene";
 import { IOV_PROTOCOL_VOCABULARY } from "./iovProtocolVocabulary";
 
+export type WellbeingContextNode =
+  | "~~Physiology"
+  | "~~Emotion"
+  | "~~Feeling"
+  | "~~Thought"
+  | "~~Habit"
+  | "~~Performance";
+
 interface TimeSliceNode {
   "~~~StartTime": string;
   "~~~EndTime": string;
@@ -31,6 +39,13 @@ interface IntegrityNode {
   "~~~FraudRiskSignal": number;
 }
 
+interface WellbeingContextNodeData {
+  "~~~PrimaryNode": WellbeingContextNode;
+  "~~~SignalLabel": string;
+  "~~~SignalScore": number;
+  "~~~ImpactDirection": "increase" | "decrease" | "neutral";
+}
+
 interface PerformanceNode {
   "~~~LearningOutput": number;
   "~~~EarningOutput": number;
@@ -39,18 +54,24 @@ interface PerformanceNode {
   "~~~CommunityContext": string;
 }
 
+interface SaocommonsActivationNode {
+  "~~~Enabled": boolean;
+  "~~~Trigger": "~~Performance" | "non-performance";
+  "~~~Domains": Array<"~~Learning" | "~~Earning" | "~~OrgBuilding">;
+}
+
 interface SaocommonsValidationNode {
   "~~~EvidenceReview": string;
   "~~~ReviewerSet": string;
   "~~~ValidationDecision": string;
 }
 
-interface TimeLogEngineHints {
+interface ValueLogEngineHints {
   wellbeing_delta: number;
   aura_delta: number;
 }
 
-export interface IovTimeLogEntry {
+export interface IovValueLogEntry {
   id: string;
   timestamp: string;
   "~ValueCaptureProtocol": {
@@ -61,28 +82,34 @@ export interface IovTimeLogEntry {
     "~~Integrity": IntegrityNode;
   };
   "~WellbeingProtocol": {
-    "~~Performance": PerformanceNode;
+    "~~Context": WellbeingContextNodeData;
+    "~~Performance"?: PerformanceNode;
   };
   "~SAOcommons": {
-    "~~Validation": SaocommonsValidationNode;
+    "~~Activation": SaocommonsActivationNode;
+    "~~Validation"?: SaocommonsValidationNode;
   };
-  "_engine"?: TimeLogEngineHints;
+  "_engine"?: ValueLogEngineHints;
 }
 
-export interface IovTimelogDataset {
+export type IovTimeLogEntry = IovValueLogEntry;
+
+export interface IovValuelogDataset {
   version: string;
   units: string;
   notes: {
     sources: string[];
     last_updated: string | null;
   };
-  profiles: Record<string, IovTimeLogEntry[]>;
-  overrides: Record<string, IovTimeLogEntry[]>;
+  profiles: Record<string, IovValueLogEntry[]>;
+  overrides: Record<string, IovValueLogEntry[]>;
 }
 
-export const DEFAULT_IOV_TIMELOGS: IovTimelogDataset = {
-  version: "0.1.0",
-  units: "daily_logs",
+export type IovTimelogDataset = IovValuelogDataset;
+
+export const DEFAULT_IOV_VALUELOGS: IovValuelogDataset = {
+  version: "0.2.0",
+  units: "value_logs",
   notes: {
     sources: [],
     last_updated: null,
@@ -91,14 +118,19 @@ export const DEFAULT_IOV_TIMELOGS: IovTimelogDataset = {
   overrides: {},
 };
 
-export const loadIovTimelogs = async (): Promise<IovTimelogDataset> => {
+export const DEFAULT_IOV_TIMELOGS = DEFAULT_IOV_VALUELOGS;
+
+export const loadIovValuelogs = async (): Promise<IovValuelogDataset> => {
   try {
-    const response = await fetch("/data/iov_timelogs.json", { cache: "no-store" });
-    if (!response.ok) return DEFAULT_IOV_TIMELOGS;
-    const raw = (await response.json()) as Partial<IovTimelogDataset>;
+    let response = await fetch("/data/iov_valuelogs.json", { cache: "no-store" });
+    if (!response.ok) {
+      response = await fetch("/data/iov_timelogs.json", { cache: "no-store" });
+    }
+    if (!response.ok) return DEFAULT_IOV_VALUELOGS;
+    const raw = (await response.json()) as Partial<IovValuelogDataset>;
     return {
-      version: raw.version ?? DEFAULT_IOV_TIMELOGS.version,
-      units: raw.units ?? DEFAULT_IOV_TIMELOGS.units,
+      version: raw.version ?? DEFAULT_IOV_VALUELOGS.version,
+      units: raw.units ?? DEFAULT_IOV_VALUELOGS.units,
       notes: {
         sources: Array.isArray(raw.notes?.sources) ? raw.notes.sources : [],
         last_updated: raw.notes?.last_updated ?? null,
@@ -107,16 +139,18 @@ export const loadIovTimelogs = async (): Promise<IovTimelogDataset> => {
       overrides: raw.overrides ?? {},
     };
   } catch {
-    return DEFAULT_IOV_TIMELOGS;
+    return DEFAULT_IOV_VALUELOGS;
   }
 };
 
-export const resolvePersonTimelogs = (
-  dataset: IovTimelogDataset,
+export const loadIovTimelogs = loadIovValuelogs;
+
+export const resolvePersonValuelogs = (
+  dataset: IovValuelogDataset,
   personId: string | null,
   regionId: RegionId
 ) => {
-  if (!personId) return generateFallbackTimelogs(regionId);
+  if (!personId) return generateFallbackValuelogs(regionId);
   const direct = dataset.overrides[personId];
   if (direct?.length) return direct;
 
@@ -129,10 +163,12 @@ export const resolvePersonTimelogs = (
     }));
   }
 
-  return generateFallbackTimelogs(regionId);
+  return generateFallbackValuelogs(regionId);
 };
 
-const generateFallbackTimelogs = (regionId: RegionId): IovTimeLogEntry[] => {
+export const resolvePersonTimelogs = resolvePersonValuelogs;
+
+const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
   const roleByRegion: Record<RegionId, string> = {
     market: "Trader",
     state: "Civil Servant",
@@ -140,13 +176,16 @@ const generateFallbackTimelogs = (regionId: RegionId): IovTimeLogEntry[] => {
     crony_bridge: "Advisor",
   };
   const role = roleByRegion[regionId];
-  const baseDate = new Date("2026-02-01T08:00:00Z");
-  const logs: IovTimeLogEntry[] = [];
+  const baseDate = new Date("2026-02-01T06:00:00Z");
+  const logs: IovValueLogEntry[] = [];
 
   for (let i = 0; i < 5; i += 1) {
     const start = new Date(baseDate.getTime() + i * 86400000);
-    const end = new Date(start.getTime() + 2 * 3600000);
+    const isPerformance = i % 2 === 1;
+    const durationHours = isPerformance ? 2.5 : 8;
+    const end = new Date(start.getTime() + durationHours * 3600000);
     const linkId = `fallback-${regionId}-${i + 1}`;
+
     logs.push({
       id: `${linkId}`,
       timestamp: start.toISOString(),
@@ -154,17 +193,21 @@ const generateFallbackTimelogs = (regionId: RegionId): IovTimeLogEntry[] => {
         "~~TimeSlice": {
           "~~~StartTime": start.toISOString(),
           "~~~EndTime": end.toISOString(),
-          "~~~Duration": 2,
+          "~~~Duration": durationHours,
         },
         "~~Activity": {
-          "~~~ActivityLabel": `${role} contribution`,
-          "~~~TaskType": "daily-log",
-          "~~~Intent": "value-creation",
+          "~~~ActivityLabel": isPerformance
+            ? `${role} protocol delivery`
+            : `${role} recovery sleep`,
+          "~~~TaskType": isPerformance ? "delivery" : "sleep",
+          "~~~Intent": isPerformance ? "value-creation" : "recovery",
         },
         "~~Proof": {
-          "~~~ProofOfActivity": "Submitted validated work log",
+          "~~~ProofOfActivity": isPerformance
+            ? "Submitted output artifact"
+            : "Sleep score from wearable",
           "~~~EvidenceLink": `proof://${linkId}`,
-          "~~~ArtifactType": "worklog",
+          "~~~ArtifactType": isPerformance ? "output" : "sleep-metric",
         },
         "~~Attribution": {
           "~~~Community": "IOV Commons",
@@ -172,30 +215,49 @@ const generateFallbackTimelogs = (regionId: RegionId): IovTimeLogEntry[] => {
           "~~~ContributorRole": role,
         },
         "~~Integrity": {
-          "~~~ProofQuality": 0.72 + i * 0.04,
+          "~~~ProofQuality": 0.72 + i * 0.03,
           "~~~AnomalyFlag": false,
           "~~~FraudRiskSignal": 0.08,
         },
       },
       "~WellbeingProtocol": {
-        "~~Performance": {
-          "~~~LearningOutput": 0.58 + i * 0.03,
-          "~~~EarningOutput": 0.46 + i * 0.04,
-          "~~~OrgBuildingOutput": 0.52 + i * 0.05,
-          "~~~SkillApplication": "Protocol modeling",
-          "~~~CommunityContext": "Collaborative delivery",
+        "~~Context": {
+          "~~~PrimaryNode": isPerformance ? "~~Performance" : "~~Physiology",
+          "~~~SignalLabel": isPerformance ? "Work quality" : "Sleep score",
+          "~~~SignalScore": isPerformance ? 0.66 + i * 0.03 : 0.58 + i * 0.04,
+          "~~~ImpactDirection": isPerformance ? "increase" : i === 0 ? "decrease" : "increase",
         },
+        ...(isPerformance
+          ? {
+              "~~Performance": {
+                "~~~LearningOutput": 0.58 + i * 0.03,
+                "~~~EarningOutput": 0.46 + i * 0.04,
+                "~~~OrgBuildingOutput": 0.52 + i * 0.05,
+                "~~~SkillApplication": "Systems modeling",
+                "~~~CommunityContext": "Collaborative delivery",
+              },
+            }
+          : {}),
       },
       "~SAOcommons": {
-        "~~Validation": {
-          "~~~EvidenceReview": "peer-reviewed",
-          "~~~ReviewerSet": "3-members",
-          "~~~ValidationDecision": "approved",
+        "~~Activation": {
+          "~~~Enabled": isPerformance,
+          "~~~Trigger": isPerformance ? "~~Performance" : "non-performance",
+          "~~~Domains": isPerformance ? ["~~Learning", "~~Earning"] : [],
         },
+        ...(isPerformance
+          ? {
+              "~~Validation": {
+                "~~~EvidenceReview": "peer-reviewed",
+                "~~~ReviewerSet": "3-members",
+                "~~~ValidationDecision": "approved",
+              },
+            }
+          : {}),
       },
       _engine: {
-        wellbeing_delta: 0.012 + i * 0.003,
-        aura_delta: 0.02 + i * 0.004,
+        wellbeing_delta: isPerformance ? 0.013 + i * 0.003 : i === 0 ? -0.02 : 0.008,
+        aura_delta: isPerformance ? 0.022 + i * 0.004 : i === 0 ? -0.03 : 0.012,
       },
     });
   }
@@ -203,15 +265,17 @@ const generateFallbackTimelogs = (regionId: RegionId): IovTimeLogEntry[] => {
   return logs;
 };
 
-export const formatLogForCaption = (log: IovTimeLogEntry | null) => {
-  if (!log) return "No active log";
+export const formatValueLogForCaption = (log: IovValueLogEntry | null) => {
+  if (!log) return "No active value log";
   const activity = log["~ValueCaptureProtocol"]["~~Activity"]["~~~ActivityLabel"];
-  const learning = log["~WellbeingProtocol"]["~~Performance"]["~~~LearningOutput"];
-  const earning = log["~WellbeingProtocol"]["~~Performance"]["~~~EarningOutput"];
-  const org = log["~WellbeingProtocol"]["~~Performance"]["~~~OrgBuildingOutput"];
+  const node = log["~WellbeingProtocol"]["~~Context"]["~~~PrimaryNode"].replace("~~", "");
+  const score = log["~WellbeingProtocol"]["~~Context"]["~~~SignalScore"];
+  const enabled = log["~SAOcommons"]["~~Activation"]["~~~Enabled"];
 
-  return `${activity} | L:${learning.toFixed(2)} E:${earning.toFixed(2)} O:${org.toFixed(2)}`;
+  return `${activity} | WB:${node}(${score.toFixed(2)}) | SAO:${enabled ? "on" : "off"}`;
 };
+
+export const formatLogForCaption = formatValueLogForCaption;
 
 export const protocolPathsForLegend = () => [
   IOV_PROTOCOL_VOCABULARY.valueCapture.l1,

@@ -1,0 +1,244 @@
+{
+  "version": "0.2.0",
+  "units": "value_logs",
+  "notes": {
+    "sources": [
+      "the-internet-of-value-spec/specs/protocols/value-capture/spec.md",
+      "the-internet-of-value-spec/specs/protocols/wellbeing/spec.md",
+      "the-internet-of-value-spec/specs/protocols/saocommons/spec.md"
+    ],
+    "last_updated": "2026-02-22"
+  },
+  "profiles": {
+    "Trader": [
+      {
+        "id": "trader-sleep-1",
+        "timestamp": "2026-02-21T22:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-21T22:00:00Z",
+            "~~~EndTime": "2026-02-22T06:00:00Z",
+            "~~~Duration": 8
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Sleep recovery block",
+            "~~~TaskType": "sleep",
+            "~~~Intent": "recovery"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Wearable sleep score",
+            "~~~EvidenceLink": "proof://trader/sleep/2026-02-21",
+            "~~~ArtifactType": "sleep-score"
+          },
+          "~~Attribution": {
+            "~~~Community": "Self",
+            "~~~Project": "Personal Recovery",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.84,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.02
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Physiology",
+            "~~~SignalLabel": "Sleep score",
+            "~~~SignalScore": 0.41,
+            "~~~ImpactDirection": "decrease"
+          }
+        },
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": false,
+            "~~~Trigger": "non-performance",
+            "~~~Domains": []
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": -0.018,
+          "aura_delta": -0.026
+        }
+      },
+      {
+        "id": "trader-work-2",
+        "timestamp": "2026-02-22T10:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-22T10:00:00Z",
+            "~~~EndTime": "2026-02-22T11:30:00Z",
+            "~~~Duration": 1.5
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Visualized Internet of Value protocol stack",
+            "~~~TaskType": "protocol-visualization",
+            "~~~Intent": "clarity-and-shared-understanding"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Rendered scene + design notes",
+            "~~~EvidenceLink": "proof://trader/work/2026-02-22",
+            "~~~ArtifactType": "scene-output"
+          },
+          "~~Attribution": {
+            "~~~Community": "GrowthFlow Engineering",
+            "~~~Project": "IOV Visualization",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.89,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.03
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Performance",
+            "~~~SignalLabel": "Business growth skill execution",
+            "~~~SignalScore": 0.78,
+            "~~~ImpactDirection": "increase"
+          },
+          "~~Performance": {
+            "~~~LearningOutput": 0.76,
+            "~~~EarningOutput": 0.64,
+            "~~~OrgBuildingOutput": 0.58,
+            "~~~SkillApplication": "Business Growth",
+            "~~~CommunityContext": "GrowthFlow Engineering"
+          }
+        },
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": true,
+            "~~~Trigger": "~~Performance",
+            "~~~Domains": ["~~Learning", "~~Earning"]
+          },
+          "~~Validation": {
+            "~~~EvidenceReview": "peer-reviewed",
+            "~~~ReviewerSet": "gfe-review-3",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.024,
+          "aura_delta": 0.035
+        }
+      }
+    ]
+  },
+  "overrides": {
+    "Trader-17": [
+      {
+        "id": "trader17-sleep",
+        "timestamp": "2026-02-21T22:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-21T22:00:00Z",
+            "~~~EndTime": "2026-02-22T06:00:00Z",
+            "~~~Duration": 8
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Sleep block",
+            "~~~TaskType": "sleep",
+            "~~~Intent": "recovery"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Sleep score export",
+            "~~~EvidenceLink": "proof://trader17/sleep",
+            "~~~ArtifactType": "sleep-score"
+          },
+          "~~Attribution": {
+            "~~~Community": "Self",
+            "~~~Project": "Recovery",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.8,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.02
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Physiology",
+            "~~~SignalLabel": "Sleep score",
+            "~~~SignalScore": 0.45,
+            "~~~ImpactDirection": "decrease"
+          }
+        },
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": false,
+            "~~~Trigger": "non-performance",
+            "~~~Domains": []
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": -0.016,
+          "aura_delta": -0.02
+        }
+      },
+      {
+        "id": "trader17-work",
+        "timestamp": "2026-02-22T10:00:00Z",
+        "~ValueCaptureProtocol": {
+          "~~TimeSlice": {
+            "~~~StartTime": "2026-02-22T10:00:00Z",
+            "~~~EndTime": "2026-02-22T11:30:00Z",
+            "~~~Duration": 1.5
+          },
+          "~~Activity": {
+            "~~~ActivityLabel": "Visualizing IOV stack",
+            "~~~TaskType": "protocol-visualization",
+            "~~~Intent": "delivery"
+          },
+          "~~Proof": {
+            "~~~ProofOfActivity": "Output link + commit",
+            "~~~EvidenceLink": "proof://trader17/work",
+            "~~~ArtifactType": "output"
+          },
+          "~~Attribution": {
+            "~~~Community": "GrowthFlow Engineering",
+            "~~~Project": "IOV Scene",
+            "~~~ContributorRole": "Trader"
+          },
+          "~~Integrity": {
+            "~~~ProofQuality": 0.9,
+            "~~~AnomalyFlag": false,
+            "~~~FraudRiskSignal": 0.03
+          }
+        },
+        "~WellbeingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Performance",
+            "~~~SignalLabel": "Business growth skill",
+            "~~~SignalScore": 0.82,
+            "~~~ImpactDirection": "increase"
+          },
+          "~~Performance": {
+            "~~~LearningOutput": 0.78,
+            "~~~EarningOutput": 0.62,
+            "~~~OrgBuildingOutput": 0.57,
+            "~~~SkillApplication": "Business Growth",
+            "~~~CommunityContext": "GrowthFlow Engineering"
+          }
+        },
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": true,
+            "~~~Trigger": "~~Performance",
+            "~~~Domains": ["~~Learning", "~~Earning"]
+          },
+          "~~Validation": {
+            "~~~EvidenceReview": "peer-reviewed",
+            "~~~ReviewerSet": "gfe-2",
+            "~~~ValidationDecision": "approved"
+          }
+        },
+        "_engine": {
+          "wellbeing_delta": 0.026,
+          "aura_delta": 0.038
+        }
+      }
+    ]
+  }
+}

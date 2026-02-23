@@ -22,9 +22,16 @@ import {
 } from "@/game/iov/BlockInteriorScene";
 import {
   PersonIdentityScene,
-  type PersonDetailMode,
   type PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
+import {
+  ValueLogScene,
+  VALUE_LOG_STEP_ORDER,
+  createInitialValueLogDraft,
+  type ValueLogDraft,
+  type ValueLogStep,
+  type ValueLogSummary,
+} from "@/game/iov/ValueLogScene";
 import {
   IovSemanticZoomController,
   getSemanticBreadcrumb,
@@ -35,9 +42,10 @@ import {
   loadIovValues,
 } from "@/game/iov/iovValues";
 import {
-  DEFAULT_IOV_TIMELOGS,
-  loadIovTimelogs,
-  resolvePersonTimelogs,
+  DEFAULT_IOV_VALUELOGS,
+  type IovValueLogEntry,
+  loadIovValuelogs,
+  resolvePersonValuelogs,
 } from "@/game/iov/iovTimelogs";
 
 const topologyData = topologyRaw as IovTopologyData;
@@ -56,6 +64,7 @@ const IovTopologyCanvas = () => {
   const sceneRef = useRef<IovTopologyScene | null>(null);
   const blockSceneRef = useRef<BlockInteriorScene | null>(null);
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
+  const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
@@ -67,14 +76,19 @@ const IovTopologyCanvas = () => {
   const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null);
   const [blockSummary, setBlockSummary] = useState<BlockPeopleSummary | null>(null);
   const [personSummary, setPersonSummary] = useState<PersonIdentitySummary | null>(null);
-  const [personViewMode, setPersonViewMode] = useState<PersonDetailMode>("identity");
+  const [valueLogDraft, setValueLogDraft] = useState<ValueLogDraft>(() =>
+    createInitialValueLogDraft()
+  );
+  const [valueLogStep, setValueLogStep] = useState<ValueLogStep>("time_slice");
+  const [valueLogSummary, setValueLogSummary] = useState<ValueLogSummary | null>(null);
+  const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<RegionId | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [transferredCount, setTransferredCount] = useState(0);
   const [semanticLevel, setSemanticLevel] = useState<SemanticZoomLevel>("topology");
   const [values, setValues] = useState(DEFAULT_IOV_VALUES);
-  const [timelogData, setTimelogData] = useState(DEFAULT_IOV_TIMELOGS);
+  const [valueLogData, setValueLogData] = useState(DEFAULT_IOV_VALUELOGS);
   const [presentationMode, setPresentationMode] = useState(false);
   const [phaseHeadline, setPhaseHeadline] = useState(
     "Empty ground - press Market to begin."
@@ -121,6 +135,8 @@ const IovTopologyCanvas = () => {
       },
     });
     personSceneRef.current = personScene;
+    const valueLogScene = new ValueLogScene(renderer.domElement);
+    valueLogSceneRef.current = valueLogScene;
 
     let composer: EffectComposer | null = null;
     let ssaoPass: SSAOPass | null = null;
@@ -151,9 +167,11 @@ const IovTopologyCanvas = () => {
       scene.setViewportProfile(nextIsMobile);
       blockScene.setViewportProfile(nextIsMobile);
       personScene.setViewportProfile(nextIsMobile);
+      valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
       blockScene.resize(clientWidth, clientHeight);
       personScene.resize(clientWidth, clientHeight);
+      valueLogScene.resize(clientWidth, clientHeight);
       composer?.setSize(clientWidth, clientHeight);
       if (ssaoPass) {
         ssaoPass.setSize(clientWidth, clientHeight);
@@ -186,13 +204,21 @@ const IovTopologyCanvas = () => {
       } else if (semanticLevelRef.current === "block") {
         blockScene.update(delta);
         blockScene.render(renderer);
-      } else {
+      } else if (semanticLevelRef.current === "person") {
         personScene.update(delta);
         personScene.render(renderer);
         personSummaryAccumulator += delta;
         if (personSummaryAccumulator >= 0.2) {
           personSummaryAccumulator = 0;
           setPersonSummary(personScene.getSummary());
+        }
+      } else {
+        valueLogScene.update(delta);
+        valueLogScene.render(renderer);
+        personSummaryAccumulator += delta;
+        if (personSummaryAccumulator >= 0.2) {
+          personSummaryAccumulator = 0;
+          setValueLogSummary(valueLogScene.getSummary());
         }
       }
       frame = window.requestAnimationFrame(tick);
@@ -226,14 +252,22 @@ const IovTopologyCanvas = () => {
         scene.setPointerFromCanvas(x, y, rect.width, rect.height);
         blockScene.clearPointer();
         personScene.clearPointer();
+        valueLogScene.clearPointer();
       } else if (semanticLevelRef.current === "block") {
         blockScene.setPointerFromCanvas(x, y, rect.width, rect.height);
         personScene.clearPointer();
         scene.clearPointer();
-      } else {
+        valueLogScene.clearPointer();
+      } else if (semanticLevelRef.current === "person") {
         personScene.setPointerFromCanvas(x, y, rect.width, rect.height);
         blockScene.clearPointer();
         scene.clearPointer();
+        valueLogScene.clearPointer();
+      } else {
+        valueLogScene.setPointerFromCanvas(x, y, rect.width, rect.height);
+        scene.clearPointer();
+        blockScene.clearPointer();
+        personScene.clearPointer();
       }
     };
 
@@ -241,6 +275,7 @@ const IovTopologyCanvas = () => {
       scene.clearPointer();
       blockScene.clearPointer();
       personScene.clearPointer();
+      valueLogScene.clearPointer();
       setHoveredRegionId(null);
       setHoveredPersonId(null);
       setHoveredFacet(null);
@@ -253,8 +288,10 @@ const IovTopologyCanvas = () => {
           scene.selectFromPointer();
         } else if (semanticLevelRef.current === "block") {
           blockScene.selectFromPointer();
-        } else {
+        } else if (semanticLevelRef.current === "person") {
           personScene.selectFromPointer();
+        } else {
+          valueLogScene.selectFromPointer();
         }
       }
     };
@@ -301,12 +338,14 @@ const IovTopologyCanvas = () => {
       scene.dispose();
       blockScene.dispose();
       personScene.dispose();
+      valueLogScene.dispose();
       composer?.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
       sceneRef.current = null;
       blockSceneRef.current = null;
       personSceneRef.current = null;
+      valueLogSceneRef.current = null;
     };
   }, []);
 
@@ -324,9 +363,9 @@ const IovTopologyCanvas = () => {
 
   useEffect(() => {
     let mounted = true;
-    loadIovTimelogs().then((loaded) => {
+    loadIovValuelogs().then((loaded) => {
       if (!mounted) return;
-      setTimelogData(loaded);
+      setValueLogData(loaded);
     });
     return () => {
       mounted = false;
@@ -361,8 +400,8 @@ const IovTopologyCanvas = () => {
     sceneRef.current?.setBrickInteractionMode(mode);
     setPhaseHeadline(
       mode === "inspect"
-        ? "Inspect mode: click a brick to select and open."
-        : "Reclaim mode: click upper Market/State/Bridge bricks to move into Community."
+        ? "Inspect mode: click an organization unit to select and open."
+        : "Reclaim mode: click upper Market/State/Bridge units to move into Community."
     );
   };
 
@@ -370,15 +409,24 @@ const IovTopologyCanvas = () => {
     semanticLevelRef.current = level;
     setSemanticLevel(level);
     if (level === "topology") {
-      setPhaseHeadline("Returned to topology layer.");
+      setPhaseHeadline("Returned to system layer.");
     } else if (level === "block") {
       setPhaseHeadline(
         selectedBrickLabel
-          ? `Inspecting ${selectedBrickLabel}: institutions are made of people.`
-          : "Inspecting selected brick."
+          ? `Inspecting ${selectedBrickLabel}: organizations are made of people.`
+          : "Inspecting selected organization."
       );
+    } else if (level === "person") {
+      setPhaseHeadline("Inspecting one person's wellbeing identity.");
+      personSceneRef.current?.setDetailMode("identity");
     } else {
-      setPhaseHeadline("Inspecting one person identity layer.");
+      setPhaseHeadline(
+        "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
+      );
+      personSceneRef.current?.setDetailMode("valuelog");
+      valueLogSceneRef.current?.setDraft(valueLogDraft);
+      valueLogSceneRef.current?.setStep(valueLogStep);
+      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
     }
   };
 
@@ -405,15 +453,23 @@ const IovTopologyCanvas = () => {
     if (!selectedPersonId) return;
     const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
     personSceneRef.current?.setPersonContext(selectedPersonId, sourceRegion);
-    personSceneRef.current?.setTimelineLogs(
-      resolvePersonTimelogs(timelogData, selectedPersonId, sourceRegion)
-    );
-    personSceneRef.current?.setDetailMode(personViewMode);
+    const logs = resolvePersonValuelogs(valueLogData, selectedPersonId, sourceRegion);
+    setActivePersonLogs(logs);
+    personSceneRef.current?.setTimelineLogs(logs);
+    personSceneRef.current?.setDetailMode("identity");
     setPersonSummary(personSceneRef.current?.getSummary() ?? null);
     const next = zoomControllerRef.current.dispatch({
       type: "OPEN_PERSON",
       personId: selectedPersonId,
     });
+    applySemanticTransition(next.level);
+  };
+
+  const handleOpenValueLog = () => {
+    const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
+    valueLogSceneRef.current?.setDraft(valueLogDraft);
+    valueLogSceneRef.current?.setStep(valueLogStep);
+    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
     applySemanticTransition(next.level);
   };
 
@@ -439,31 +495,63 @@ const IovTopologyCanvas = () => {
   }, [selectedPersonId, hoveredPersonId, semanticLevel]);
 
   useEffect(() => {
-    if (semanticLevel !== "person") return;
+    if (semanticLevel !== "person" && semanticLevel !== "valuelog") return;
     setPersonSummary(personSceneRef.current?.getSummary() ?? null);
   }, [hoveredFacet, semanticLevel]);
 
   useEffect(() => {
-    personSceneRef.current?.setDetailMode(personViewMode);
-    if (semanticLevel === "person") {
-      setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+    valueLogSceneRef.current?.setDraft(valueLogDraft);
+    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+  }, [valueLogDraft]);
+
+  useEffect(() => {
+    valueLogSceneRef.current?.setStep(valueLogStep);
+    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+  }, [valueLogStep]);
+
+  const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
+    setValueLogDraft((prev) => ({ ...prev, ...patch }));
+    if (valueLogStep === "wellbeing_context" && patch.wellbeingNode) {
+      setValueLogStep(
+        patch.wellbeingNode === "~~Performance" ? "performance_tags" : "compute"
+      );
     }
-  }, [personViewMode, semanticLevel]);
-
-  const handleToggleTimelinePlayback = () => {
-    const playing = personSummary?.timelinePlaying ?? true;
-    personSceneRef.current?.setTimelinePlaying(!playing);
-    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
   };
 
-  const handleStepTimeline = () => {
-    personSceneRef.current?.stepTimelineForward();
-    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+  const handleValueLogNext = () => {
+    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(valueLogStep);
+    const next =
+      VALUE_LOG_STEP_ORDER[Math.min(VALUE_LOG_STEP_ORDER.length - 1, currentIndex + 1)] ??
+      valueLogStep;
+    if (next === "performance_tags" && valueLogDraft.wellbeingNode !== "~~Performance") {
+      setValueLogStep("compute");
+      return;
+    }
+    setValueLogStep(next);
   };
 
-  const handleTimelineSpeedChange = (nextSpeed: number) => {
-    personSceneRef.current?.setTimelineSpeed(nextSpeed);
+  const handleValueLogPrev = () => {
+    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(valueLogStep);
+    if (currentIndex <= 0) return;
+    if (valueLogStep === "compute" && valueLogDraft.wellbeingNode !== "~~Performance") {
+      setValueLogStep("wellbeing_context");
+      return;
+    }
+    const prev = VALUE_LOG_STEP_ORDER[currentIndex - 1] ?? valueLogStep;
+    setValueLogStep(prev);
+  };
+
+  const handleValueLogCommit = () => {
+    if (!selectedPersonId) return;
+    const entry = valueLogSceneRef.current?.commit(selectedPersonId);
+    if (!entry) return;
+    const nextLogs = [...activePersonLogs, entry];
+    setActivePersonLogs(nextLogs);
+    personSceneRef.current?.setTimelineLogs(nextLogs);
     setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+    setValueLogStep("time_slice");
+    setPhaseHeadline("Time slice committed: wellbeing and aura state updated.");
   };
 
   return (
@@ -506,8 +594,10 @@ const IovTopologyCanvas = () => {
         canOpenBrick={canOpenBrick}
         blockSummary={blockSummary}
         personSummary={personSummary}
+        valueLogDraft={valueLogDraft}
+        valueLogSummary={valueLogSummary}
+        valueLogStep={valueLogStep}
         interactionMode={interactionMode}
-        personViewMode={personViewMode}
         phaseHeadline={phaseHeadline}
         presentationMode={presentationMode}
         meaningText={
@@ -519,66 +609,52 @@ const IovTopologyCanvas = () => {
         onBackSemantic={handleBackSemantic}
         onInteractionModeChange={handleInteractionModeChange}
         onTogglePresentationMode={() => setPresentationMode((prev) => !prev)}
-        onPersonViewModeChange={setPersonViewMode}
-        onToggleTimelinePlayback={handleToggleTimelinePlayback}
-        onStepTimeline={handleStepTimeline}
-        onTimelineSpeedChange={handleTimelineSpeedChange}
+        onOpenValueLog={handleOpenValueLog}
+        onValueLogDraftChange={handleValueLogDraftChange}
+        onValueLogNext={handleValueLogNext}
+        onValueLogPrev={handleValueLogPrev}
+        onValueLogCommit={handleValueLogCommit}
         transferredCount={transferredCount}
         values={values}
       />
 
-      {semanticLevel !== "topology" && (
+      {(semanticLevel === "block" || semanticLevel === "person") && (
         <div className="iov-semantic-overlay">
           <div className="iov-semantic-card">
             {semanticLevel === "block" && blockSummary ? (
               <>
-                <div className="iov-semantic-title">Brick Interior</div>
+                <div className="iov-semantic-title">Organization Interior</div>
                 <div className="iov-semantic-body">
                   {blockSummary.brickLabel} contains {blockSummary.peopleCount} people proxies.
-                  Select one person token to continue into identity view.
+                  Select one person token to continue into wellbeing identity view.
                 </div>
                 <div className="iov-semantic-actions">
                   <button type="button" onClick={handleOpenPersonStub} disabled={!selectedPersonId}>
                     Open Person
                   </button>
                   <button type="button" onClick={handleBackSemantic}>
-                    Back to Topology
+                    Back to System
                   </button>
                 </div>
               </>
-            ) : (
+            ) : semanticLevel === "person" ? (
               <>
-                <div className="iov-semantic-title">Person Identity</div>
+                <div className="iov-semantic-title">Person Wellbeing Identity</div>
                 <div className="iov-semantic-body">
                   {personSummary
-                    ? `${personSummary.personId}: ${
-                        personViewMode === "identity"
-                          ? "stable identity layers are visible; switch to Daily Logs to inspect protocol entries driving aura change."
-                          : `current log drives Story/Skills first, then IdentityState; wellbeing (${personSummary.wellbeingScore.toFixed(
-                              3
-                            )}), aura field (${personSummary.auraStrength.toFixed(3)}).`
-                      }`
+                    ? `${personSummary.personId}: stable identity layers are visible. Open Time Slice to inspect how daily evidence changes wellbeing and aura.`
                     : "Orbiting identity layers are active."}
                 </div>
                 <div className="iov-semantic-actions">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setPersonViewMode((prev) =>
-                        prev === "identity" ? "daily_logs" : "identity"
-                      )
-                    }
-                  >
-                    {personViewMode === "identity"
-                      ? "View Daily Logs"
-                      : "View Identity Layers"}
+                  <button type="button" onClick={handleOpenValueLog}>
+                    Open Time Slice
                   </button>
                   <button type="button" onClick={handleBackSemantic}>
-                    Back to Brick
+                    Back to Organization
                   </button>
                 </div>
               </>
-            )}
+            ) : null}
           </div>
         </div>
       )}
@@ -601,11 +677,11 @@ const IovTopologyCanvas = () => {
         >
           <div className="iov-tooltip-title">{hoveredPersonId}</div>
           <div className="iov-tooltip-body">
-            Person token inside {blockSummary?.brickLabel ?? "selected brick"}.
+            Person token inside {blockSummary?.brickLabel ?? "selected organization unit"}.
           </div>
         </div>
       )}
-      {semanticLevel === "person" && hoveredFacet && (
+      {(semanticLevel === "person" || semanticLevel === "valuelog") && hoveredFacet && (
         <div
           className="iov-tooltip"
           style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}

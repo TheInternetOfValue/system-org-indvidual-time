@@ -2,21 +2,17 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { IovValueLogEntry, WellbeingContextNode } from "./iovTimelogs";
 
-export type ValueLogStep =
-  | "time_slice"
-  | "value_capture"
-  | "wellbeing_context"
-  | "performance_tags"
-  | "compute"
-  | "commit";
+export type WizardStep =
+  | "select_time"
+  | "select_wellbeing"
+  | "select_performance"
+  | "show_outcome";
 
-export const VALUE_LOG_STEP_ORDER: ValueLogStep[] = [
-  "time_slice",
-  "value_capture",
-  "wellbeing_context",
-  "performance_tags",
-  "compute",
-  "commit",
+export const WIZARD_STEP_ORDER: WizardStep[] = [
+  "select_time",
+  "select_wellbeing",
+  "select_performance",
+  "show_outcome",
 ];
 
 interface StageVisual {
@@ -73,7 +69,7 @@ export interface ValueLogOutcome {
 }
 
 export interface ValueLogSummary {
-  step: ValueLogStep;
+  step: WizardStep;
   stepIndex: number;
   stepLabel: string;
   draft: ValueLogDraft;
@@ -181,16 +177,8 @@ export class ValueLogScene {
       metalness: 0.08,
     })
   );
-  private readonly token = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 16, 14),
-    new THREE.MeshStandardMaterial({
-      color: "#f6eb9a",
-      emissive: "#f1c766",
-      emissiveIntensity: 0.34,
-      roughness: 0.32,
-      metalness: 0.08,
-    })
-  );
+  private token: THREE.Object3D;
+  private tokenTrail: THREE.Mesh[] = [];
 
   private readonly auraBands = [
     this.createAuraBand(5.5, 6.2, "#92c9ff"),
@@ -198,11 +186,13 @@ export class ValueLogScene {
     this.createAuraBand(7.8, 8.8, "#7fd7c3"),
   ];
 
+  /* ... rest of the fields ... */
   private readonly stageCards: StageVisual[] = [];
   private readonly contextNodes: ContextNodeVisual[] = [];
   private readonly domainNodes: DomainNodeVisual[] = [];
   private readonly deltaLabels: THREE.Sprite[] = [];
   private clockLabel: THREE.Sprite | null = null;
+  // ...remaining fields...
 
   private readonly deltaBars = {
     wellbeing: new THREE.Mesh(
@@ -219,17 +209,15 @@ export class ValueLogScene {
     ),
   };
 
-  private readonly stageByStep: Record<ValueLogStep, StageVisual["id"]> = {
-    time_slice: "value_capture",
-    value_capture: "value_capture",
-    wellbeing_context: "wellbeing",
-    performance_tags: "saocommons",
-    compute: "outcome",
-    commit: "outcome",
+  private readonly stageByStep: Record<WizardStep, StageVisual["id"]> = {
+    select_time: "value_capture",
+    select_wellbeing: "wellbeing",
+    select_performance: "saocommons",
+    show_outcome: "outcome",
   };
 
   private draft: ValueLogDraft = createInitialValueLogDraft();
-  private step: ValueLogStep = "time_slice";
+  private step: WizardStep = "select_time";
   private committedCount = 0;
   private outcome: ValueLogOutcome = computeValueLogOutcome(this.draft);
   private elapsedSeconds = 0;
@@ -243,9 +231,67 @@ export class ValueLogScene {
   private hoveredContext: WellbeingContextNode | null = null;
   private hoveredDomain: DomainNodeVisual["domain"] | null = null;
 
+  private readonly stringsGroup = new THREE.Group();
+
   constructor(private readonly domElement: HTMLElement) {
+    // ---- Photon Token Creation ----
+    this.token = new THREE.Object3D();
+    
+    // Core photon (small, bright)
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 16, 16),
+      new THREE.MeshBasicMaterial({ color: "#ffffff" })
+    );
+    this.token.add(core);
+
+    // Glow halo (sprite)
+    const glowCanvas = document.createElement("canvas");
+    glowCanvas.width = 64;
+    glowCanvas.height = 64;
+    const ctx = glowCanvas.getContext("2d");
+    if (ctx) {
+      const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+      grad.addColorStop(0, "rgba(200, 235, 255, 1)");
+      grad.addColorStop(0.3, "rgba(80, 160, 255, 0.6)");
+      grad.addColorStop(1, "rgba(0, 50, 150, 0)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 64, 64);
+    }
+    const glowSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: new THREE.CanvasTexture(glowCanvas),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    glowSprite.scale.set(0.6, 0.6, 1);
+    this.token.add(glowSprite);
+
+    // Point Light attached to photon
+    const light = new THREE.PointLight("#6eb6ff", 1.2, 5);
+    this.token.add(light);
+
+    // Create tail segments
+    for(let i = 0; i < 12; i++) {
+        const seg = new THREE.Mesh(
+            new THREE.SphereGeometry(0.05 - (i * 0.0035), 8, 8),
+            new THREE.MeshBasicMaterial({ 
+                color: "#92c9ff", 
+                transparent: true, 
+                opacity: 0.4 - (i * 0.03),
+                blending: THREE.AdditiveBlending
+            })
+        );
+        this.tokenTrail.push(seg);
+        this.root.add(seg); // Add to root so they stay in world space
+    }
+
     this.scene.add(this.root);
     this.root.add(this.clockGroup);
+    this.root.add(this.stringsGroup);
+
+    this.clockGroup.position.set(0, 4, 0);
 
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
@@ -298,19 +344,19 @@ export class ValueLogScene {
     this.applyDraft();
   }
 
-  setStep(step: ValueLogStep) {
+  setStep(step: WizardStep) {
     this.step = step;
     this.applyStepCameraPreset();
     this.applyDraft();
   }
 
   nextStep() {
-    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(this.step);
-    if (currentIndex < 0 || currentIndex >= VALUE_LOG_STEP_ORDER.length - 1) return;
+    const currentIndex = WIZARD_STEP_ORDER.indexOf(this.step);
+    if (currentIndex < 0 || currentIndex >= WIZARD_STEP_ORDER.length - 1) return;
 
-    const next = VALUE_LOG_STEP_ORDER[currentIndex + 1] ?? this.step;
-    if (next === "performance_tags" && this.draft.wellbeingNode !== "~~Performance") {
-      this.step = "compute";
+    const next = WIZARD_STEP_ORDER[currentIndex + 1] ?? this.step;
+    if (next === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
+      this.step = "show_outcome";
     } else {
       this.step = next;
     }
@@ -319,13 +365,13 @@ export class ValueLogScene {
   }
 
   prevStep() {
-    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(this.step);
+    const currentIndex = WIZARD_STEP_ORDER.indexOf(this.step);
     if (currentIndex <= 0) return;
 
-    if (this.step === "compute" && this.draft.wellbeingNode !== "~~Performance") {
-      this.step = "wellbeing_context";
+    if (this.step === "show_outcome" && this.draft.wellbeingNode !== "~~Performance") {
+      this.step = "select_wellbeing";
     } else {
-      this.step = VALUE_LOG_STEP_ORDER[currentIndex - 1] ?? this.step;
+      this.step = WIZARD_STEP_ORDER[currentIndex - 1] ?? this.step;
     }
     this.applyStepCameraPreset();
     this.applyDraft();
@@ -334,7 +380,7 @@ export class ValueLogScene {
   commit(personId: string, roleHint?: string): IovValueLogEntry {
     const entry = this.buildEntry(personId, roleHint);
     this.committedCount += 1;
-    this.step = "time_slice";
+    this.step = "select_time";
     this.applyStepCameraPreset();
     this.applyDraft();
     return entry;
@@ -361,27 +407,30 @@ export class ValueLogScene {
     if (!hit) return;
 
     if (hit.type === "clock") {
-      if (this.step === "time_slice") {
-        this.setStep("value_capture");
-      } else if (this.step === "value_capture") {
-        this.setStep("wellbeing_context");
+      if (this.step === "select_time") {
+        this.setStep("select_wellbeing");
       }
       return;
     }
 
-    if (hit.type === "context" && this.step === "wellbeing_context") {
-      this.patchDraft({ wellbeingNode: hit.key });
-      if (hit.key === "~~Performance") {
-        this.setStep("performance_tags");
+    if (hit.type === "context" && this.step === "select_wellbeing") {
+      // Toggle selection
+      if (this.draft.wellbeingNode === hit.key) {
+        this.patchDraft({ wellbeingNode: undefined });
       } else {
-        this.setStep("compute");
+        this.patchDraft({ wellbeingNode: hit.key });
+        if (hit.key === "~~Performance") {
+          this.setStep("select_performance");
+        } else {
+          this.setStep("show_outcome");
+        }
       }
       return;
     }
 
     if (
       hit.type === "domain" &&
-      this.step === "performance_tags" &&
+      this.step === "select_performance" &&
       this.draft.wellbeingNode === "~~Performance"
     ) {
       if (hit.domain === "~~Learning") {
@@ -397,15 +446,69 @@ export class ValueLogScene {
   update(deltaSeconds: number) {
     this.elapsedSeconds += deltaSeconds;
 
-    // Token moves along the active time slice arc to make the scene feel alive.
-    const orbitRadius = 2.58;
-    const phase = (Math.sin(this.elapsedSeconds * 0.9) + 1) * 0.5;
-    const tokenAngle = this.startAngle + this.sliceLength * phase;
-    this.token.position.set(
-      Math.cos(tokenAngle) * orbitRadius,
-      0.58 + Math.sin(this.elapsedSeconds * 1.4) * 0.06,
-      Math.sin(tokenAngle) * orbitRadius
-    );
+    // Token trickles down the chandelier based on the current step
+    const targetPos = new THREE.Vector3();
+    
+    if (this.step === "select_time") {
+      const orbitRadius = 2.58;
+      const phase = (Math.sin(this.elapsedSeconds * 0.9) + 1) * 0.5;
+      const tokenAngle = this.startAngle + this.sliceLength * phase;
+      targetPos.set(
+        Math.cos(tokenAngle) * orbitRadius,
+        4.58 + Math.sin(this.elapsedSeconds * 1.4) * 0.06, // Clock is at Y=4
+        Math.sin(tokenAngle) * orbitRadius
+      );
+    } else if (this.step === "select_wellbeing") {
+      if (this.hoveredContext) {
+        const node = this.contextNodes.find((n) => n.key === this.hoveredContext);
+        if (node) {
+          targetPos.copy(node.mesh.position);
+          targetPos.y += 0.6 + Math.sin(this.elapsedSeconds * 4) * 0.05;
+        }
+      } else if (this.draft.wellbeingNode) {
+        const node = this.contextNodes.find((n) => n.key === this.draft.wellbeingNode);
+        if (node) {
+          targetPos.copy(node.mesh.position);
+          targetPos.y += 0.6 + Math.sin(this.elapsedSeconds * 4) * 0.05;
+        }
+      } else {
+        targetPos.set(0, 0.5 + Math.sin(this.elapsedSeconds * 2) * 0.1, 0);
+      }
+    } else if (this.step === "select_performance") {
+      if (this.hoveredDomain) {
+        const node = this.domainNodes.find((n) => n.domain === this.hoveredDomain);
+        if (node) {
+          targetPos.copy(node.mesh.position);
+          targetPos.y += 0.6 + Math.sin(this.elapsedSeconds * 5) * 0.05;
+        }
+      } else {
+        const perfNode = this.contextNodes.find((n) => n.key === "~~Performance");
+        if (perfNode) {
+          targetPos.copy(perfNode.mesh.position);
+          targetPos.y -= 1.2 + Math.sin(this.elapsedSeconds * 3) * 0.05; // Hang between Performance and SAOcommons
+        }
+      }
+    } else if (this.step === "show_outcome") {
+      // Drop into the Identity/Aura pool at the bottom
+      targetPos.set(0, -5.0 + Math.sin(this.elapsedSeconds * 2.5) * 0.08, 0);
+    }
+
+    // Smoothly interpolate token position (faster lerp for photon)
+    this.token.position.lerp(targetPos, 7.0 * deltaSeconds);
+
+    // Update trail
+    // Shift positions down
+    for (let i = this.tokenTrail.length - 1; i > 0; i--) {
+      const current = this.tokenTrail[i];
+      const prev = this.tokenTrail[i - 1];
+      if (current && prev) {
+        current.position.copy(prev.position);
+      }
+    }
+    // Set first trail segment to current position
+    if (this.tokenTrail.length > 0 && this.tokenTrail[0]) {
+      this.tokenTrail[0].position.copy(this.token.position);
+    }
 
     // Aura expands around the full clock field, not just the center body.
     const auraPulse = 1 + Math.sin(this.elapsedSeconds * 1.8) * 0.03;
@@ -438,11 +541,18 @@ export class ValueLogScene {
   }
 
   getSummary(): ValueLogSummary {
-    const stepIndex = VALUE_LOG_STEP_ORDER.indexOf(this.step);
+    const stepIndex = WIZARD_STEP_ORDER.indexOf(this.step);
+    const stepLabels: Record<WizardStep, string> = {
+      select_time: "Select Time Slice",
+      select_wellbeing: "Add Wellbeing Context",
+      select_performance: "Performance Domains",
+      show_outcome: "Review & Commit",
+    };
+
     return {
       step: this.step,
       stepIndex: stepIndex < 0 ? 0 : stepIndex,
-      stepLabel: STEP_LABELS[this.step],
+      stepLabel: stepLabels[this.step],
       draft: this.draft,
       outcome: this.outcome,
       committedCount: this.committedCount,
@@ -477,17 +587,18 @@ export class ValueLogScene {
   }
 
   private buildLayout() {
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(28, 20),
-      new THREE.MeshStandardMaterial({
-        color: "#0e1c32",
-        roughness: 0.94,
-        metalness: 0.03,
-      })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    this.root.add(floor);
+    // Remove the floor plane so it doesn't block the view of the lower layers
+    // const floor = new THREE.Mesh(
+    //   new THREE.PlaneGeometry(28, 20),
+    //   new THREE.MeshStandardMaterial({
+    //     color: "#0e1c32",
+    //     roughness: 0.94,
+    //     metalness: 0.03,
+    //   })
+    // );
+    // floor.rotation.x = -Math.PI / 2;
+    // floor.position.y = 0;
+    // this.root.add(floor);
 
     const dial = new THREE.Mesh(
       new THREE.CylinderGeometry(4.35, 4.55, 0.34, 72),
@@ -531,7 +642,8 @@ export class ValueLogScene {
 
     this.startHand.position.y = 0.45;
     this.endHand.position.y = 0.5;
-    this.clockGroup.add(this.startHand, this.endHand, this.token);
+    this.clockGroup.add(this.startHand, this.endHand);
+    this.root.add(this.token); // Add token to root for global positioning
 
     const pivot = new THREE.Mesh(
       new THREE.CylinderGeometry(0.17, 0.17, 0.14, 20),
@@ -546,11 +658,11 @@ export class ValueLogScene {
       fontSize: 28,
     });
     this.clockLabel.position.set(0, 2.0, -4.9);
-    this.root.add(this.clockLabel);
+    this.clockGroup.add(this.clockLabel);
 
     this.auraBands.forEach((band) => {
       band.rotation.x = -Math.PI / 2;
-      band.position.y = 0.12;
+      band.position.y = -5.0; // Move aura to the bottom (Identity layer)
       this.root.add(band);
     });
 
@@ -558,9 +670,9 @@ export class ValueLogScene {
     this.addDomainNodes();
     this.addStageCards();
 
-    this.deltaBars.wellbeing.position.set(-1.1, 0.62, 5.55);
-    this.deltaBars.aura.position.set(0, 0.62, 5.55);
-    this.deltaBars.identity.position.set(1.1, 0.62, 5.55);
+    this.deltaBars.wellbeing.position.set(-1.1, -5.0, 0);
+    this.deltaBars.aura.position.set(0, -5.0, 0);
+    this.deltaBars.identity.position.set(1.1, -5.0, 0);
     this.root.add(this.deltaBars.wellbeing, this.deltaBars.aura, this.deltaBars.identity);
 
     const deltaLabels = [
@@ -570,27 +682,43 @@ export class ValueLogScene {
     ];
     deltaLabels.forEach((entry) => {
       const label = this.createTextSprite(entry.text, { width: 200, height: 70, fontSize: 18 });
-      label.position.set(entry.x, 1.7, 5.55);
+      label.position.set(entry.x, -4.0, 0);
       this.deltaLabels.push(label);
       this.root.add(label);
     });
   }
 
   private addContextNodes() {
-    const defs: Array<{ key: WellbeingContextNode; label: string; color: string; deg: number }> = [
-      { key: "~~Physiology", label: "Physiology", color: "#79c5ff", deg: -160 },
-      { key: "~~Emotion", label: "Emotion", color: "#ff8d9a", deg: -110 },
-      { key: "~~Feeling", label: "Feeling", color: "#a7c7ff", deg: -65 },
-      { key: "~~Thought", label: "Thought", color: "#a5ffcc", deg: -20 },
-      { key: "~~Habit", label: "Habit", color: "#fff2b0", deg: 24 },
-      { key: "~~Performance", label: "Performance", color: "#d2b1ff", deg: 70 },
+    // Draw the Infinity Loop (Lemniscate)
+    const curvePoints = [];
+    const scale = 4.5;
+    for (let i = 0; i <= 100; i++) {
+      const t = (i / 100) * Math.PI * 2;
+      const x = (scale * Math.cos(t)) / (1 + Math.sin(t) * Math.sin(t));
+      const y = (scale * Math.sin(t) * Math.cos(t)) / (1 + Math.sin(t) * Math.sin(t));
+      curvePoints.push(new THREE.Vector3(x, y, 0));
+    }
+    const curveGeometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const curveMaterial = new THREE.LineBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.4 });
+    const infinityLoop = new THREE.Line(curveGeometry, curveMaterial);
+    this.root.add(infinityLoop);
+
+    const defs: Array<{ key: WellbeingContextNode; label: string; color: string; t: number }> = [
+      { key: "~~Physiology", label: "Physiology", color: "#79c5ff", t: Math.PI * 0.15 },
+      { key: "~~Emotion", label: "Emotion", color: "#ff8d9a", t: Math.PI * 0.0 },
+      { key: "~~Feeling", label: "Feeling", color: "#a7c7ff", t: Math.PI * 0.85 },
+      { key: "~~Thought", label: "Thought", color: "#a5ffcc", t: Math.PI * 1.15 },
+      { key: "~~Habit", label: "Habit", color: "#fff2b0", t: Math.PI * 1.0 },
+      { key: "~~Performance", label: "Performance", color: "#d2b1ff", t: Math.PI * 1.85 },
     ];
 
     defs.forEach((def) => {
-      const angle = THREE.MathUtils.degToRad(def.deg);
-      const radius = 4.95;
+      const x = (scale * Math.cos(def.t)) / (1 + Math.sin(def.t) * Math.sin(def.t));
+      const y = (scale * Math.sin(def.t) * Math.cos(def.t)) / (1 + Math.sin(def.t) * Math.sin(def.t));
+      const z = 0; // Keep them flat on the Z axis for the infinity loop
+      
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.21, 16, 14),
+        new THREE.SphereGeometry(0.45, 32, 32), // Made spheres slightly larger
         new THREE.MeshStandardMaterial({
           color: def.color,
           emissive: def.color,
@@ -599,14 +727,14 @@ export class ValueLogScene {
           metalness: 0.08,
         })
       );
-      mesh.position.set(Math.cos(angle) * radius, 0.58, Math.sin(angle) * radius);
+      mesh.position.set(x, y, z);
       this.root.add(mesh);
 
       const label = this.createTextSprite(def.label, { width: 180, height: 52, fontSize: 16 });
-      label.position.set(Math.cos(angle) * (radius + 0.92), 1.22, Math.sin(angle) * (radius + 0.92));
+      label.position.set(x, y + 1.0, z); // Moved label slightly higher
       this.root.add(label);
 
-      this.contextNodes.push({ key: def.key, mesh, label, angle });
+      this.contextNodes.push({ key: def.key, mesh, label, angle: def.t });
     });
   }
 
@@ -619,7 +747,7 @@ export class ValueLogScene {
 
     defs.forEach((def) => {
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.16, 14, 12),
+        new THREE.CylinderGeometry(0.25, 0.25, 0.8, 16),
         new THREE.MeshStandardMaterial({
           color: "#f8e680",
           emissive: "#b18a2a",
@@ -702,6 +830,7 @@ export class ValueLogScene {
     this.updateHands();
     this.updateContextNodes();
     this.updateDomainNodes();
+    this.updateStrings();
 
     this.applyDeltaBar(this.deltaBars.wellbeing, this.outcome.wellbeingDelta);
     this.applyDeltaBar(this.deltaBars.aura, this.outcome.auraDelta);
@@ -749,16 +878,25 @@ export class ValueLogScene {
     const performanceNode = this.contextNodes.find((node) => node.key === "~~Performance");
     if (!performanceNode) return;
 
-    const baseAngle = performanceNode.angle;
+    const px = performanceNode.mesh.position.x;
+    const py = performanceNode.mesh.position.y - 2.5; // Drop down
+    const pz = performanceNode.mesh.position.z;
+
     const enabled = this.draft.wellbeingNode === "~~Performance";
     const activeDomains = new Set(this.outcome.saocommonsDomains);
 
+    // Triangle arrangement (ஃ)
+    const positions = [
+      new THREE.Vector3(px, py + 0.6, pz), // Top
+      new THREE.Vector3(px - 0.6, py - 0.4, pz), // Bottom Left
+      new THREE.Vector3(px + 0.6, py - 0.4, pz), // Bottom Right
+    ];
+
     this.domainNodes.forEach((entry, index) => {
-      const offset = (index - 1) * 0.34;
-      const angle = baseAngle + offset;
-      const radius = 6.12;
-      entry.mesh.position.set(Math.cos(angle) * radius, 0.52, Math.sin(angle) * radius);
-      entry.label.position.set(Math.cos(angle) * (radius + 0.62), 1.1, Math.sin(angle) * (radius + 0.62));
+      const pos = positions[index];
+      if (!pos) return;
+      entry.mesh.position.copy(pos);
+      entry.label.position.set(pos.x, pos.y - 0.7, pos.z);
 
       const isActive = enabled && activeDomains.has(entry.domain);
       const isHovered = entry.domain === this.hoveredDomain;
@@ -769,43 +907,75 @@ export class ValueLogScene {
     });
   }
 
-  // Show only the layer relevant to the current step to avoid cognitive overload.
-  private applyStepVisibility() {
-    const stageVisible = new Set<StageVisual["id"]>();
-    if (this.step === "value_capture") {
-      stageVisible.add("value_capture");
-    } else if (this.step === "wellbeing_context") {
-      stageVisible.add("value_capture");
-      stageVisible.add("wellbeing");
-    } else if (this.step === "performance_tags") {
-      stageVisible.add("wellbeing");
-      if (this.draft.wellbeingNode === "~~Performance") {
-        stageVisible.add("saocommons");
-      }
-    } else if (this.step === "compute" || this.step === "commit") {
-      stageVisible.add("outcome");
-    }
+  private updateStrings() {
+    this.stringsGroup.clear();
 
+    const material = new THREE.LineBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.15,
+    });
+
+    // Connect Clock to Wellbeing Nodes
+    const clockCenter = new THREE.Vector3(0, 4, 0);
+    this.contextNodes.forEach((node) => {
+      const points = [clockCenter, node.mesh.position];
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geometry, material);
+      this.stringsGroup.add(line);
+    });
+
+    // Connect Performance Node to SAOcommons Cylinders
+    const performanceNode = this.contextNodes.find((node) => node.key === "~~Performance");
+    if (performanceNode && this.draft.wellbeingNode === "~~Performance") {
+      this.domainNodes.forEach((domain) => {
+        const points = [performanceNode.mesh.position, domain.mesh.position];
+        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+        const line = new THREE.Line(geometry, material);
+        this.stringsGroup.add(line);
+      });
+    }
+  }
+
+  // Reveal layers progressively as we move down the chandelier
+  private applyStepVisibility() {
+    // Hide all stage cards for minimal design
     this.stageCards.forEach((stage) => {
-      const visible = stageVisible.has(stage.id);
-      stage.mesh.visible = visible;
+      stage.mesh.visible = false;
       stage.label.visible = false;
     });
 
-    const showContext = this.step === "wellbeing_context" || this.step === "performance_tags";
+    const stepIndex = WIZARD_STEP_ORDER.indexOf(this.step);
+
+    // Clock elements - always visible (top of chandelier)
+    const showClock = true;
+    if (this.clockDial) this.clockDial.visible = showClock;
+    this.sliceArc.visible = showClock;
+    this.startHand.visible = showClock;
+    this.endHand.visible = showClock;
+    if (this.clockLabel) {
+      this.clockLabel.visible = showClock;
+    }
+
+    // Wellbeing nodes - visible from step 1 onwards
+    const showWellbeing = stepIndex >= 1;
     this.contextNodes.forEach((node) => {
-      node.mesh.visible = showContext;
-      node.label.visible = showContext && node.key === this.draft.wellbeingNode;
+      node.mesh.visible = showWellbeing;
+      node.label.visible = showWellbeing;
     });
 
-    const showDomains =
-      this.step === "performance_tags" && this.draft.wellbeingNode === "~~Performance";
+    // Performance domains - visible from step 2 onwards (if Performance was chosen)
+    const showPerformance = stepIndex >= 2 && this.draft.wellbeingNode === "~~Performance";
     this.domainNodes.forEach((entry) => {
-      entry.mesh.visible = showDomains;
-      entry.label.visible = showDomains;
+      entry.mesh.visible = showPerformance;
+      entry.label.visible = showPerformance;
     });
 
-    const showOutcome = this.step === "compute" || this.step === "commit";
+    // Strings - visible if the layer they connect to is visible
+    this.stringsGroup.visible = showWellbeing;
+
+    // Outcome elements - only visible during outcome review
+    const showOutcome = this.step === "show_outcome";
     this.auraBands.forEach((band) => {
       band.visible = showOutcome;
     });
@@ -816,9 +986,8 @@ export class ValueLogScene {
       label.visible = showOutcome;
     });
 
-    if (this.clockLabel) {
-      this.clockLabel.visible = true;
-    }
+    // Activity token (yellow sphere) - always visible as it trickles down
+    this.token.visible = true;
   }
 
   private applyStepCameraPreset() {
@@ -831,36 +1000,42 @@ export class ValueLogScene {
 
   private getCameraPresetForStep() {
     const position = new THREE.Vector3();
-    const lookAt = new THREE.Vector3(0, 0.55, 0);
+    const lookAt = new THREE.Vector3(0, 0, 0);
 
-    if (this.step === "time_slice" || this.step === "value_capture") {
+    if (this.step === "select_time") {
       if (this.isMobileViewport) {
-        position.set(0, 7.3, 11.8);
+        position.set(0, 6.5, 12.0);
       } else {
-        position.set(0, 5.9, 10.4);
+        position.set(0, 6.0, 10.0);
       }
-      lookAt.set(0, 0.45, 0);
-    } else if (this.step === "wellbeing_context") {
+      lookAt.set(0, 4.0, 0);
+    } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
-        position.set(-0.2, 6.8, 10.7);
+        position.set(0, 0.0, 18.0);
       } else {
-        position.set(-0.3, 5.5, 9.4);
+        position.set(0, 0.0, 16.0);
       }
-      lookAt.set(0.1, 0.7, 0.2);
-    } else if (this.step === "performance_tags") {
+      lookAt.set(0, 0.0, 0);
+    } else if (this.step === "select_performance") {
+      const performanceNode = this.contextNodes.find((node) => node.key === "~~Performance");
+      const px = performanceNode ? performanceNode.mesh.position.x : 0;
+      const py = performanceNode ? performanceNode.mesh.position.y - 2.5 : -3;
+      const pz = performanceNode ? performanceNode.mesh.position.z : 0;
+
       if (this.isMobileViewport) {
-        position.set(2.8, 6.6, 10.6);
+        position.set(px, py + 2.0, pz + 10.0);
       } else {
-        position.set(2.4, 5.3, 9.3);
+        position.set(px, py + 1.5, pz + 8.0);
       }
-      lookAt.set(2.0, 0.8, 4.8);
+      lookAt.set(px, py, pz);
     } else {
+      // show_outcome: pull back to see the whole chandelier
       if (this.isMobileViewport) {
-        position.set(0, 6.9, 10.9);
+        position.set(0, 3.0, 18.0);
       } else {
-        position.set(0, 5.4, 9.4);
+        position.set(0, 2.0, 16.0);
       }
-      lookAt.set(0, 0.8, 5.0);
+      lookAt.set(0, 1.0, 0);
     }
 
     return { position, lookAt };
@@ -880,13 +1055,13 @@ export class ValueLogScene {
     | { type: "domain"; domain: DomainNodeVisual["domain"] }
     | null {
     const targets: THREE.Object3D[] = [];
-    if (this.step === "time_slice" || this.step === "value_capture") {
+    if (this.step === "select_time") {
       if (this.clockDial) targets.push(this.clockDial);
     }
-    if (this.step === "wellbeing_context") {
+    if (this.step === "select_wellbeing") {
       this.contextNodes.forEach((node) => targets.push(node.mesh));
     }
-    if (this.step === "performance_tags" && this.draft.wellbeingNode === "~~Performance") {
+    if (this.step === "select_performance" && this.draft.wellbeingNode === "~~Performance") {
       this.domainNodes.forEach((node) => targets.push(node.mesh));
     }
 
@@ -1089,15 +1264,6 @@ export class ValueLogScene {
     group.clear();
   }
 }
-
-const STEP_LABELS: Record<ValueLogStep, string> = {
-  time_slice: "1. Time Slice",
-  value_capture: "2. Value Capture",
-  wellbeing_context: "3. Wellbeing Context",
-  performance_tags: "4. Performance -> L/E/O",
-  compute: "5. Compute Deltas",
-  commit: "6. Commit Time Slice",
-};
 
 const clamp = (min: number, max: number, value: number) => Math.min(max, Math.max(min, value));
 

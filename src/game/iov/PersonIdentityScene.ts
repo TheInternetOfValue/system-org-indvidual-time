@@ -19,6 +19,11 @@ export interface PersonIdentitySummary {
   regionId: RegionId;
   personViewMode: PersonDetailMode;
   layerLabels: string[];
+  identityBuildMode: boolean;
+  identityBuildLayerIndex: number;
+  identityBuildLayerLabel: string | null;
+  identityBuildLayerCount: number;
+  identityBuildComplete: boolean;
   hoveredFacet: string | null;
   selectedFacet: string | null;
   hoveredLayer: string | null;
@@ -48,11 +53,13 @@ interface PersonIdentityCallbacks {
 interface FacetNode {
   facet: string;
   layer: WellbeingIdentityLayer;
+  layerIndex: number;
   mesh: THREE.Mesh;
   angle: number;
   radius: number;
-  y: number;
+  baseY: number;
   speed: number;
+  dropOffsetSeconds: number;
 }
 
 interface LayerRingNode {
@@ -82,6 +89,12 @@ export class PersonIdentityScene {
   private readonly pulseWaves: THREE.Mesh[] = [];
   private readonly stateEngine = new PersonStateEngine();
   private personViewMode: PersonDetailMode = "identity";
+  private identityBuildMode = false;
+  private buildLayerIndex = -1;
+  private buildLayerStartSeconds = 0;
+  private readonly facetDropDurationSeconds = 0.78;
+  private readonly facetDropFromYOffset = 2.2;
+  private readonly facetDropStaggerSeconds = 0.09;
   private selectedPersonId = "Person";
   private sourceRegion: RegionId = "community";
   private hoveredFacet: string | null = null;
@@ -167,6 +180,10 @@ export class PersonIdentityScene {
   setPersonContext(personId: string, regionId: RegionId) {
     this.selectedPersonId = personId;
     this.sourceRegion = regionId;
+    this.identityBuildMode = false;
+    this.buildLayerIndex = -1;
+    this.buildLayerStartSeconds = 0;
+    this.applyModeVisualState();
   }
 
   setTimelineLogs(logs: IovTimeLogEntry[]) {
@@ -183,6 +200,33 @@ export class PersonIdentityScene {
   setDetailMode(mode: PersonDetailMode) {
     if (this.personViewMode === mode) return;
     this.personViewMode = mode;
+    this.applyModeVisualState();
+  }
+
+  startIdentityBuild() {
+    this.identityBuildMode = true;
+    this.buildLayerIndex = 0;
+    this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.hoveredMarker.visible = false;
+    this.hoveredFacet = null;
+    this.callbacks.onHoverFacetChange?.(null);
+    this.applyModeVisualState();
+  }
+
+  nextIdentityLayer() {
+    if (!this.identityBuildMode) {
+      this.startIdentityBuild();
+      return;
+    }
+    if (this.buildLayerIndex >= WELLBEING_IDENTITY_LAYERS.length - 1) return;
+    this.buildLayerIndex += 1;
+    this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.applyModeVisualState();
+  }
+
+  replayIdentityLayer() {
+    if (!this.identityBuildMode || this.buildLayerIndex < 0) return;
+    this.buildLayerStartSeconds = performance.now() * 0.001;
     this.applyModeVisualState();
   }
 
@@ -216,6 +260,16 @@ export class PersonIdentityScene {
       layerLabels: WELLBEING_IDENTITY_LAYERS.map((layer) =>
         layer.label.replace("~~", "")
       ),
+      identityBuildMode: this.identityBuildMode,
+      identityBuildLayerIndex: this.buildLayerIndex,
+      identityBuildLayerLabel:
+        this.buildLayerIndex >= 0
+          ? WELLBEING_IDENTITY_LAYERS[this.buildLayerIndex]?.label.replace("~~", "") ?? null
+          : null,
+      identityBuildLayerCount: WELLBEING_IDENTITY_LAYERS.length,
+      identityBuildComplete:
+        this.identityBuildMode &&
+        this.buildLayerIndex >= WELLBEING_IDENTITY_LAYERS.length - 1,
       hoveredFacet: this.hoveredFacet,
       selectedFacet: this.selectedFacet,
       hoveredLayer,
@@ -455,11 +509,13 @@ export class PersonIdentityScene {
         this.facetNodes.push({
           facet,
           layer,
+          layerIndex,
           mesh,
           angle,
           radius,
-          y,
+          baseY: y,
           speed: 0.04 + layerIndex * 0.01 + (facetIndex % 4) * 0.006,
+          dropOffsetSeconds: facetIndex * this.facetDropStaggerSeconds,
         });
       });
     });
@@ -565,6 +621,9 @@ export class PersonIdentityScene {
     deltaSeconds: number,
     snapshot: ReturnType<PersonStateEngine["getSnapshot"]>
   ) {
+    const nowSeconds = performance.now() * 0.001;
+    const buildLayerProgress = this.getBuildLayerProgress(nowSeconds);
+    const buildModeActive = this.identityBuildMode && this.personViewMode === "identity";
     const toLayerKey = (label: string) =>
       label
         .replace(/([a-z])([A-Z])/g, "$1_$2")
@@ -576,9 +635,21 @@ export class PersonIdentityScene {
 
     this.layerRings.forEach((ringNode) => {
       const material = ringNode.mesh.material as THREE.MeshBasicMaterial;
+      const ringLayerIndex = WELLBEING_IDENTITY_LAYERS.findIndex(
+        (layer) => layer.key === ringNode.key
+      );
+      if (buildModeActive && ringLayerIndex > this.buildLayerIndex) {
+        ringNode.mesh.visible = false;
+        return;
+      }
+      ringNode.mesh.visible = true;
       const isDirect = directKeys.has(ringNode.key);
       const isDerived = derivedKeys.has(ringNode.key);
-      const baseline = this.personViewMode === "valuelog" ? 0.42 : 0.65;
+      let baseline = this.personViewMode === "valuelog" ? 0.42 : 0.65;
+      if (buildModeActive) {
+        const isCurrentLayer = ringLayerIndex === this.buildLayerIndex;
+        baseline = isCurrentLayer ? 0.14 + buildLayerProgress * 0.58 : 0.56;
+      }
       const boost = isDirect
         ? 0.16 + activityImpact * 0.32 + this.pulseEnergy * 0.22
         : isDerived
@@ -592,27 +663,57 @@ export class PersonIdentityScene {
 
     this.facetNodes.forEach((node) => {
       node.angle += deltaSeconds * node.speed;
-      node.mesh.position.set(
-        Math.cos(node.angle) * node.radius,
-        node.y,
-        Math.sin(node.angle) * node.radius
-      );
-
+      const x = Math.cos(node.angle) * node.radius;
+      const z = Math.sin(node.angle) * node.radius;
       const material = node.mesh.material as THREE.MeshStandardMaterial;
       const isDirect = directKeys.has(node.layer.key);
       const isDerived = derivedKeys.has(node.layer.key);
+      const hiddenByBuild =
+        buildModeActive &&
+        (this.buildLayerIndex < 0 || node.layerIndex > this.buildLayerIndex);
+      if (hiddenByBuild) {
+        node.mesh.visible = false;
+        return;
+      }
+
+      node.mesh.visible = true;
+      let y = node.baseY;
+      let dropBlend = 1;
+      if (buildModeActive && node.layerIndex === this.buildLayerIndex) {
+        const elapsed = nowSeconds - this.buildLayerStartSeconds - node.dropOffsetSeconds;
+        if (elapsed <= 0) {
+          node.mesh.visible = false;
+          return;
+        }
+        const progress = Math.min(1, elapsed / this.facetDropDurationSeconds);
+        const eased = this.easeOutCubic(progress);
+        y = node.baseY + (1 - eased) * this.facetDropFromYOffset;
+        dropBlend = eased;
+      }
+
+      node.mesh.position.set(
+        x,
+        y,
+        z
+      );
+
       material.emissiveIntensity = isDirect
-        ? 0.13 + activityImpact * 0.22
+        ? (0.13 + activityImpact * 0.22) * dropBlend
         : isDerived
-          ? 0.1 + activityImpact * 0.12
-          : 0.05;
+          ? (0.1 + activityImpact * 0.12) * dropBlend
+          : 0.05 * dropBlend;
+      material.opacity = Math.max(0.06, dropBlend);
+      material.transparent = dropBlend < 0.999;
     });
 
     if (this.selectedFacet) {
       const selected = this.facetNodes.find((node) => node.facet === this.selectedFacet);
-      if (selected) {
+      if (selected?.mesh.visible) {
         this.selectedMarker.position.copy(selected.mesh.position);
         this.selectedMarker.lookAt(this.camera.position);
+        this.selectedMarker.visible = true;
+      } else {
+        this.selectedMarker.visible = false;
       }
     }
   }
@@ -704,14 +805,22 @@ export class PersonIdentityScene {
 
   private applyModeVisualState() {
     const isDailyLogs = this.personViewMode === "valuelog";
+    const buildModeActive = this.identityBuildMode && !isDailyLogs;
 
     // Mobile keeps labels available in Identity mode through panel rail;
     // in-scene labels are shown only when there is enough viewport room.
     this.labelsGroup.visible = !isDailyLogs && !this.isMobileViewport;
+    if (this.labelsGroup.visible) {
+      this.labelsGroup.children.forEach((child, idx) => {
+        child.visible = !buildModeActive || idx <= this.buildLayerIndex;
+      });
+    }
 
     this.ringsGroup.children.forEach((child) => {
       const mesh = child as THREE.Mesh;
       const mat = mesh.material as THREE.MeshBasicMaterial;
+      const ringLayerIndex = this.ringsGroup.children.indexOf(child);
+      mesh.visible = !buildModeActive || ringLayerIndex <= this.buildLayerIndex;
       mat.opacity = isDailyLogs ? 0.56 : 0.82;
     });
 
@@ -728,10 +837,25 @@ export class PersonIdentityScene {
     dotMat.opacity = isDailyLogs ? 0.98 : 0.86;
   }
 
+  private getBuildLayerProgress(nowSeconds: number) {
+    if (!this.identityBuildMode || this.buildLayerIndex < 0) return 1;
+    const facetCount =
+      WELLBEING_IDENTITY_LAYERS[this.buildLayerIndex]?.facets.length ?? 1;
+    const maxStagger = Math.max(0, (facetCount - 1) * this.facetDropStaggerSeconds);
+    const totalDuration = this.facetDropDurationSeconds + maxStagger;
+    const elapsed = Math.max(0, nowSeconds - this.buildLayerStartSeconds);
+    return Math.min(1, elapsed / Math.max(0.01, totalDuration));
+  }
+
+  private easeOutCubic(value: number) {
+    const t = Math.min(1, Math.max(0, value));
+    return 1 - (1 - t) ** 3;
+  }
+
   private pickFacet() {
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
     const hits = this.raycaster.intersectObjects(this.nodesGroup.children, false);
-    const first = hits[0];
+    const first = hits.find((hit) => hit.object.visible);
     if (!first) return null;
     const idx = this.facetNodes.findIndex((node) => node.mesh === first.object);
     return idx >= 0 ? idx : null;

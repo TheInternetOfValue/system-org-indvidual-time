@@ -26,11 +26,11 @@ import {
 } from "@/game/iov/PersonIdentityScene";
 import {
   ValueLogScene,
-  VALUE_LOG_STEP_ORDER,
+  WIZARD_STEP_ORDER,
   createInitialValueLogDraft,
   type ValueLogDraft,
-  type ValueLogStep,
   type ValueLogSummary,
+  type WizardStep,
 } from "@/game/iov/ValueLogScene";
 import {
   IovSemanticZoomController,
@@ -79,7 +79,7 @@ const IovTopologyCanvas = () => {
   const [valueLogDraft, setValueLogDraft] = useState<ValueLogDraft>(() =>
     createInitialValueLogDraft()
   );
-  const [valueLogStep, setValueLogStep] = useState<ValueLogStep>("time_slice");
+  const [valueLogStep, setValueLogStep] = useState<WizardStep>("select_time");
   const [valueLogSummary, setValueLogSummary] = useState<ValueLogSummary | null>(null);
   const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
@@ -473,6 +473,29 @@ const IovTopologyCanvas = () => {
     applySemanticTransition(next.level);
   };
 
+  const handleStartIdentityBuild = () => {
+    personSceneRef.current?.startIdentityBuild();
+    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+    setPhaseHeadline("Identity build started: GivenIdentity facets are dropping in.");
+  };
+
+  const handleNextIdentityLayer = () => {
+    personSceneRef.current?.nextIdentityLayer();
+    const summary = personSceneRef.current?.getSummary() ?? null;
+    setPersonSummary(summary);
+    if (summary?.identityBuildLayerLabel) {
+      setPhaseHeadline(
+        `Identity build: ${summary.identityBuildLayerLabel} (${summary.identityBuildLayerIndex + 1}/${summary.identityBuildLayerCount}).`
+      );
+    }
+  };
+
+  const handleReplayIdentityLayer = () => {
+    personSceneRef.current?.replayIdentityLayer();
+    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+    setPhaseHeadline("Replaying current identity layer drop.");
+  };
+
   useEffect(() => {
     const controller = zoomControllerRef.current;
     if (!selectedBrickInfo) {
@@ -511,33 +534,33 @@ const IovTopologyCanvas = () => {
 
   const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
     setValueLogDraft((prev) => ({ ...prev, ...patch }));
-    if (valueLogStep === "wellbeing_context" && patch.wellbeingNode) {
+    if (valueLogStep === "select_wellbeing" && patch.wellbeingNode) {
       setValueLogStep(
-        patch.wellbeingNode === "~~Performance" ? "performance_tags" : "compute"
+        patch.wellbeingNode === "~~Performance" ? "select_performance" : "show_outcome"
       );
     }
   };
 
   const handleValueLogNext = () => {
-    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(valueLogStep);
+    const currentIndex = WIZARD_STEP_ORDER.indexOf(valueLogStep);
     const next =
-      VALUE_LOG_STEP_ORDER[Math.min(VALUE_LOG_STEP_ORDER.length - 1, currentIndex + 1)] ??
+      WIZARD_STEP_ORDER[Math.min(WIZARD_STEP_ORDER.length - 1, currentIndex + 1)] ??
       valueLogStep;
-    if (next === "performance_tags" && valueLogDraft.wellbeingNode !== "~~Performance") {
-      setValueLogStep("compute");
+    if (next === "select_performance" && valueLogDraft.wellbeingNode !== "~~Performance") {
+      setValueLogStep("show_outcome");
       return;
     }
     setValueLogStep(next);
   };
 
   const handleValueLogPrev = () => {
-    const currentIndex = VALUE_LOG_STEP_ORDER.indexOf(valueLogStep);
+    const currentIndex = WIZARD_STEP_ORDER.indexOf(valueLogStep);
     if (currentIndex <= 0) return;
-    if (valueLogStep === "compute" && valueLogDraft.wellbeingNode !== "~~Performance") {
-      setValueLogStep("wellbeing_context");
+    if (valueLogStep === "show_outcome" && valueLogDraft.wellbeingNode !== "~~Performance") {
+      setValueLogStep("select_wellbeing");
       return;
     }
-    const prev = VALUE_LOG_STEP_ORDER[currentIndex - 1] ?? valueLogStep;
+    const prev = WIZARD_STEP_ORDER[currentIndex - 1] ?? valueLogStep;
     setValueLogStep(prev);
   };
 
@@ -550,7 +573,7 @@ const IovTopologyCanvas = () => {
     personSceneRef.current?.setTimelineLogs(nextLogs);
     setPersonSummary(personSceneRef.current?.getSummary() ?? null);
     setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
-    setValueLogStep("time_slice");
+    setValueLogStep("select_time");
     setPhaseHeadline("Time slice committed: wellbeing and aura state updated.");
   };
 
@@ -610,6 +633,9 @@ const IovTopologyCanvas = () => {
         onInteractionModeChange={handleInteractionModeChange}
         onTogglePresentationMode={() => setPresentationMode((prev) => !prev)}
         onOpenValueLog={handleOpenValueLog}
+        onStartIdentityBuild={handleStartIdentityBuild}
+        onNextIdentityLayer={handleNextIdentityLayer}
+        onReplayIdentityLayer={handleReplayIdentityLayer}
         onValueLogDraftChange={handleValueLogDraftChange}
         onValueLogNext={handleValueLogNext}
         onValueLogPrev={handleValueLogPrev}

@@ -42,6 +42,14 @@ The core message:
 - State evolution:
   - `src/game/iov/PersonStateEngine.ts`
 
+## Newly added (this pass)
+- `Person` scene has a staged identity-build mode:
+  - `Start Identity Build` begins at `GivenIdentity`.
+  - `Next Identity` advances one orbit/layer at a time.
+  - `Replay Layer` replays the current layer drop.
+- Facet tokens now animate as staggered drops from above instead of appearing all at once.
+- Controls are wired in both desktop and mobile panel for `Person` level.
+
 ## What the yellow element is (explicit)
 In the `Time Slice` scene, the yellow moving sphere near the clock hands is the **activity token**:
 - it represents the currently active point moving across the selected time slice wedge,
@@ -146,4 +154,3 @@ Constraints:
 
 Update docs/IOV_SEMANTIC_ZOOM_PROJECT.md and docs/LLM_HANDOFF_CONTEXT.md after changes.
 ```
-

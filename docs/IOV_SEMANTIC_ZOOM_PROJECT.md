@@ -188,6 +188,17 @@ Status: `completed`
   - layer/facet terms mirrored from the canonical wellbeing-identity protocol in
     `the-internet-of-value-spec` (`specs/protocols/wellbeing-identity/*.md`).
 
+#### Phase 3 Progress (identity build pass)
+- Added progressive identity construction controls:
+  - `Start Identity Build`
+  - `Next Identity`
+  - `Replay Layer`
+- Person scene now supports staged reveal:
+  - one identity layer at a time
+  - facet tokens drop from above in staggered sequence per layer
+  - future layers stay hidden until advanced
+- Panel now shows build progress and active layer label (desktop + mobile person mode).
+
 ### Phase 4: Data Model + Loader
 Status: `in_progress`
 - Add `public/data/iov_people.json`.

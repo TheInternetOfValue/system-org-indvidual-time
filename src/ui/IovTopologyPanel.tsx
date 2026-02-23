@@ -11,8 +11,8 @@ import type {
 } from "@/game/iov/PersonIdentityScene";
 import type {
   ValueLogDraft,
-  ValueLogStep,
   ValueLogSummary,
+  WizardStep,
 } from "@/game/iov/ValueLogScene";
 import type { SemanticZoomLevel } from "@/game/iov/IovSemanticZoomController";
 import {
@@ -37,7 +37,7 @@ interface IovTopologyPanelProps {
   personSummary: PersonIdentitySummary | null;
   valueLogDraft: ValueLogDraft;
   valueLogSummary: ValueLogSummary | null;
-  valueLogStep: ValueLogStep;
+  valueLogStep: WizardStep;
   interactionMode: BrickInteractionMode;
   onToggle: (toggleId: ToggleId) => void;
   onBuild: (regionId: RegionId) => void;
@@ -46,6 +46,9 @@ interface IovTopologyPanelProps {
   onInteractionModeChange: (mode: BrickInteractionMode) => void;
   onTogglePresentationMode: () => void;
   onOpenValueLog: () => void;
+  onStartIdentityBuild: () => void;
+  onNextIdentityLayer: () => void;
+  onReplayIdentityLayer: () => void;
   onValueLogDraftChange: (patch: Partial<ValueLogDraft>) => void;
   onValueLogNext: () => void;
   onValueLogPrev: () => void;
@@ -78,6 +81,9 @@ const IovTopologyPanel = ({
   onInteractionModeChange,
   onTogglePresentationMode,
   onOpenValueLog,
+  onStartIdentityBuild,
+  onNextIdentityLayer,
+  onReplayIdentityLayer,
   onValueLogDraftChange,
   onValueLogNext,
   onValueLogPrev,
@@ -195,6 +201,22 @@ const IovTopologyPanel = ({
             </div>
           )}
         </>
+      )}
+      {isMobile && semanticLevel === "person" && personSummary && (
+        <div className="iov-mobile-person-row">
+          <button type="button" onClick={onStartIdentityBuild}>
+            {personSummary.identityBuildMode ? "Restart" : "Start Build"}
+          </button>
+          <button type="button" onClick={onNextIdentityLayer}>
+            Next Layer
+          </button>
+          <button type="button" onClick={onReplayIdentityLayer} disabled={!personSummary.identityBuildMode}>
+            Replay
+          </button>
+          <button type="button" onClick={onOpenValueLog}>
+            Time Slice
+          </button>
+        </div>
       )}
       <div className="iov-panel-content">
       <div className="iov-phase-headline">{phaseHeadline}</div>
@@ -376,15 +398,40 @@ const IovTopologyPanel = ({
                 <strong>{personSummary.personId}</strong>
               </div>
               <div className="iov-panel-buttons">
+                <button type="button" onClick={onStartIdentityBuild}>
+                  {personSummary.identityBuildMode ? "Restart Build" : "Start Identity Build"}
+                </button>
+                <button type="button" onClick={onNextIdentityLayer}>
+                  Next Identity
+                </button>
+                <button
+                  type="button"
+                  onClick={onReplayIdentityLayer}
+                  disabled={!personSummary.identityBuildMode}
+                >
+                  Replay Layer
+                </button>
                 <button type="button" onClick={onOpenValueLog}>
                   Open Time Slice
                 </button>
+              </div>
+              <div className="iov-panel-value-subline">
+                Build progress:{" "}
+                {personSummary.identityBuildMode
+                  ? `${Math.max(0, personSummary.identityBuildLayerIndex + 1)} / ${
+                      personSummary.identityBuildLayerCount
+                    }${personSummary.identityBuildComplete ? " (complete)" : ""}`
+                  : "Not started"}
+              </div>
+              <div className="iov-panel-value-subline">
+                Active build layer: {personSummary.identityBuildLayerLabel ?? "None"}
               </div>
               <div className="iov-panel-layer-rail">
                 {personSummary.layerLabels.map((layer) => {
                   const isActive =
                     layer === personSummary.selectedLayer ||
-                    layer === personSummary.hoveredLayer;
+                    layer === personSummary.hoveredLayer ||
+                    layer === personSummary.identityBuildLayerLabel;
                   return (
                     <span
                       key={layer}
@@ -438,7 +485,7 @@ const IovTopologyPanel = ({
                 </button>
               </div>
               <div className="iov-panel-log-chain">
-                {valueLogStep === "time_slice" && (
+                {valueLogStep === "select_time" && (
                   <div className="iov-panel-log-card">
                     <div className="iov-panel-log-card-title">1) ~ValueCaptureProtocol / ~~TimeSlice</div>
                     <label className="iov-field-label">
@@ -465,42 +512,7 @@ const IovTopologyPanel = ({
                     </label>
                   </div>
                 )}
-                {valueLogStep === "value_capture" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">2) ~ValueCaptureProtocol / ~~Activity + ~~Proof</div>
-                    <label className="iov-field-label">
-                      Activity
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.activityLabel}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ activityLabel: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      Proof
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.proofOfActivity}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ proofOfActivity: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      Evidence link
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.evidenceLink}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ evidenceLink: event.target.value })
-                        }
-                      />
-                    </label>
-                  </div>
-                )}
-                {valueLogStep === "wellbeing_context" && (
+                {valueLogStep === "select_wellbeing" && (
                   <div className="iov-panel-log-card">
                     <div className="iov-panel-log-card-title">3) ~WellbeingProtocol / ~~Context</div>
                     <label className="iov-field-label">
@@ -548,7 +560,7 @@ const IovTopologyPanel = ({
                     </label>
                   </div>
                 )}
-                {valueLogStep === "performance_tags" && (
+                {valueLogStep === "select_performance" && (
                   <div className="iov-panel-log-card">
                     <div className="iov-panel-log-card-title">4) ~SAOcommons activation (Performance only)</div>
                     {valueLogDraft.wellbeingNode === "~~Performance" ? (
@@ -603,10 +615,10 @@ const IovTopologyPanel = ({
                     )}
                   </div>
                 )}
-                {(valueLogStep === "compute" || valueLogStep === "commit") && (
+                {valueLogStep === "show_outcome" && (
                   <div className="iov-panel-log-card">
                     <div className="iov-panel-log-card-title">
-                      {valueLogStep === "compute" ? "5) Compute" : "6) Commit"}
+                      4) Outcome
                     </div>
                     <div className="iov-panel-value-subline">
                       SAOcommons: {valueLogSummary.outcome.saocommonsEnabled ? "Activated" : "Not activated"}

@@ -25,9 +25,22 @@ export class PersonStateEngine {
   private auraStrength = 0.45;
   private history: number[] = [];
 
+  getLogCount() {
+    return this.logs.length;
+  }
+
   setLogs(logs: IovTimeLogEntry[]) {
     this.logs = logs;
     this.reset();
+  }
+
+  appendLog(log: IovTimeLogEntry) {
+    this.logs.push(log);
+    // Don't reset. If we were "done", move processed pointer back so step() picks up the new one.
+    // If processed is at end (length-2 since 0-indexed and we just added one), it forces a step.
+    if (this.processed >= this.logs.length - 2) {
+      this.step();
+    }
   }
 
   reset() {

@@ -68,6 +68,23 @@ interface LayerRingNode {
   mesh: THREE.Mesh;
 }
 
+interface PhotonPulse {
+  mesh: THREE.Mesh;
+  angle: number;
+  radius: number;
+  speed: number;
+  baseY: number;
+  phase: number;
+  layerIndex: number;
+  targetLayerIndex: number;
+  hopDirection: 1 | -1;
+  holdRemaining: number;
+  jumpProgress: number;
+  jumpDuration: number;
+  jumpStartRadius: number;
+  jumpTargetRadius: number;
+}
+
 export class PersonIdentityScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(44, 1, 0.1, 180);
@@ -85,8 +102,7 @@ export class PersonIdentityScene {
 
   private readonly facetNodes: FacetNode[] = [];
   private readonly layerRings: LayerRingNode[] = [];
-  private readonly fieldBands: THREE.Mesh[] = [];
-  private readonly pulseWaves: THREE.Mesh[] = [];
+  private readonly photonPulses: PhotonPulse[] = [];
   private readonly stateEngine = new PersonStateEngine();
   private personViewMode: PersonDetailMode = "identity";
   private identityBuildMode = false;
@@ -103,29 +119,12 @@ export class PersonIdentityScene {
   private readonly orbitPlaneY = 1.48;
   private lastProcessedLogCount = 0;
   private pulseEnergy = 0.1;
-  private pulseDirection: 1 | -1 = 1;
-  private pulsePhase = 0;
+  private wavefrontRadius = 0; // Tracks the expanding ripple from center
   private directImpactLayers: string[] = [];
   private derivedImpactLayers: string[] = ["IdentityState"];
   private wellbeingContextNode: WellbeingContextNode | null = null;
   private saocommonsEnabled = false;
   private saocommonsDomains: string[] = [];
-  private readonly timelineRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1.36, 0.032, 10, 140),
-    new THREE.MeshBasicMaterial({
-      color: "#f3c94b",
-      transparent: true,
-      opacity: 0.82,
-    })
-  );
-  private readonly timelineDot = new THREE.Mesh(
-    new THREE.SphereGeometry(0.08, 14, 10),
-    new THREE.MeshBasicMaterial({
-      color: "#ffd957",
-      transparent: true,
-      opacity: 0.96,
-    })
-  );
 
   private readonly hoveredMarker = new THREE.Mesh(
     new THREE.SphereGeometry(0.15, 14, 10),
@@ -164,8 +163,7 @@ export class PersonIdentityScene {
     this.buildIdentityCore();
     this.buildLayerRings();
     this.buildFacetNodes();
-    this.buildAura();
-    this.buildTimeline();
+    this.buildPhotonPulses();
     this.applyModeVisualState();
 
     this.hoveredMarker.visible = false;
@@ -180,21 +178,48 @@ export class PersonIdentityScene {
   setPersonContext(personId: string, regionId: RegionId) {
     this.selectedPersonId = personId;
     this.sourceRegion = regionId;
-    this.identityBuildMode = false;
-    this.buildLayerIndex = -1;
-    this.buildLayerStartSeconds = 0;
+    // Enter person view in staged-build mode so identity is revealed progressively.
+    this.identityBuildMode = true;
+    this.buildLayerIndex = 0;
+    this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.selectedFacet = null;
+    this.selectedMarker.visible = false;
+    this.hoveredFacet = null;
+    this.hoveredMarker.visible = false;
+    this.callbacks.onHoverFacetChange?.(null);
     this.applyModeVisualState();
   }
 
   setTimelineLogs(logs: IovTimeLogEntry[]) {
+    const currentCount = this.stateEngine.getLogCount();
+    if (logs.length > 0 && logs.length === currentCount + 1) {
+      const newLog = logs[logs.length - 1];
+      if (newLog) {
+        this.stateEngine.appendLog(newLog);
+        // Force immediate update to catch the processed count change so we don't double-trigger
+        const snapshot = this.stateEngine.getSnapshot();
+        this.lastProcessedLogCount = snapshot.processedLogs;
+        
+        this.onLogAdvanced(newLog);
+        this.pulseEnergy = 1.6;
+        return;
+      }
+    }
+
     this.stateEngine.setLogs(logs);
     this.stateEngine.play();
     const snapshot = this.stateEngine.getSnapshot();
     this.latestCaption = formatValueLogForCaption(snapshot.currentLog);
     this.lastProcessedLogCount = snapshot.processedLogs;
     this.pulseEnergy = 0.14;
-    this.pulsePhase = 0;
     this.syncLogContext(snapshot.currentLog);
+  }
+
+  appendLog(log: IovTimeLogEntry) {
+    this.stateEngine.appendLog(log);
+    // Force immediate visual impact
+    this.pulseEnergy = 1.6; // High energy for immediate expansion
+    this.syncLogContext(log);
   }
 
   setDetailMode(mode: PersonDetailMode) {
@@ -356,9 +381,8 @@ export class PersonIdentityScene {
       this.lastProcessedLogCount = snapshot.processedLogs;
       this.onLogAdvanced(snapshot.currentLog);
     }
-    this.updateAura(deltaSeconds, snapshot);
+    this.updatePhotonPulses(deltaSeconds, snapshot);
     this.updateOrbits(deltaSeconds, snapshot);
-    this.updateTimeline(deltaSeconds, snapshot);
     if (this.hasPointer) this.updateHover();
   }
 
@@ -372,10 +396,6 @@ export class PersonIdentityScene {
     this.disposeGroup(this.nodesGroup);
     this.disposeGroup(this.labelsGroup);
     this.disposeGroup(this.auraGroup);
-    this.timelineRing.geometry.dispose();
-    (this.timelineRing.material as THREE.Material).dispose();
-    this.timelineDot.geometry.dispose();
-    (this.timelineDot.material as THREE.Material).dispose();
     this.hoveredMarker.geometry.dispose();
     (this.hoveredMarker.material as THREE.Material).dispose();
     this.selectedMarker.geometry.dispose();
@@ -521,64 +541,54 @@ export class PersonIdentityScene {
     });
   }
 
-  private buildAura() {
+  private buildPhotonPulses() {
     this.auraGroup.clear();
-    this.fieldBands.length = 0;
-    this.pulseWaves.length = 0;
+    this.photonPulses.length = 0;
 
-    const bandDefs = [
-      { inner: 1.2, outer: 3.3, color: "#7cc4ff", opacity: 0.09 },
-      { inner: 3.3, outer: 5.2, color: "#8fd7ff", opacity: 0.07 },
-      { inner: 5.2, outer: 6.8, color: "#9ec8ff", opacity: 0.05 },
+    // Start near center (inside first layer)
+    const pulseDefs = [
+      { layerIndex: -1, baseY: this.orbitPlaneY - 0.02, color: "#f5dc67", speed: 0.86, phase: 0.3 },
     ];
 
-    bandDefs.forEach((band, index) => {
+    pulseDefs.forEach((def) => {
       const mesh = new THREE.Mesh(
-        new THREE.RingGeometry(band.inner, band.outer, 96),
-        new THREE.MeshBasicMaterial({
-          color: band.color,
+        new THREE.SphereGeometry(0.12, 16, 16), // Larger central photon
+        new THREE.MeshStandardMaterial({
+          color: def.color,
+          emissive: def.color,
+          emissiveIntensity: 0.8, // Brighter
           transparent: true,
-          opacity: band.opacity,
-          side: THREE.DoubleSide,
+          opacity: 0.9,
+          roughness: 0.2,
+          metalness: 0.1,
           blending: THREE.AdditiveBlending,
           depthWrite: false,
         })
       );
-      mesh.rotation.x = Math.PI / 2;
-      mesh.position.y = this.orbitPlaneY;
-      mesh.userData.baseOpacity = band.opacity;
-      mesh.userData.spin = 0.02 + index * 0.012;
+      // Start dead center
+      mesh.position.set(0, def.baseY, 0);
       this.auraGroup.add(mesh);
-      this.fieldBands.push(mesh);
+      
+      this.photonPulses.push({
+        mesh,
+        angle: 0,
+        radius: 0.1, // Start very close to center
+        speed: def.speed,
+        baseY: def.baseY,
+        phase: def.phase,
+        layerIndex: -1,
+        targetLayerIndex: 0,
+        hopDirection: 1,
+        holdRemaining: 0.2,
+        jumpProgress: 0,
+        jumpDuration: 0.6,
+        jumpStartRadius: 0.1,
+        jumpTargetRadius: this.getLayerRadius(0),
+      });
     });
-
-    for (let i = 0; i < 4; i += 1) {
-      const wave = new THREE.Mesh(
-        new THREE.TorusGeometry(1, 0.04, 12, 120),
-        new THREE.MeshBasicMaterial({
-          color: "#ffe67d",
-          transparent: true,
-          opacity: 0,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      wave.rotation.x = Math.PI / 2;
-      wave.position.y = this.orbitPlaneY;
-      wave.userData.offset = i * 0.23;
-      this.auraGroup.add(wave);
-      this.pulseWaves.push(wave);
-    }
   }
 
-  private buildTimeline() {
-    this.timelineRing.position.y = this.orbitPlaneY - 0.46;
-    this.timelineRing.rotation.x = Math.PI / 2;
-    this.timelineDot.position.set(1.36, this.orbitPlaneY - 0.46, 0);
-    this.root.add(this.timelineRing, this.timelineDot);
-  }
-
-  private updateAura(
+  private updatePhotonPulses(
     deltaSeconds: number,
     snapshot: ReturnType<PersonStateEngine["getSnapshot"]>
   ) {
@@ -586,36 +596,71 @@ export class PersonIdentityScene {
     const strength = snapshot.auraStrength;
     this.latestCaption = formatValueLogForCaption(snapshot.currentLog);
     this.pulseEnergy = Math.max(0.03, this.pulseEnergy - deltaSeconds * 0.08);
-    this.pulsePhase += deltaSeconds * (0.42 + strength * 0.6);
-    const directionalBoost = this.pulseDirection === 1 ? this.pulseEnergy : -this.pulseEnergy * 0.55;
 
-    this.fieldBands.forEach((band, index) => {
-      const mat = band.material as THREE.MeshBasicMaterial;
-      const baseOpacity = (band.userData.baseOpacity as number | undefined) ?? 0.05;
-      const breathing = Math.sin(time * (0.6 + index * 0.2) + index) * 0.014;
-      mat.opacity = Math.max(
-        0.012,
-        baseOpacity + strength * 0.12 + directionalBoost * 0.28 + breathing
+    // Expansion Logic: If high energy (commit), expand the wavefront
+    if (this.pulseEnergy > 0.6) {
+        // Expand rapidly from center
+        this.wavefrontRadius += deltaSeconds * 6.0;
+    } else if (this.pulseEnergy < 0.1) {
+        // Reset wavefront when calm so it's ready for next pulse
+        // But keep it "full" (essentially infinite) so stable state is visible
+        this.wavefrontRadius = 100;
+        
+        // However, if we just committed, we want to reset to 0 to start the animation
+        // This reset is handled in onLogAdvanced below
+    }
+
+    const maxVisibleLayerIndex =
+      this.identityBuildMode && this.personViewMode === "identity"
+        ? Math.max(0, this.buildLayerIndex)
+        : WELLBEING_IDENTITY_LAYERS.length - 1;
+
+    this.photonPulses.forEach((pulse, index) => {
+      pulse.mesh.visible = maxVisibleLayerIndex >= 0;
+      if (!pulse.mesh.visible) return;
+
+      // The Photon strictly follows the wavefront edge during expansion
+      // Otherwise, it orbits gently at a stable radius (Identity State usually)
+      
+      const isRippleMode = this.pulseEnergy > 0.4;
+      
+      if (isRippleMode) {
+          // Ride the wave!
+          pulse.radius = Math.max(0.1, this.wavefrontRadius);
+          pulse.angle += deltaSeconds * 5.0; // Spin fast while traveling
+          
+          // Visuals for the "traveling packet" - Bright White like the dropped photon
+          pulse.mesh.scale.setScalar(2.0); 
+          (pulse.mesh.material as THREE.MeshStandardMaterial).color.set("#ffffff");
+          (pulse.mesh.material as THREE.MeshStandardMaterial).emissive.set("#ffffff");
+          (pulse.mesh.material as THREE.MeshStandardMaterial).opacity = 1.0;
+          (pulse.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.0;
+      } else {
+          // Orbit calmly around Identity State (usually index 6, radius ~5.3)
+          // or just the last visible layer
+          const stableIndex = Math.min(6, maxVisibleLayerIndex);
+          const stableRadius = this.getLayerRadius(stableIndex);
+          
+          // Lerp to stable orbit
+          pulse.radius += (stableRadius - pulse.radius) * deltaSeconds * 2.0;
+          pulse.angle += deltaSeconds * 0.5; // Slow orbit
+          
+          pulse.mesh.scale.setScalar(1.0 + strength * 0.5);
+          (pulse.mesh.material as THREE.MeshStandardMaterial).color.set("#f5dc67"); // Back to Identity Yellow
+          (pulse.mesh.material as THREE.MeshStandardMaterial).emissive.set("#f5dc67");
+          (pulse.mesh.material as THREE.MeshStandardMaterial).opacity = 0.6;
+          (pulse.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5;
+      }
+
+      pulse.mesh.position.set(
+        Math.cos(pulse.angle) * pulse.radius,
+        pulse.baseY,
+        Math.sin(pulse.angle) * pulse.radius
       );
-      band.rotation.z += deltaSeconds * ((band.userData.spin as number | undefined) ?? 0.02);
-    });
-
-    this.pulseWaves.forEach((wave) => {
-      const offset = (wave.userData.offset as number | undefined) ?? 0;
-      const progress = (this.pulsePhase + offset) % 1;
-      const scale =
-        this.pulseDirection === 1
-          ? 0.95 + progress * 5.6
-          : 1.45 - progress * 0.6;
-      wave.scale.setScalar(scale);
-      const mat = wave.material as THREE.MeshBasicMaterial;
-      const envelope = Math.max(0, 1 - progress);
-      mat.opacity =
-        this.pulseDirection === 1
-          ? envelope * (0.08 + this.pulseEnergy * 0.85)
-          : envelope * (0.04 + this.pulseEnergy * 0.32);
     });
   }
+
+  // private scheduleNextPhotonHop... (removed as simpler logic is now used)
 
   private updateOrbits(
     deltaSeconds: number,
@@ -638,26 +683,64 @@ export class PersonIdentityScene {
       const ringLayerIndex = WELLBEING_IDENTITY_LAYERS.findIndex(
         (layer) => layer.key === ringNode.key
       );
+      
+      const layerRadius = 1.55 + ringLayerIndex * 0.62;
+      
+      // WAVEFRONT LOGIC:
+      // If wavefront hasn't reached this layer, hide it.
+      if (this.wavefrontRadius < layerRadius) {
+          ringNode.mesh.visible = false;
+          // Hide label too
+          const label = this.labelsGroup.children[ringLayerIndex];
+          if (label) label.visible = false;
+          return;
+      }
+      
+      // Determine if layer is "just hit" by the wavefront (within 0.5 units)
+      const waveImpact = Math.max(0, 1.0 - (this.wavefrontRadius - layerRadius) * 2.0);
+      
       if (buildModeActive && ringLayerIndex > this.buildLayerIndex) {
         ringNode.mesh.visible = false;
         return;
       }
+      
       ringNode.mesh.visible = true;
       const isDirect = directKeys.has(ringNode.key);
       const isDerived = derivedKeys.has(ringNode.key);
+      
+      // Label Visibility Logic (De-clutter)
+      // Show label if: 
+      // 1. Layer is JUST hit by wave (flash)
+      // 2. Layer is hovered or directly impacted
+      // 3. We are in steady state (wavefront effectively infinite) AND (first layer or derived/impacted)
+      // This reduces the wall of text.
+      const label = this.labelsGroup.children[ringLayerIndex];
+      if (label) {
+          const isSteadyState = this.pulseEnergy < 0.1;
+          const showLabel = (waveImpact > 0.1) || isDirect || (isSteadyState && (isDerived || ringLayerIndex === 0));
+          label.visible = showLabel;
+          // Fade label based on impact
+           ((label as THREE.Sprite).material as THREE.SpriteMaterial).opacity = Math.min(1, 0.4 + waveImpact + (isDirect ? 0.4 : 0));
+      }
+
       let baseline = this.personViewMode === "valuelog" ? 0.42 : 0.65;
       if (buildModeActive) {
         const isCurrentLayer = ringLayerIndex === this.buildLayerIndex;
         baseline = isCurrentLayer ? 0.14 + buildLayerProgress * 0.58 : 0.56;
       }
+      
       const boost = isDirect
         ? 0.16 + activityImpact * 0.32 + this.pulseEnergy * 0.22
         : isDerived
           ? 0.1 + activityImpact * 0.18 + this.pulseEnergy * 0.15
           : 0;
-      material.opacity = baseline + boost;
+
+      // Flash on wave impact
+      material.opacity = Math.min(1, baseline + boost + waveImpact * 0.5);
+      
+      // Pulse scale
       ringNode.mesh.scale.setScalar(
-        1 + (isDirect ? 0.02 : isDerived ? 0.01 : 0) + this.pulseEnergy * (isDirect ? 0.06 : 0.03)
+        1 + (isDirect ? 0.02 : isDerived ? 0.01 : 0) + this.pulseEnergy * (isDirect ? 0.06 : 0.03) + waveImpact * 0.08
       );
     });
 
@@ -665,7 +748,16 @@ export class PersonIdentityScene {
       node.angle += deltaSeconds * node.speed;
       const x = Math.cos(node.angle) * node.radius;
       const z = Math.sin(node.angle) * node.radius;
-      const material = node.mesh.material as THREE.MeshStandardMaterial;
+      const material = node.mesh.material as THREE.MeshStandardMaterial; // Facet
+      
+      // Wavefront check for facets too
+      if (this.wavefrontRadius < node.radius) {
+          node.mesh.visible = false;
+          return;
+      }
+      
+      const waveImpact = Math.max(0, 1.0 - (this.wavefrontRadius - node.radius) * 1.5);
+
       const isDirect = directKeys.has(node.layer.key);
       const isDerived = derivedKeys.has(node.layer.key);
       const hiddenByBuild =
@@ -679,6 +771,7 @@ export class PersonIdentityScene {
       node.mesh.visible = true;
       let y = node.baseY;
       let dropBlend = 1;
+
       if (buildModeActive && node.layerIndex === this.buildLayerIndex) {
         const elapsed = nowSeconds - this.buildLayerStartSeconds - node.dropOffsetSeconds;
         if (elapsed <= 0) {
@@ -691,19 +784,19 @@ export class PersonIdentityScene {
         dropBlend = eased;
       }
 
-      node.mesh.position.set(
-        x,
-        y,
-        z
-      );
+      node.mesh.position.set(x, y, z);
+      
+      // Flash emissive on wave hit
+      const impactGlow = waveImpact * 2.0; 
 
-      material.emissiveIntensity = isDirect
-        ? (0.13 + activityImpact * 0.22) * dropBlend
+      material.emissiveIntensity = (isDirect
+        ? (0.13 + activityImpact * 0.22)
         : isDerived
-          ? (0.1 + activityImpact * 0.12) * dropBlend
-          : 0.05 * dropBlend;
+          ? (0.1 + activityImpact * 0.12)
+          : 0.05) * dropBlend + this.pulseEnergy * 0.15 + impactGlow;
+          
       material.opacity = Math.max(0.06, dropBlend);
-      material.transparent = dropBlend < 0.999;
+      material.transparent = dropBlend < 0.999 || waveImpact > 0.01;
     });
 
     if (this.selectedFacet) {
@@ -718,33 +811,14 @@ export class PersonIdentityScene {
     }
   }
 
-  private updateTimeline(
-    deltaSeconds: number,
-    snapshot: ReturnType<PersonStateEngine["getSnapshot"]>
-  ) {
-    const ratio =
-      snapshot.totalLogs > 0 ? snapshot.processedLogs / snapshot.totalLogs : 0;
-    const angle = ratio * Math.PI * 2 + performance.now() * 0.00015 * snapshot.speed;
-    const radius = 1.36;
-    this.timelineDot.position.set(
-      Math.cos(angle) * radius,
-      this.timelineRing.position.y + Math.sin(performance.now() * 0.0024) * 0.03,
-      Math.sin(angle) * radius
-    );
-
-    const ringMat = this.timelineRing.material as THREE.MeshBasicMaterial;
-    const modeBoost = this.personViewMode === "valuelog" ? 0.24 : 0;
-    ringMat.opacity = 0.35 + snapshot.auraStrength * 0.35 + modeBoost;
-    this.timelineRing.rotation.z += deltaSeconds * 0.06;
-  }
-
   private onLogAdvanced(log: IovTimeLogEntry | null) {
     this.syncLogContext(log);
     const impact = Math.abs(this.extractActivityImpact(log));
     // Log events inject new outward energy into the orbit field.
     this.pulseEnergy = Math.min(1.35, 0.2 + impact * 0.95);
-    this.pulseDirection = this.extractActivityImpact(log) >= 0 ? 1 : -1;
-    this.pulsePhase = 0;
+    
+    // Reset wavefront to 0 to start the sequential expansion animation
+    this.wavefrontRadius = 0;
   }
 
   private extractActivityImpact(log: IovTimeLogEntry | null) {
@@ -831,10 +905,11 @@ export class PersonIdentityScene {
       mat.emissiveIntensity = isDailyLogs ? 0.045 : 0.09;
     });
 
-    const timelineMat = this.timelineRing.material as THREE.MeshBasicMaterial;
-    timelineMat.opacity = isDailyLogs ? 0.82 : 0.54;
-    const dotMat = this.timelineDot.material as THREE.MeshBasicMaterial;
-    dotMat.opacity = isDailyLogs ? 0.98 : 0.86;
+    this.photonPulses.forEach((pulse) => {
+      pulse.mesh.visible = !isDailyLogs;
+      const mat = pulse.mesh.material as THREE.MeshStandardMaterial;
+      mat.opacity = isDailyLogs ? 0.2 : 0.68;
+    });
   }
 
   private getBuildLayerProgress(nowSeconds: number) {
@@ -850,6 +925,15 @@ export class PersonIdentityScene {
   private easeOutCubic(value: number) {
     const t = Math.min(1, Math.max(0, value));
     return 1 - (1 - t) ** 3;
+  }
+
+  private easeInOutSine(value: number) {
+    const t = Math.min(1, Math.max(0, value));
+    return -(Math.cos(Math.PI * t) - 1) / 2;
+  }
+
+  private getLayerRadius(layerIndex: number) {
+    return 1.55 + layerIndex * 0.62;
   }
 
   private pickFacet() {

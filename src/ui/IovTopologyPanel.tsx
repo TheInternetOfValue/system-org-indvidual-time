@@ -45,10 +45,6 @@ interface IovTopologyPanelProps {
   onBackSemantic: () => void;
   onInteractionModeChange: (mode: BrickInteractionMode) => void;
   onTogglePresentationMode: () => void;
-  onOpenValueLog: () => void;
-  onStartIdentityBuild: () => void;
-  onNextIdentityLayer: () => void;
-  onReplayIdentityLayer: () => void;
   onValueLogDraftChange: (patch: Partial<ValueLogDraft>) => void;
   onValueLogNext: () => void;
   onValueLogPrev: () => void;
@@ -80,10 +76,6 @@ const IovTopologyPanel = ({
   onBackSemantic,
   onInteractionModeChange,
   onTogglePresentationMode,
-  onOpenValueLog,
-  onStartIdentityBuild,
-  onNextIdentityLayer,
-  onReplayIdentityLayer,
   onValueLogDraftChange,
   onValueLogNext,
   onValueLogPrev,
@@ -201,22 +193,6 @@ const IovTopologyPanel = ({
             </div>
           )}
         </>
-      )}
-      {isMobile && semanticLevel === "person" && personSummary && (
-        <div className="iov-mobile-person-row">
-          <button type="button" onClick={onStartIdentityBuild}>
-            {personSummary.identityBuildMode ? "Restart" : "Start Build"}
-          </button>
-          <button type="button" onClick={onNextIdentityLayer}>
-            Next Layer
-          </button>
-          <button type="button" onClick={onReplayIdentityLayer} disabled={!personSummary.identityBuildMode}>
-            Replay
-          </button>
-          <button type="button" onClick={onOpenValueLog}>
-            Time Slice
-          </button>
-        </div>
       )}
       <div className="iov-panel-content">
       <div className="iov-phase-headline">{phaseHeadline}</div>
@@ -397,23 +373,8 @@ const IovTopologyPanel = ({
               <div className="iov-panel-value-line">
                 <strong>{personSummary.personId}</strong>
               </div>
-              <div className="iov-panel-buttons">
-                <button type="button" onClick={onStartIdentityBuild}>
-                  {personSummary.identityBuildMode ? "Restart Build" : "Start Identity Build"}
-                </button>
-                <button type="button" onClick={onNextIdentityLayer}>
-                  Next Identity
-                </button>
-                <button
-                  type="button"
-                  onClick={onReplayIdentityLayer}
-                  disabled={!personSummary.identityBuildMode}
-                >
-                  Replay Layer
-                </button>
-                <button type="button" onClick={onOpenValueLog}>
-                  Open Time Slice
-                </button>
+              <div className="iov-panel-value-subline">
+                Identity build controls are in the center scene card.
               </div>
               <div className="iov-panel-value-subline">
                 Build progress:{" "}

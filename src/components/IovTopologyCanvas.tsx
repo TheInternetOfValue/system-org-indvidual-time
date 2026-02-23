@@ -568,13 +568,33 @@ const IovTopologyCanvas = () => {
     if (!selectedPersonId) return;
     const entry = valueLogSceneRef.current?.commit(selectedPersonId);
     if (!entry) return;
-    const nextLogs = [...activePersonLogs, entry];
-    setActivePersonLogs(nextLogs);
-    personSceneRef.current?.setTimelineLogs(nextLogs);
-    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
-    setValueLogStep("select_time");
-    setPhaseHeadline("Time slice committed: wellbeing and aura state updated.");
+    
+    // Smooth transition:
+    // 1. Commit triggers ripple in local scene (already handled by .commit())
+    // 2. Wait 1.8s for ripple to expand and fill view
+    // 3. Then transition to PersonIdentityScene
+    
+    setPhaseHeadline("Committing time slice...");
+    
+    setTimeout(() => {
+        const nextLogs = [...activePersonLogs, entry];
+        setActivePersonLogs(nextLogs);
+        
+        // Pass to PersonIdentityScene
+        personSceneRef.current?.setTimelineLogs(nextLogs);
+        
+        // Update Summaries
+        setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+        setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+        
+        // Reset wizard step for next time
+        setValueLogStep("select_time");
+        
+        // Auto-navigate back to person view to see the aura update
+        const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+        applySemanticTransition(next.level);
+        setPhaseHeadline("Time slice committed: wellbeing and aura state updated.");
+    }, 1200);
   };
 
   return (
@@ -632,10 +652,6 @@ const IovTopologyCanvas = () => {
         onBackSemantic={handleBackSemantic}
         onInteractionModeChange={handleInteractionModeChange}
         onTogglePresentationMode={() => setPresentationMode((prev) => !prev)}
-        onOpenValueLog={handleOpenValueLog}
-        onStartIdentityBuild={handleStartIdentityBuild}
-        onNextIdentityLayer={handleNextIdentityLayer}
-        onReplayIdentityLayer={handleReplayIdentityLayer}
         onValueLogDraftChange={handleValueLogDraftChange}
         onValueLogNext={handleValueLogNext}
         onValueLogPrev={handleValueLogPrev}
@@ -668,11 +684,39 @@ const IovTopologyCanvas = () => {
                 <div className="iov-semantic-title">Person Wellbeing Identity</div>
                 <div className="iov-semantic-body">
                   {personSummary
-                    ? `${personSummary.personId}: stable identity layers are visible. Open Time Slice to inspect how daily evidence changes wellbeing and aura.`
-                    : "Orbiting identity layers are active."}
+                    ? `${personSummary.personId}: build identity layer-by-layer in-scene, then open Time Slice once build is complete.`
+                    : "Build identity layers progressively."}
                 </div>
+                {personSummary && (
+                  <div className="iov-semantic-body">
+                    Build:{" "}
+                    {personSummary.identityBuildMode
+                      ? `${Math.max(0, personSummary.identityBuildLayerIndex + 1)} / ${
+                          personSummary.identityBuildLayerCount
+                        }${personSummary.identityBuildComplete ? " (complete)" : ""}`
+                      : "Not started"}{" "}
+                    | Active layer: {personSummary.identityBuildLayerLabel ?? "None"}
+                  </div>
+                )}
                 <div className="iov-semantic-actions">
-                  <button type="button" onClick={handleOpenValueLog}>
+                  <button type="button" onClick={handleStartIdentityBuild}>
+                    {personSummary?.identityBuildMode ? "Restart Build" : "Start Identity Build"}
+                  </button>
+                  <button type="button" onClick={handleNextIdentityLayer}>
+                    Next Identity
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReplayIdentityLayer}
+                    disabled={!personSummary?.identityBuildMode}
+                  >
+                    Replay Layer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenValueLog}
+                    disabled={!personSummary?.identityBuildComplete}
+                  >
                     Open Time Slice
                   </button>
                   <button type="button" onClick={handleBackSemantic}>

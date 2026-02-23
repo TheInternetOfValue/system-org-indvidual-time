@@ -197,7 +197,8 @@ Status: `completed`
   - one identity layer at a time
   - facet tokens drop from above in staggered sequence per layer
   - future layers stay hidden until advanced
-- Panel now shows build progress and active layer label (desktop + mobile person mode).
+- Person level now enters with staged build active by default (no full identity autoload).
+- Primary identity-build controls are in the in-scene semantic card (game area).
 
 ### Phase 4: Data Model + Loader
 Status: `in_progress`

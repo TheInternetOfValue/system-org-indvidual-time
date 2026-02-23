@@ -230,10 +230,19 @@ export class ValueLogScene {
   private hasPointer = false;
   private hoveredContext: WellbeingContextNode | null = null;
   private hoveredDomain: DomainNodeVisual["domain"] | null = null;
+  private rippleMesh: THREE.Mesh | null = null;
+  private rippleTime = 0;
+  private isRippling = false;
+  private isCommitting = false; // New flag to control the drop animation
 
   private readonly stringsGroup = new THREE.Group();
+  private onCompleteCallback?: (outcome: ValueLogOutcome) => void;
+  private domElement: HTMLElement;
 
-  constructor(private readonly domElement: HTMLElement) {
+  constructor(domElement: HTMLElement, onComplete?: (outcome: ValueLogOutcome) => void) {
+    this.domElement = domElement;
+    this.onCompleteCallback = onComplete;
+    
     // ---- Photon Token Creation ----
     this.token = new THREE.Object3D();
     
@@ -290,6 +299,20 @@ export class ValueLogScene {
     this.scene.add(this.root);
     this.root.add(this.clockGroup);
     this.root.add(this.stringsGroup);
+
+    // Ripple Mesh
+    this.rippleMesh = new THREE.Mesh(
+      new THREE.RingGeometry(0.1, 0.4, 64),
+      new THREE.MeshBasicMaterial({
+        color: "#ffffff",
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide
+      })
+    );
+    this.rippleMesh.position.y = -5.0; // Bottom of chandelier
+    this.rippleMesh.rotation.x = -Math.PI / 2;
+    this.root.add(this.rippleMesh);
 
     this.clockGroup.position.set(0, 4, 0);
 
@@ -378,11 +401,17 @@ export class ValueLogScene {
   }
 
   commit(personId: string, roleHint?: string): IovValueLogEntry {
+    this.isCommitting = true; // Trigger the drop
     const entry = this.buildEntry(personId, roleHint);
     this.committedCount += 1;
-    this.step = "select_time";
-    this.applyStepCameraPreset();
-    this.applyDraft();
+
+    // Trigger completion if callback exists
+    if (this.onCompleteCallback) {
+        this.onCompleteCallback(this.outcome);
+    }
+
+    // Do NOT reset loop immediately. The UI controller will handle the reset
+    // after the transition effect completes.
     return entry;
   }
 
@@ -407,38 +436,70 @@ export class ValueLogScene {
     if (!hit) return;
 
     if (hit.type === "clock") {
-      if (this.step === "select_time") {
+      // Allow going back to time selection from any step
+      if (this.step !== "select_time") {
+        this.setStep("select_time");
+      } else {
+        // If already on time, go to next
         this.setStep("select_wellbeing");
       }
       return;
     }
 
-    if (hit.type === "context" && this.step === "select_wellbeing") {
-      // Toggle selection
-      if (this.draft.wellbeingNode === hit.key) {
-        this.patchDraft({ wellbeingNode: undefined });
-      } else {
+    if (hit.type === "context") {
+      // If we are at the end, allow going back to change selection
+      if (this.step === "show_outcome") {
         this.patchDraft({ wellbeingNode: hit.key });
         if (hit.key === "~~Performance") {
           this.setStep("select_performance");
         } else {
+          // Stay on outcome but update
           this.setStep("show_outcome");
         }
+        return;
       }
-      return;
+      
+      if (this.step === "select_wellbeing" || this.step === "select_performance") {
+         // Toggle selection logic
+         if (this.draft.wellbeingNode === hit.key) {
+           this.patchDraft({ wellbeingNode: undefined });
+           // If deselected, stay on wellbeing step
+           this.setStep("select_wellbeing");
+         } else {
+           this.patchDraft({ wellbeingNode: hit.key });
+           if (hit.key === "~~Performance") {
+             this.setStep("select_performance");
+           } else {
+             this.setStep("show_outcome");
+           }
+         }
+         return;
+      }
     }
 
-    if (
-      hit.type === "domain" &&
-      this.step === "select_performance" &&
-      this.draft.wellbeingNode === "~~Performance"
-    ) {
-      if (hit.domain === "~~Learning") {
-        this.patchDraft({ learningTag: !this.draft.learningTag });
-      } else if (hit.domain === "~~Earning") {
-        this.patchDraft({ earningTag: !this.draft.earningTag });
-      } else {
-        this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
+    if (hit.type === "domain") {
+      // If we are at the end, allow going back to performance to toggle domains
+      if (this.step === "show_outcome" && this.draft.wellbeingNode === "~~Performance") {
+        this.setStep("select_performance");
+        // Apply toggle immediately too
+        if (hit.domain === "~~Learning") {
+            this.patchDraft({ learningTag: !this.draft.learningTag });
+        } else if (hit.domain === "~~Earning") {
+            this.patchDraft({ earningTag: !this.draft.earningTag });
+        } else {
+            this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
+        }
+        return;
+      }
+
+      if (this.step === "select_performance" && this.draft.wellbeingNode === "~~Performance") {
+          if (hit.domain === "~~Learning") {
+            this.patchDraft({ learningTag: !this.draft.learningTag });
+          } else if (hit.domain === "~~Earning") {
+            this.patchDraft({ earningTag: !this.draft.earningTag });
+          } else {
+            this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
+          }
       }
     }
   }
@@ -489,12 +550,65 @@ export class ValueLogScene {
         }
       }
     } else if (this.step === "show_outcome") {
-      // Drop into the Identity/Aura pool at the bottom
-      targetPos.set(0, -5.0 + Math.sin(this.elapsedSeconds * 2.5) * 0.08, 0);
+      if (this.isCommitting) {
+          // Drop FAST into the Identity/Aura pool
+          const yPos = -5.0; 
+          targetPos.set(0, yPos, 0);
+
+          // Force very fast lerp when committing
+          this.token.position.lerp(targetPos, 12.0 * deltaSeconds);
+      } else {
+          // Hover above the pool, waiting for commit
+          // Previous step was hanging around y ~ -1.2.
+          // Let's hover visibly above the bottom labels.
+          const yPos = -1.8 + Math.sin(this.elapsedSeconds * 2.0) * 0.15;
+          targetPos.set(0, yPos, 0);
+          
+          // Normal lerp for hover
+          this.token.position.lerp(targetPos, 4.0 * deltaSeconds);
+      }
+
+      // Trigger ripple if we hit bottom (only happens during commit drop)
+      if (this.isCommitting && this.token.position.y < -4.7) {
+          this.isRippling = true;
+          this.rippleMesh!.visible = true; // Force visible immediate
+      } else {
+        this.isRippling = false;
+        if (this.rippleMesh) this.rippleMesh.visible = false;
+      }
+    } else {
+      this.isRippling = false; // Reset if step changes
+      
+      if (this.step !== "show_outcome") {
+          this.isCommitting = false; // Reset drop flag when we truly leave the outcome step
+      }
+      
+      if (this.rippleMesh) {
+          this.rippleMesh.visible = false;
+      }
     }
 
-    // Smoothly interpolate token position (faster lerp for photon)
-    this.token.position.lerp(targetPos, 7.0 * deltaSeconds);
+    // Smoothly interpolate token position (only if not in special commit mode which handles its own lerp)
+    if (this.step !== "show_outcome") {
+        this.token.position.lerp(targetPos, 7.0 * deltaSeconds);
+    }
+
+    // Ripple Animation
+    if (this.isRippling && this.rippleMesh) {
+        this.rippleTime += deltaSeconds * 1.5;
+        this.rippleMesh.visible = true;
+        
+        // Loop the ripple
+        const loopTime = this.rippleTime % 2.0;
+        const scale = 1 + loopTime * 6.0;
+        this.rippleMesh.scale.set(scale, scale, 1);
+        
+        const opacity = Math.max(0, 0.8 - loopTime * 0.4);
+        (this.rippleMesh.material as THREE.MeshBasicMaterial).opacity = opacity;
+    } else if (this.rippleMesh) {
+        this.rippleMesh.visible = false;
+        this.rippleTime = 0;
+    }
 
     // Update trail
     // Shift positions down

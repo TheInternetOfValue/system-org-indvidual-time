@@ -904,12 +904,10 @@ function getRegionMeaning(regionId: RegionId) {
           sceneRef.current?.setBrickInteractionMode(mode);
         }}
         onTogglePresentationMode={() => setPresentationMode((p) => !p)}
-        onValueLogDraftChange={(patch) =>
-          setValueLogDraft((prev) => ({ ...prev, ...patch }))
-        }
+        onValueLogDraftChange={handleValueLogDraftChange}
         onValueLogNext={onValueLogNext}
         onValueLogPrev={onValueLogPrev}
-        onValueLogCommit={() => valueLogSceneRef.current?.commit(selectedPersonId ?? "unknown")}
+        onValueLogCommit={handleValueLogCommit}
         onOpenValueLog={handleOpenValueLog}
       />
     </div>

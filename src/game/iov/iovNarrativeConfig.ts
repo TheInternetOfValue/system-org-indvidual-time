@@ -47,3 +47,8 @@ export const IOV_IDENTITY_COLORS = {
   community: "#d9b114",
   bridge: "#5f6670",
 } as const;
+
+export const IOV_FEATURE_FLAGS = {
+  // Pass 1: keep escalation pipeline disabled until Org/System impact scenes are implemented.
+  enableImpactEscalation: false,
+} as const;

@@ -42,6 +42,7 @@ import {
   DEFAULT_IOV_VALUES,
   loadIovValues,
 } from "@/game/iov/iovValues";
+import { IOV_FEATURE_FLAGS } from "@/game/iov/iovNarrativeConfig";
 import {
   DEFAULT_IOV_VALUELOGS,
   type IovValueLogEntry,
@@ -49,6 +50,7 @@ import {
   loadIovValuelogs,
   resolvePersonValuelogs,
 } from "@/game/iov/iovTimelogs";
+import { IovImpactEscalationController } from "@/game/iov/iovImpactEscalation";
 
 const topologyData = topologyRaw as IovTopologyData;
 
@@ -69,6 +71,9 @@ const IovTopologyCanvas = () => {
   const impactSceneRef = useRef<PersonImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
+  const impactEscalationRef = useRef(
+    new IovImpactEscalationController(IOV_FEATURE_FLAGS.enableImpactEscalation)
+  );
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -655,6 +660,26 @@ const IovTopologyCanvas = () => {
             
             // Reset wizard step for next time
             setValueLogStep("select_time");
+
+            if (
+              IOV_FEATURE_FLAGS.enableImpactEscalation &&
+              selectedBrickInfo &&
+              selectedPersonId
+            ) {
+              const auraDelta =
+                valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
+              impactEscalationRef.current.dispatch({
+                type: "RECORD_PERSON_IMPACT",
+                result: {
+                  personId: selectedPersonId,
+                  sourceRegionId: selectedBrickInfo.regionId,
+                  sourceBrickId: selectedBrickInfo.instanceId,
+                  auraDelta,
+                  timestamp: Date.now(),
+                },
+              });
+              impactEscalationRef.current.dispatch({ type: "MARK_ORG_IMPACT_PENDING" });
+            }
             
             // Auto-navigate back to person view using direct SET_LEVEL
             const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });

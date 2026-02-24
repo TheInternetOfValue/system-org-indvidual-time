@@ -12,6 +12,8 @@ The experience is a semantic zoom story:
 3. `Person` (wellbeing identity layers)  
 4. `Time Slice` (value log cascade)
 5. `Impact` (photon drop + ripple transition)
+6. `Org Impact` (aura contagion across people in selected organization)
+7. `System Impact` (Community pillar growth that stresses and can collapse the bridge)
 
 The core message:
 - institutions are made of organizations,
@@ -24,6 +26,8 @@ The core message:
 - `Organization` = former brick level
 - `Person` = wellbeing identity layer view
 - `Time Slice` = value log composition / protocol cascade view
+- `Org Impact` = contagion activation of one organization after person impact
+- `System Impact` = Community pillar growth + bridge stress/collapse sequence
 
 ## Current implementation map
 - Main canvas/router:
@@ -43,6 +47,32 @@ The core message:
   - loader/types in `src/game/iov/iovTimelogs.ts`
 - State evolution:
   - `src/game/iov/PersonStateEngine.ts`
+
+## New Priority Contract (locked for next passes)
+Implement impact as a strict three-scene pipeline:
+1. `Person Impact` (existing): committed log updates one person.
+2. `Org Impact` (new): one impacted person spreads aura through org until full activation and radiant brick state.
+3. `System Impact` (new): org activation increases Community pillar height and bridge stress until collapse threshold.
+
+Critical rule:
+- bridge collapse must be driven by Community pillar growth / stress model.
+- do not use raw reclaimed-brick count as collapse trigger.
+
+### Contract IO (must remain explicit)
+- `Person Impact` output: `PersonImpactResult`.
+- `Org Impact` input: `PersonImpactResult`; output: `OrgImpactResult` with `communityPowerDelta`.
+- `System Impact` input: `OrgImpactResult` + macro state; output: `SystemImpactResult` with `bridgeCollapsed`.
+
+### Safe rollout requirement
+- Add behind feature flag first (`enableImpactEscalation`).
+- Keep current behavior unchanged when flag is off.
+- Update docs after each pass before moving to next pass.
+
+Current pass status:
+- Pass 1 is implemented.
+- Contracts/state live in `src/game/iov/iovImpactEscalation.ts`.
+- Feature flag is currently `false` in `src/game/iov/iovNarrativeConfig.ts`.
+- Next pass should implement `OrgImpactScene` (no bridge model migration yet).
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

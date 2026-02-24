@@ -1,6 +1,12 @@
 import type { RegionId } from "./IovTopologyScene";
 
-export type SemanticZoomLevel = "topology" | "block" | "person" | "valuelog" | "impact";
+export type SemanticZoomLevel =
+  | "topology"
+  | "block"
+  | "person"
+  | "valuelog"
+  | "impact"
+  | "orgimpact";
 
 export interface SemanticZoomState {
   level: SemanticZoomLevel;
@@ -21,6 +27,7 @@ export type SemanticZoomEvent =
   | { type: "OPEN_PERSON"; personId: string }
   | { type: "OPEN_VALUELOG" }
   | { type: "OPEN_IMPACT" }
+  | { type: "OPEN_ORG_IMPACT" }
   | { type: "NAV_BACK" }
   | { type: "SET_LEVEL"; level: SemanticZoomLevel };
 
@@ -112,7 +119,33 @@ export class IovSemanticZoomController {
         };
         return this.state;
 
+      case "OPEN_ORG_IMPACT":
+        if (prev.level !== "impact") return prev;
+        this.state = {
+          ...prev,
+          level: "orgimpact",
+          transition: {
+            from: "impact",
+            to: "orgimpact",
+            startedAt: now(),
+          },
+        };
+        return this.state;
+
       case "NAV_BACK":
+        if (prev.level === "orgimpact") {
+          this.state = {
+            ...prev,
+            level: "block",
+            selectedPersonId: null,
+            transition: {
+              from: "orgimpact",
+              to: "block",
+              startedAt: now(),
+            },
+          };
+          return this.state;
+        }
         if (prev.level === "impact") {
           // If in impact, back goes to person (skipping valuelog creation)
           this.state = {
@@ -189,7 +222,12 @@ export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
     { level: "topology", label: "System", active: state.level === "topology" },
   ];
 
-  if (state.level === "block" || state.level === "person" || state.level === "valuelog") {
+  if (
+    state.level === "block" ||
+    state.level === "person" ||
+    state.level === "valuelog" ||
+    state.level === "impact"
+  ) {
     const label =
       state.selectedBrickId !== null
         ? `Organization #${state.selectedBrickId + 1}`
@@ -197,7 +235,7 @@ export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
     items.push({ level: "block", label, active: state.level === "block" });
   }
 
-  if (state.level === "person" || state.level === "valuelog") {
+  if (state.level === "person" || state.level === "valuelog" || state.level === "impact") {
     items.push({
       level: "person",
       label: "Person",
@@ -205,10 +243,31 @@ export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
     });
   }
 
-  if (state.level === "valuelog") {
+  if (state.level === "valuelog" || state.level === "impact") {
     items.push({
       level: "valuelog",
       label: "Time Slice",
+      active: state.level === "valuelog",
+    });
+  }
+
+  if (state.level === "impact") {
+    items.push({
+      level: "impact",
+      label: "Impact",
+      active: true,
+    });
+  }
+
+  if (state.level === "orgimpact") {
+    const label =
+      state.selectedBrickId !== null
+        ? `Organization #${state.selectedBrickId + 1}`
+        : "Organization";
+    items.push({ level: "block", label, active: false });
+    items.push({
+      level: "orgimpact",
+      label: "Org Impact",
       active: true,
     });
   }

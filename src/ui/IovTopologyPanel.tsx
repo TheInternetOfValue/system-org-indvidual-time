@@ -662,6 +662,10 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
       return "Person";
     case "valuelog":
       return "Time Slice";
+    case "impact":
+      return "Impact";
+    case "orgimpact":
+      return "Org Impact";
     default:
       return level;
   }

@@ -25,6 +25,7 @@ import {
   type PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
 import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
+import { OrgImpactScene } from "@/game/iov/OrgImpactScene";
 import {
   ValueLogScene,
   WIZARD_STEP_ORDER,
@@ -50,7 +51,10 @@ import {
   loadIovValuelogs,
   resolvePersonValuelogs,
 } from "@/game/iov/iovTimelogs";
-import { IovImpactEscalationController } from "@/game/iov/iovImpactEscalation";
+import {
+  IovImpactEscalationController,
+  type PersonImpactResult,
+} from "@/game/iov/iovImpactEscalation";
 
 const topologyData = topologyRaw as IovTopologyData;
 
@@ -69,6 +73,7 @@ const IovTopologyCanvas = () => {
   const blockSceneRef = useRef<BlockInteriorScene | null>(null);
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
   const impactSceneRef = useRef<PersonImpactScene | null>(null);
+  const orgImpactSceneRef = useRef<OrgImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const impactEscalationRef = useRef(
@@ -148,29 +153,10 @@ const IovTopologyCanvas = () => {
     // Impact Scene - Visualization only, no interaction
     const impactScene = new PersonImpactScene();
     impactSceneRef.current = impactScene;
+    const orgImpactScene = new OrgImpactScene(renderer.domElement);
+    orgImpactSceneRef.current = orgImpactScene;
 
-    const onImpactComplete = () => {
-        if (selectedPersonId) {
-            setLastImpactedPersonId(selectedPersonId);
-        }
-        applySemanticTransition("person");
-        // Also update local state to reflect new log? 
-        // Ideally we'd append the log to PersonIdentityScene here
-    };
-
-    const valueLogScene = new ValueLogScene(renderer.domElement, (outcome) => {
-        // When Value Log is committed:
-        if (impactSceneRef.current && valueLogSceneRef.current) {
-            semanticLevelRef.current = "impact";
-            // Get the draft directly to pass to impact
-            // Note: In real app we might pass the 'outcome' or full log
-            // For visual demo, the draft has the tags (Learning/Earning) we need for color
-            const draft = valueLogSceneRef.current.getDraft(); 
-            impactSceneRef.current.playImpact(draft, onImpactComplete);
-        } else {
-            onImpactComplete();
-        }
-    });
+    const valueLogScene = new ValueLogScene(renderer.domElement);
     valueLogSceneRef.current = valueLogScene;
 
     let composer: EffectComposer | null = null;
@@ -203,6 +189,8 @@ const IovTopologyCanvas = () => {
       blockScene.setViewportProfile(nextIsMobile);
       personScene.setViewportProfile(nextIsMobile);
       impactScene.resize(clientWidth, clientHeight);
+      orgImpactScene.setViewportProfile(nextIsMobile);
+      orgImpactScene.resize(clientWidth, clientHeight);
       valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
       blockScene.resize(clientWidth, clientHeight);
@@ -251,6 +239,9 @@ const IovTopologyCanvas = () => {
       } else if (semanticLevelRef.current === "impact") {
         impactSceneRef.current?.update(delta);
         renderer.render(impactSceneRef.current!.scene, impactSceneRef.current!.camera);
+      } else if (semanticLevelRef.current === "orgimpact") {
+        orgImpactScene.update(delta);
+        orgImpactScene.render(renderer);
       } else {
         valueLogScene.update(delta);
         valueLogScene.render(renderer);
@@ -302,11 +293,16 @@ const IovTopologyCanvas = () => {
         blockScene.clearPointer();
         scene.clearPointer();
         valueLogScene.clearPointer();
-      } else {
+      } else if (semanticLevelRef.current === "valuelog") {
         valueLogScene.setPointerFromCanvas(x, y, rect.width, rect.height);
         scene.clearPointer();
         blockScene.clearPointer();
         personScene.clearPointer();
+      } else {
+        scene.clearPointer();
+        blockScene.clearPointer();
+        personScene.clearPointer();
+        valueLogScene.clearPointer();
       }
     };
 
@@ -329,7 +325,7 @@ const IovTopologyCanvas = () => {
           blockScene.selectFromPointer();
         } else if (semanticLevelRef.current === "person") {
           personScene.selectFromPointer();
-        } else {
+        } else if (semanticLevelRef.current === "valuelog") {
           valueLogScene.selectFromPointer();
         }
       }
@@ -377,6 +373,7 @@ const IovTopologyCanvas = () => {
       scene.dispose();
       blockScene.dispose();
       personScene.dispose();
+      orgImpactScene.dispose();
       valueLogScene.dispose();
       composer?.dispose();
       renderer.dispose();
@@ -384,6 +381,7 @@ const IovTopologyCanvas = () => {
       sceneRef.current = null;
       blockSceneRef.current = null;
       personSceneRef.current = null;
+      orgImpactSceneRef.current = null;
       valueLogSceneRef.current = null;
     };
   }, []);
@@ -465,7 +463,9 @@ const IovTopologyCanvas = () => {
     } else if (level === "impact") {
       setPhaseHeadline("Value committed: Impact visualization.");
       // Logic handled via handleValueLogCommit transaction flow
-    } else {
+    } else if (level === "orgimpact") {
+      setPhaseHeadline("Organization impact: aura contagion across the team.");
+    } else if (level === "valuelog") {
       setPhaseHeadline(
         "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
       );
@@ -473,6 +473,8 @@ const IovTopologyCanvas = () => {
       valueLogSceneRef.current?.setDraft(valueLogDraft);
       valueLogSceneRef.current?.setStep(valueLogStep);
       setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+    } else {
+      setPhaseHeadline("Transitioning...");
     }
   };
 
@@ -631,67 +633,81 @@ const IovTopologyCanvas = () => {
     setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
+  const startOrgImpactSequence = (personImpactResult: PersonImpactResult) => {
+    const orgImpactScene = orgImpactSceneRef.current;
+    if (!orgImpactScene || !selectedBrickInfo) {
+      const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+      applySemanticTransition(back.level);
+      return;
+    }
+
+    const openOrgImpact = zoomControllerRef.current.dispatch({ type: "OPEN_ORG_IMPACT" });
+    applySemanticTransition(openOrgImpact.level);
+    impactEscalationRef.current.dispatch({ type: "START_ORG_IMPACT" });
+
+    orgImpactScene.setImpactContext({
+      regionId: selectedBrickInfo.regionId,
+      brickId: selectedBrickInfo.instanceId,
+      personId: personImpactResult.personId,
+      peopleCount: blockSummary?.peopleCount ?? 14,
+    });
+
+    orgImpactScene.playImpact(personImpactResult, (orgImpactResult) => {
+      impactEscalationRef.current.dispatch({
+        type: "COMPLETE_ORG_IMPACT",
+        result: orgImpactResult,
+      });
+      const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+      applySemanticTransition(back.level);
+    });
+  };
+
   const handleValueLogCommit = () => {
     if (!selectedPersonId) return;
     const entry = valueLogSceneRef.current?.commit(selectedPersonId);
     // Grab the draft before resetting or moving on
     const finalDraft = valueLogSceneRef.current?.getDraft();
     if (!entry || !finalDraft) return;
-    
-    // 1. Trigger Transition to Impact Scene
-    const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
-    applySemanticTransition("impact");
 
+    const finalizeAfterPersonImpact = () => {
+      const nextLogs = [...activePersonLogs, entry];
+      setActivePersonLogs(nextLogs);
+      personSceneRef.current?.setTimelineLogs(nextLogs);
+      setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+      setValueLogStep("select_time");
+      setLastImpactedPersonId(selectedPersonId);
+
+      if (IOV_FEATURE_FLAGS.enableImpactEscalation && selectedBrickInfo) {
+        const auraDelta = valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
+        const personImpactResult: PersonImpactResult = {
+          personId: selectedPersonId,
+          sourceRegionId: selectedBrickInfo.regionId,
+          sourceBrickId: selectedBrickInfo.instanceId,
+          auraDelta,
+          timestamp: Date.now(),
+        };
+        impactEscalationRef.current.dispatch({
+          type: "RECORD_PERSON_IMPACT",
+          result: personImpactResult,
+        });
+        impactEscalationRef.current.dispatch({ type: "MARK_ORG_IMPACT_PENDING" });
+        startOrgImpactSequence(personImpactResult);
+        return;
+      }
+
+      const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+      applySemanticTransition(back.level);
+    };
+
+    const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
+    applySemanticTransition(next.level);
     setPhaseHeadline("Committing time slice: Impact visualization...");
 
-    // 2. Start Impact Sequence
     if (impactSceneRef.current) {
-        impactSceneRef.current.playImpact(finalDraft, () => {
-            // 3. Callback when animation finishes
-            const nextLogs = [...activePersonLogs, entry];
-            setActivePersonLogs(nextLogs);
-            
-            // Pass to PersonIdentityScene
-            personSceneRef.current?.setTimelineLogs(nextLogs);
-            
-            // Update Summaries
-            setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-            setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
-            
-            // Reset wizard step for next time
-            setValueLogStep("select_time");
-
-            if (
-              IOV_FEATURE_FLAGS.enableImpactEscalation &&
-              selectedBrickInfo &&
-              selectedPersonId
-            ) {
-              const auraDelta =
-                valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
-              impactEscalationRef.current.dispatch({
-                type: "RECORD_PERSON_IMPACT",
-                result: {
-                  personId: selectedPersonId,
-                  sourceRegionId: selectedBrickInfo.regionId,
-                  sourceBrickId: selectedBrickInfo.instanceId,
-                  auraDelta,
-                  timestamp: Date.now(),
-                },
-              });
-              impactEscalationRef.current.dispatch({ type: "MARK_ORG_IMPACT_PENDING" });
-            }
-            
-            // Auto-navigate back to person view using direct SET_LEVEL
-            const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-            applySemanticTransition(back.level);
-        });
+      impactSceneRef.current.playImpact(finalDraft, finalizeAfterPersonImpact);
     } else {
-        // Fallback if scene ref missing
-        const nextLogs = [...activePersonLogs, entry];
-        setActivePersonLogs(nextLogs);
-        setValueLogStep("select_time");
-        const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-        applySemanticTransition(back.level);
+      finalizeAfterPersonImpact();
     }
   };
 

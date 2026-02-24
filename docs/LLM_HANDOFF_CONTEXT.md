@@ -69,10 +69,11 @@ Critical rule:
 - Update docs after each pass before moving to next pass.
 
 Current pass status:
-- Pass 1 is implemented.
+- Pass 1 and Pass 2 are implemented behind feature flag.
 - Contracts/state live in `src/game/iov/iovImpactEscalation.ts`.
+- Org contagion scene lives in `src/game/iov/OrgImpactScene.ts`.
 - Feature flag is currently `false` in `src/game/iov/iovNarrativeConfig.ts`.
-- Next pass should implement `OrgImpactScene` (no bridge model migration yet).
+- Next pass should implement `SystemImpactScene` and bridge-stress model migration.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

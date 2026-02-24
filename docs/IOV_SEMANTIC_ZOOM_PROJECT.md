@@ -145,6 +145,22 @@ Done when:
 - one impacted person can activate full org in deterministic waves.
 - org brick reaches radiant state only after contagion complete.
 
+Pass 2 progress (implemented behind flag):
+- Added `src/game/iov/OrgImpactScene.ts` with deterministic contagion waves:
+  - one impacted person seeds activation
+  - activation spreads in timed batches
+  - motion amplitude increases as people activate
+  - org brick glow ramps with activation ratio
+- Extended semantic routing:
+  - `IovSemanticZoomController` now supports `OPEN_ORG_IMPACT` and `level="orgimpact"`.
+  - `NAV_BACK` from `orgimpact` returns to `block`.
+- Wired `IovTopologyCanvas` transition flow:
+  - when `enableImpactEscalation=true`, post-person-impact flow is
+    `impact -> orgimpact -> block`.
+  - `OrgImpactScene` completion emits and records `OrgImpactResult`.
+- Added routing test:
+  - `src/game/iov/__tests__/IovSemanticZoomController.test.ts`
+
 ### Pass 3: System Impact Scene
 Deliverables:
 - add `SystemImpactScene` module.
@@ -531,6 +547,7 @@ After each implementation pass:
 - 2026-02-24: Impact must escalate in three explicit scenes (`Person Impact -> Org Impact -> System Impact`) with typed outputs between scenes.
 - 2026-02-24: System bridge collapse is tied to Community pillar growth and bridge stress, not raw reclaimed-brick count.
 - 2026-02-24: Pass 1 ships behind `IOV_FEATURE_FLAGS.enableImpactEscalation=false` to preserve existing demo behavior while contracts/controller land.
+- 2026-02-24: Pass 2 org-impact routing and scene logic are also integrated behind the same feature flag; default demo flow remains unchanged while scaffold stabilizes.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -546,9 +563,10 @@ After each implementation pass:
 - 2026-02-24: Added Impact Escalation Contract with explicit scene-by-scene `Input -> Behavior -> Output` definitions for Person, Org, and System impact.
 - 2026-02-24: Added modular rollout plan (Pass 1-4) and documentation protocol to reduce regression risk during end-scenes implementation.
 - 2026-02-24: Implemented Pass 1 contracts/state slice + default-off feature flag + tests, with no visual runtime changes when flag is off.
+- 2026-02-24: Implemented Pass 2 scaffold: `OrgImpactScene`, semantic routing (`impact -> orgimpact -> block`), contagion animation logic, and controller test coverage.
 
 ## Next Up
-1. Pass 1: add impact contracts/state slice and keep behavior identical behind `enableImpactEscalation=false`.
-2. Pass 2: implement `OrgImpactScene` contagion (single person aura -> full org activation -> radiant brick).
-3. Pass 3: implement `SystemImpactScene` with Community pillar growth feeding bridge stress/collapse.
-4. Pass 4: remove transfer-count bridge-collapse fallback and finalize documentation alignment.
+1. Pass 3: implement `SystemImpactScene` and `orgimpact -> systemimpact -> topology` routing.
+2. Replace transfer-count bridge collapse with Community-pillar stress/resistance model.
+3. Keep `enableImpactEscalation=false` until Pass 3 is validated, then run controlled enablement pass.
+4. Pass 4: remove deprecated fallback path and finalize copy/camera/mobile tuning.

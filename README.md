@@ -36,9 +36,13 @@ The interface includes:
   Time Slice composition scene. Captures action context, wellbeing node, optional SAOcommons tags, computes outcome deltas, and commits logs.
 - `src/game/iov/PersonImpactScene.ts`  
   Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
+- `src/game/iov/OrgImpactScene.ts`  
+  Organization impact scene. Spreads aura activation from one impacted person across the full organization and computes `OrgImpactResult`.
+- `src/game/iov/SystemImpactScene.ts`  
+  System impact scene. Converts org outcome into Community pillar growth, bridge stress, and optional bridge collapse via `SystemImpactResult`.
 
 Semantic level controller:
-- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact`.
+- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> systemimpact`.
 
 Interaction host:
 - `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
@@ -52,9 +56,9 @@ Interaction host:
 3. `Person` (`PersonIdentityScene`): inspect identity state and open Time Slice.
 4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
 5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
-6. Return to `Person` with updated wellbeing/aura.
-7. Returning to `Organization` activates the impacted person.
-8. Returning to `System` activates the source brick; sustained reclaim pressure can shatter the bridge.
+6. `Org Impact` (`OrgImpactScene`): aura contagion activates the selected organization.
+7. `System Impact` (`SystemImpactScene`): Community pillar rises, bridge stress updates, and collapse can trigger.
+8. Return to `System` with updated macro state and bridge outcome.
 
 ---
 
@@ -71,6 +75,8 @@ src/
       PersonIdentityScene.ts     # Person (micro) scene
       ValueLogScene.ts           # Time Slice action scene
       PersonImpactScene.ts       # Impact transition FX scene
+      OrgImpactScene.ts          # Organization contagion scene
+      SystemImpactScene.ts       # System pillar + bridge stress scene
       IovSemanticZoomController.ts # Semantic level state machine
       PersonStateEngine.ts       # Person wellbeing/aura evolution engine
       iovTimelogs.ts             # Value log loading + resolution

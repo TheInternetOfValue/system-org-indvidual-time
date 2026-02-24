@@ -6,7 +6,8 @@ export type SemanticZoomLevel =
   | "person"
   | "valuelog"
   | "impact"
-  | "orgimpact";
+  | "orgimpact"
+  | "systemimpact";
 
 export interface SemanticZoomState {
   level: SemanticZoomLevel;
@@ -28,6 +29,7 @@ export type SemanticZoomEvent =
   | { type: "OPEN_VALUELOG" }
   | { type: "OPEN_IMPACT" }
   | { type: "OPEN_ORG_IMPACT" }
+  | { type: "OPEN_SYSTEM_IMPACT" }
   | { type: "NAV_BACK" }
   | { type: "SET_LEVEL"; level: SemanticZoomLevel };
 
@@ -132,7 +134,33 @@ export class IovSemanticZoomController {
         };
         return this.state;
 
+      case "OPEN_SYSTEM_IMPACT":
+        if (prev.level !== "orgimpact") return prev;
+        this.state = {
+          ...prev,
+          level: "systemimpact",
+          transition: {
+            from: "orgimpact",
+            to: "systemimpact",
+            startedAt: now(),
+          },
+        };
+        return this.state;
+
       case "NAV_BACK":
+        if (prev.level === "systemimpact") {
+          this.state = {
+            ...prev,
+            level: "topology",
+            selectedPersonId: null,
+            transition: {
+              from: "systemimpact",
+              to: "topology",
+              startedAt: now(),
+            },
+          };
+          return this.state;
+        }
         if (prev.level === "orgimpact") {
           this.state = {
             ...prev,
@@ -226,7 +254,9 @@ export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
     state.level === "block" ||
     state.level === "person" ||
     state.level === "valuelog" ||
-    state.level === "impact"
+    state.level === "impact" ||
+    state.level === "orgimpact" ||
+    state.level === "systemimpact"
   ) {
     const label =
       state.selectedBrickId !== null
@@ -259,15 +289,18 @@ export const getSemanticBreadcrumb = (state: SemanticZoomState) => {
     });
   }
 
-  if (state.level === "orgimpact") {
-    const label =
-      state.selectedBrickId !== null
-        ? `Organization #${state.selectedBrickId + 1}`
-        : "Organization";
-    items.push({ level: "block", label, active: false });
+  if (state.level === "orgimpact" || state.level === "systemimpact") {
     items.push({
       level: "orgimpact",
       label: "Org Impact",
+      active: state.level === "orgimpact",
+    });
+  }
+
+  if (state.level === "systemimpact") {
+    items.push({
+      level: "systemimpact",
+      label: "System Impact",
       active: true,
     });
   }

@@ -125,8 +125,8 @@ Done when:
 
 Pass 1 progress (implemented):
 - Added impact contract/controller module: `src/game/iov/iovImpactEscalation.ts`.
-- Added default-off feature flag in `src/game/iov/iovNarrativeConfig.ts`:
-  - `IOV_FEATURE_FLAGS.enableImpactEscalation = false`.
+- Added feature flag in `src/game/iov/iovNarrativeConfig.ts`:
+  - initially landed as `false` for safe rollout.
 - Wired no-op-safe integration in `src/components/IovTopologyCanvas.tsx`:
   - when flag is `false`, existing runtime path is unchanged.
   - when enabled later, person impact results are recorded and marked for org impact pending.
@@ -145,7 +145,7 @@ Done when:
 - one impacted person can activate full org in deterministic waves.
 - org brick reaches radiant state only after contagion complete.
 
-Pass 2 progress (implemented behind flag):
+Pass 2 progress (implemented):
 - Added `src/game/iov/OrgImpactScene.ts` with deterministic contagion waves:
   - one impacted person seeds activation
   - activation spreads in timed batches
@@ -155,8 +155,7 @@ Pass 2 progress (implemented behind flag):
   - `IovSemanticZoomController` now supports `OPEN_ORG_IMPACT` and `level="orgimpact"`.
   - `NAV_BACK` from `orgimpact` returns to `block`.
 - Wired `IovTopologyCanvas` transition flow:
-  - when `enableImpactEscalation=true`, post-person-impact flow is
-    `impact -> orgimpact -> block`.
+  - post-person-impact flow can enter `impact -> orgimpact`.
   - `OrgImpactScene` completion emits and records `OrgImpactResult`.
 - Added routing test:
   - `src/game/iov/__tests__/IovSemanticZoomController.test.ts`
@@ -171,6 +170,23 @@ Deliverables:
 Done when:
 - Community pillar visibly grows from org outcomes.
 - bridge collapse occurs from stress model, not transfer count.
+
+Pass 3 progress (implemented):
+- Added `src/game/iov/SystemImpactScene.ts`:
+  - grows community pillar from `communityPowerDelta`
+  - propagates photon from community pillar to bridge
+  - applies bridge stress progression and collapse threshold
+  - emits `SystemImpactResult`
+- Extended semantic routing:
+  - `IovSemanticZoomController` now supports `OPEN_SYSTEM_IMPACT` and `level="systemimpact"`.
+  - `NAV_BACK` from `systemimpact` returns to `topology`.
+- Wired `IovTopologyCanvas` escalation chain:
+  - `impact -> orgimpact -> systemimpact -> topology`
+  - records and persists macro stress state (`communityPillarHeight`, `bridgeStress`)
+  - triggers topology `shatterBridge()` only when system stress result crosses threshold.
+- Disabled legacy transfer-count bridge collapse while escalation flag is enabled.
+- Escalation feature flag is now enabled for demo flow:
+  - `IOV_FEATURE_FLAGS.enableImpactEscalation = true`.
 
 ### Pass 4: Cleanup + Migration
 Deliverables:
@@ -549,6 +565,7 @@ After each implementation pass:
 - 2026-02-24: Pass 1 ships behind `IOV_FEATURE_FLAGS.enableImpactEscalation=false` to preserve existing demo behavior while contracts/controller land.
 - 2026-02-24: Pass 2 org-impact routing and scene logic are also integrated behind the same feature flag; default demo flow remains unchanged while scaffold stabilizes.
 - 2026-02-24: Block interior must persist contagion completion state per brick so revisits show full-org activation (not only single-person seed aura).
+- 2026-02-24: Pass 3 enables `IOV_FEATURE_FLAGS.enableImpactEscalation=true` after system-impact scene and stress-model routing validated with tests/build.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -567,9 +584,10 @@ After each implementation pass:
 - 2026-02-24: Implemented Pass 2 scaffold: `OrgImpactScene`, semantic routing (`impact -> orgimpact -> block`), contagion animation logic, and controller test coverage.
 - 2026-02-24: Fixed regression in Time Slice commit wiring (`onValueLogCommit` / `onValueLogDraftChange`) to restore end-to-end commit flow.
 - 2026-02-24: Added block-level org activation persistence and visuals so contagion completion resolves to full-organization glow state on return/revisit.
+- 2026-02-24: Implemented Pass 3 with `SystemImpactScene`, `orgimpact -> systemimpact -> topology` routing, macro stress state persistence, and stress-driven bridge collapse trigger.
+- 2026-02-24: Escalation flag switched on for live end-scene flow (`IOV_FEATURE_FLAGS.enableImpactEscalation=true`).
 
 ## Next Up
-1. Pass 3: implement `SystemImpactScene` and `orgimpact -> systemimpact -> topology` routing.
-2. Replace transfer-count bridge collapse with Community-pillar stress/resistance model.
-3. Keep `enableImpactEscalation=false` until Pass 3 is validated, then run controlled enablement pass.
-4. Pass 4: remove deprecated fallback path and finalize copy/camera/mobile tuning.
+1. Pass 4: remove deprecated transfer-count collapse path entirely (not only gated off).
+2. Tune SystemImpactScene camera, timing, and copy for stronger narrative readability on mobile and desktop.
+3. Add panel-level system-impact telemetry (current pillar height / bridge stress) for observability.

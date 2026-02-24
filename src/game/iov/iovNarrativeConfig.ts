@@ -49,6 +49,6 @@ export const IOV_IDENTITY_COLORS = {
 } as const;
 
 export const IOV_FEATURE_FLAGS = {
-  // Pass 1: keep escalation pipeline disabled until Org/System impact scenes are implemented.
-  enableImpactEscalation: false,
+  // Pass 3: escalation pipeline enabled for Impact -> Org Impact -> System Impact flow.
+  enableImpactEscalation: true,
 } as const;

@@ -47,3 +47,8 @@ export const IOV_IDENTITY_COLORS = {
   community: "#d9b114",
   bridge: "#5f6670",
 } as const;
+
+export const IOV_FEATURE_FLAGS = {
+  // End-scenes flow: Impact -> Org Impact -> System Impact.
+  enableImpactEscalation: true,
+} as const;

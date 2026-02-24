@@ -26,6 +26,16 @@ interface PersonToken {
   stance: number;
 }
 
+interface OrgAuraToken {
+  mesh: THREE.Mesh;
+  phase: number;
+}
+
+interface OrgContagionSummary {
+  activatedPeopleCount: number;
+  populationCount: number;
+}
+
 const PROFILE_BY_REGION: Record<RegionId, string[]> = {
   market: ["Trader", "Engineer", "Analyst", "Worker"],
   state: ["Civil Servant", "Nurse", "Teacher", "Operator"],
@@ -90,6 +100,36 @@ export class BlockInteriorScene {
   private selectedBrickLabel = "Brick";
   private hoveredPersonId: string | null = null;
   private selectedPersonId: string | null = null;
+  private activatedPersonId: string | null = null;
+  private activationMesh: THREE.Mesh | null = null;
+  private readonly activationLight = new THREE.PointLight("#ffcd3c", 2, 4);
+  private readonly orgActivationLight = new THREE.PointLight("#ffd26a", 0, 8);
+  private readonly orgAuraGeometry = new THREE.TorusGeometry(0.24, 0.02, 8, 24);
+  private readonly orgAuraMaterial = new THREE.MeshBasicMaterial({
+    color: "#ffe291",
+    transparent: true,
+    opacity: 0.72,
+  });
+  private readonly orgAuraTokens: OrgAuraToken[] = [];
+  private readonly orgActivatedIndices = new Set<number>();
+  private orgActivated = false;
+  private contagionRunning = false;
+  private contagionOrder: number[] = [];
+  private contagionCursor = 0;
+  private contagionFromIndex: number | null = null;
+  private contagionToIndex: number | null = null;
+  private contagionStepT = 0;
+  private contagionHoldSeconds = 0;
+  private contagionOnComplete: ((summary: OrgContagionSummary) => void) | null = null;
+  private readonly contagionPulseGeometry = new THREE.SphereGeometry(0.1, 16, 12);
+  private readonly contagionPulseMaterial = new THREE.MeshBasicMaterial({
+    color: "#ffd870",
+  });
+  private readonly contagionPulse = new THREE.Mesh(
+    this.contagionPulseGeometry,
+    this.contagionPulseMaterial
+  );
+  private readonly contagionPulseLight = new THREE.PointLight("#ffd15a", 0, 3.8);
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -114,6 +154,14 @@ export class BlockInteriorScene {
     this.selectedMarker.rotation.x = -Math.PI / 2;
     this.selectedMarker.visible = false;
     this.root.add(this.hoverMarker, this.selectedMarker);
+    this.orgActivationLight.position.set(0, 1.1, 0);
+    this.orgActivationLight.visible = false;
+    this.root.add(this.orgActivationLight);
+    this.contagionPulse.visible = false;
+    this.contagionPulseLight.visible = false;
+    this.contagionPulse.add(this.contagionPulseLight);
+    this.contagionPulseLight.position.set(0, 0.32, 0);
+    this.root.add(this.contagionPulse);
 
     this.camera.position.set(0, 2.5, 6.8);
     this.controls.target.set(0, 0.95, 0);
@@ -192,12 +240,138 @@ export class BlockInteriorScene {
     this.callbacks.onSelectPersonChange?.(token.id);
   }
 
+  activatePerson(personId: string) {
+    this.resetOrgActivationState();
+
+    if (this.activatedPersonId === personId) return;
+    this.activatedPersonId = personId;
+
+    if (!this.activationMesh) {
+      // Create a glowing ring/aura for the activated person
+      const geo = new THREE.TorusGeometry(0.3, 0.05, 8, 24);
+      const mat = new THREE.MeshBasicMaterial({
+        color: "#ffda57",
+        transparent: true,
+        opacity: 0.8,
+      });
+      this.activationMesh = new THREE.Mesh(geo, mat);
+      this.activationMesh.rotation.x = Math.PI / 2;
+      this.root.add(this.activationMesh);
+      this.activationMesh.add(this.activationLight);
+      this.activationLight.position.set(0, 1.5, 0);
+    }
+
+    const person = this.personTokens.find((p) => p.id === personId);
+    if (person && this.activationMesh) {
+      this.activationMesh.visible = true;
+      this.activationMesh.position.set(person.position.x, 0.1, person.position.z);
+      this.activationLight.visible = true;
+    } else if (this.activationMesh) {
+      this.activationMesh.visible = false;
+      this.activationLight.visible = false;
+    }
+  }
+
+  activateOrganization(seedPersonId?: string) {
+    this.resetOrgActivationState();
+    if (seedPersonId) {
+      this.activatePerson(seedPersonId);
+    }
+    this.orgActivated = true;
+    this.ensureOrgAuraTokens();
+    this.orgActivatedIndices.clear();
+    this.personTokens.forEach((_, index) => {
+      this.orgActivatedIndices.add(index);
+    });
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      mesh.visible = true;
+    });
+    this.applyBodyPalette(true);
+    this.orgActivationLight.visible = true;
+    this.orgActivationLight.intensity = 2.6;
+  }
+
+  playOrgContagion(
+    seedPersonId: string,
+    onComplete?: (summary: OrgContagionSummary) => void
+  ) {
+    this.resetOrgActivationState();
+    this.ensureOrgAuraTokens();
+    this.contagionOnComplete = onComplete ?? null;
+
+    if (this.personTokens.length === 0) {
+      this.contagionOnComplete?.({
+        activatedPeopleCount: 0,
+        populationCount: 0,
+      });
+      return;
+    }
+
+    const seedIndex = this.resolvePersonIndex(seedPersonId);
+    this.activateOrgPerson(seedIndex);
+    this.positionActivationForIndex(seedIndex);
+
+    this.contagionOrder = this.buildContagionOrder(seedIndex);
+    this.contagionCursor = 1;
+    this.contagionFromIndex = seedIndex;
+    this.contagionToIndex =
+      this.contagionCursor < this.contagionOrder.length
+        ? (this.contagionOrder[this.contagionCursor] ?? null)
+        : null;
+    this.contagionStepT = 0;
+    this.contagionHoldSeconds = 0;
+    this.contagionRunning = true;
+
+    this.orgActivationLight.visible = true;
+    this.orgActivationLight.intensity = 1.4;
+    this.contagionPulse.visible = this.contagionToIndex !== null;
+    this.contagionPulseLight.visible = this.contagionToIndex !== null;
+    if (this.contagionFromIndex !== null) {
+      const from = this.personTokens[this.contagionFromIndex];
+      if (from) {
+        this.contagionPulse.position.set(from.position.x, 0.32, from.position.z);
+      }
+    }
+  }
+
   update(deltaSeconds: number) {
     this.controls.update();
     if (this.hasPointer) this.updateHover();
 
     // Small idle sway keeps interior scene alive without expensive animation.
     this.peopleGroup.position.y = Math.sin(performance.now() * 0.0012) * 0.02;
+
+    if (this.contagionRunning) {
+      this.updateOrgContagion(deltaSeconds);
+    }
+
+    if (this.activationMesh && this.activationMesh.visible) {
+      // Pulse the activation aura
+      const time = performance.now() * 0.001;
+      this.activationMesh.rotation.z = time;
+      const pulse = 1 + Math.sin(time * 3) * 0.2;
+      this.activationMesh.scale.set(pulse, pulse, 1);
+      this.activationLight.intensity = 2 + Math.sin(time * 5) * 0.5;
+    }
+
+    if (this.orgActivated || this.contagionRunning) {
+      const time = performance.now() * 0.001;
+      this.orgAuraTokens.forEach(({ mesh, phase }) => {
+        if (!mesh.visible) return;
+        const pulse = 1 + Math.sin(time * 2.6 + phase) * 0.16;
+        mesh.scale.set(pulse, pulse, 1);
+      });
+      if (this.orgActivated) {
+        this.orgActivationLight.intensity = 2.4 + Math.sin(time * 3.1) * 0.35;
+      }
+    }
+
+    if (this.contagionPulse.visible) {
+      const time = performance.now() * 0.001;
+      const pulse = 1 + Math.sin(time * 10) * 0.16;
+      this.contagionPulse.scale.setScalar(pulse);
+      this.contagionPulseLight.intensity = 1.6 + Math.sin(time * 12) * 0.3;
+    }
   }
 
   render(renderer: THREE.WebGLRenderer) {
@@ -206,6 +380,17 @@ export class BlockInteriorScene {
 
   dispose() {
     this.controls.dispose();
+    if (this.activationMesh) {
+      this.root.remove(this.activationMesh);
+      this.activationMesh.geometry.dispose();
+      (this.activationMesh.material as THREE.Material).dispose();
+      this.activationMesh = null;
+    }
+    this.clearOrgAuraTokens();
+    this.orgAuraGeometry.dispose();
+    this.orgAuraMaterial.dispose();
+    this.contagionPulseGeometry.dispose();
+    this.contagionPulseMaterial.dispose();
     this.torsoGeometry.dispose();
     this.pelvisGeometry.dispose();
     this.armGeometry.dispose();
@@ -264,6 +449,8 @@ export class BlockInteriorScene {
     this.personTokens.length = 0;
     this.selectedPersonId = null;
     this.hoveredPersonId = null;
+    this.resetOrgActivationState();
+    this.clearOrgAuraTokens();
     this.selectedMarker.visible = false;
     this.hoverMarker.visible = false;
     this.selectedBrickLabel = label;
@@ -464,6 +651,225 @@ export class BlockInteriorScene {
       this.rightArmMesh,
       this.headMesh
     );
+  }
+
+  private ensureOrgAuraTokens() {
+    if (this.orgAuraTokens.length === this.personTokens.length) return;
+    this.clearOrgAuraTokens();
+    this.personTokens.forEach((person, index) => {
+      const ring = new THREE.Mesh(this.orgAuraGeometry, this.orgAuraMaterial);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(person.position.x, 0.08, person.position.z);
+      ring.visible = false;
+      this.root.add(ring);
+      this.orgAuraTokens.push({
+        mesh: ring,
+        phase: index * 0.37,
+      });
+    });
+  }
+
+  private clearOrgAuraTokens() {
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      this.root.remove(mesh);
+    });
+    this.orgAuraTokens.length = 0;
+  }
+
+  private updateOrgContagion(deltaSeconds: number) {
+    const stepDuration = 0.26;
+    const completionHold = 0.85;
+
+    if (this.contagionToIndex === null || this.contagionFromIndex === null) {
+      this.contagionPulse.visible = false;
+      this.contagionPulseLight.visible = false;
+      this.contagionHoldSeconds += deltaSeconds;
+      if (this.contagionHoldSeconds >= completionHold) {
+        this.contagionRunning = false;
+        this.orgActivated = true;
+        this.applyBodyPalette(true);
+        this.orgActivationLight.visible = true;
+        this.orgActivationLight.intensity = 2.6;
+        const summary: OrgContagionSummary = {
+          activatedPeopleCount: this.orgActivatedIndices.size,
+          populationCount: this.personTokens.length,
+        };
+        this.contagionOnComplete?.(summary);
+        this.contagionOnComplete = null;
+      }
+      return;
+    }
+
+    const from = this.personTokens[this.contagionFromIndex];
+    const to = this.personTokens[this.contagionToIndex];
+    if (!from || !to) {
+      this.contagionToIndex = null;
+      return;
+    }
+
+    this.contagionStepT = Math.min(1, this.contagionStepT + deltaSeconds / stepDuration);
+    this.contagionPulse.visible = true;
+    this.contagionPulseLight.visible = true;
+    this.contagionPulse.position.lerpVectors(from.position, to.position, this.contagionStepT);
+    this.contagionPulse.position.y += Math.sin(this.contagionStepT * Math.PI) * 0.25 + 0.18;
+
+    if (this.contagionStepT >= 0.999) {
+      this.activateOrgPerson(this.contagionToIndex);
+      this.contagionFromIndex = this.contagionToIndex;
+      this.contagionCursor += 1;
+      this.contagionToIndex =
+        this.contagionCursor < this.contagionOrder.length
+          ? (this.contagionOrder[this.contagionCursor] ?? null)
+          : null;
+      this.contagionStepT = 0;
+    }
+  }
+
+  private resolvePersonIndex(personId: string) {
+    const idx = this.personTokens.findIndex((person) => person.id === personId);
+    return idx >= 0 ? idx : 0;
+  }
+
+  private buildContagionOrder(seedIndex: number) {
+    const seed = this.personTokens[seedIndex];
+    if (!seed) return [];
+    const scored = this.personTokens.map((person, index) => ({
+      index,
+      distance: person.position.distanceTo(seed.position),
+    }));
+    scored.sort((a, b) => {
+      if (a.distance !== b.distance) return a.distance - b.distance;
+      return a.index - b.index;
+    });
+    return scored.map((item) => item.index);
+  }
+
+  private activateOrgPerson(index: number) {
+    if (this.orgActivatedIndices.has(index)) return;
+    this.orgActivatedIndices.add(index);
+
+    const ring = this.orgAuraTokens[index];
+    if (ring) {
+      ring.mesh.visible = true;
+      ring.mesh.scale.setScalar(1);
+    }
+
+    this.setPersonPaletteAt(index, 0.66);
+  }
+
+  private setPersonPaletteAt(index: number, blend: number) {
+    const person = this.personTokens[index];
+    if (!person) return;
+    const highlight = new THREE.Color("#ffd56f");
+    const tint = (base: THREE.Color, amount: number) => base.clone().lerp(highlight, amount);
+    this.setInstanceColorAt(this.torsoMesh, index, tint(person.color, blend));
+    this.setInstanceColorAt(this.pelvisMesh, index, tint(person.color.clone().multiplyScalar(0.93), blend * 0.92));
+    this.setInstanceColorAt(this.leftArmMesh, index, tint(person.color.clone().multiplyScalar(0.88), blend * 0.88));
+    this.setInstanceColorAt(this.rightArmMesh, index, tint(person.color.clone().multiplyScalar(0.88), blend * 0.88));
+    this.setInstanceColorAt(this.leftLegMesh, index, tint(person.color.clone().multiplyScalar(0.74), blend * 0.8));
+    this.setInstanceColorAt(this.rightLegMesh, index, tint(person.color.clone().multiplyScalar(0.74), blend * 0.8));
+  }
+
+  private setInstanceColorAt(
+    mesh: THREE.InstancedMesh | null,
+    index: number,
+    color: THREE.Color
+  ) {
+    if (!mesh) return;
+    mesh.setColorAt(index, color);
+    if (mesh.instanceColor) {
+      mesh.instanceColor.needsUpdate = true;
+    }
+  }
+
+  private positionActivationForIndex(index: number) {
+    if (!this.activationMesh) {
+      const geo = new THREE.TorusGeometry(0.3, 0.05, 8, 24);
+      const mat = new THREE.MeshBasicMaterial({
+        color: "#ffda57",
+        transparent: true,
+        opacity: 0.8,
+      });
+      this.activationMesh = new THREE.Mesh(geo, mat);
+      this.activationMesh.rotation.x = Math.PI / 2;
+      this.root.add(this.activationMesh);
+      this.activationMesh.add(this.activationLight);
+      this.activationLight.position.set(0, 1.5, 0);
+    }
+
+    const person = this.personTokens[index];
+    if (!person || !this.activationMesh) return;
+    this.activationMesh.visible = true;
+    this.activationMesh.position.set(person.position.x, 0.1, person.position.z);
+    this.activationLight.visible = true;
+  }
+
+  private resetOrgActivationState() {
+    this.activatedPersonId = null;
+    this.orgActivated = false;
+    this.contagionRunning = false;
+    this.contagionOrder = [];
+    this.contagionCursor = 0;
+    this.contagionFromIndex = null;
+    this.contagionToIndex = null;
+    this.contagionStepT = 0;
+    this.contagionHoldSeconds = 0;
+    this.contagionOnComplete = null;
+    this.orgActivatedIndices.clear();
+    this.contagionPulse.visible = false;
+    this.contagionPulseLight.visible = false;
+    this.orgActivationLight.visible = false;
+    this.orgActivationLight.intensity = 0;
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      mesh.visible = false;
+      mesh.scale.setScalar(1);
+    });
+    if (this.activationMesh) {
+      this.activationMesh.visible = false;
+    }
+    this.activationLight.visible = false;
+    this.applyBodyPalette(false);
+  }
+
+  private applyBodyPalette(orgActivated: boolean) {
+    const highlight = new THREE.Color("#ffd56f");
+    const applyColors = (
+      mesh: THREE.InstancedMesh | null,
+      colorFor: (person: PersonToken) => THREE.Color
+    ) => {
+      if (!mesh) return;
+      this.personTokens.forEach((person, index) => {
+        mesh.setColorAt(index, colorFor(person));
+      });
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+    };
+
+    applyColors(this.torsoMesh, (person) => {
+      const base = person.color.clone();
+      return orgActivated ? base.lerp(highlight, 0.7) : base;
+    });
+    applyColors(this.pelvisMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.93);
+      return orgActivated ? base.lerp(highlight, 0.64) : base;
+    });
+    applyColors(this.leftArmMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.88);
+      return orgActivated ? base.lerp(highlight, 0.6) : base;
+    });
+    applyColors(this.rightArmMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.88);
+      return orgActivated ? base.lerp(highlight, 0.6) : base;
+    });
+    applyColors(this.leftLegMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.74);
+      return orgActivated ? base.lerp(highlight, 0.52) : base;
+    });
+    applyColors(this.rightLegMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.74);
+      return orgActivated ? base.lerp(highlight, 0.52) : base;
+    });
   }
 
   private disposePeopleMeshes() {

@@ -24,6 +24,41 @@ The interface includes:
 
 ---
 
+## Scene Inventory (Current)
+
+- `src/game/iov/IovTopologyScene.ts`  
+  Macro/system scene. Renders Market, State, Community, and Bridge, handles selection/reclaim, transfer counts, brick activation, and bridge shatter behavior.
+- `src/game/iov/BlockInteriorScene.ts`  
+  Organization interior scene. Shows people tokens, profile mix, person hover/select, person activation, and org-level contagion playback (one-by-one aura spread).
+- `src/game/iov/PersonIdentityScene.ts`  
+  Person identity scene. Renders identity layers/facets, wellbeing/aura evolution, and timeline-driven ripple updates.
+- `src/game/iov/ValueLogScene.ts`  
+  Time Slice composition scene. Captures action context, wellbeing node, optional SAOcommons tags, computes outcome deltas, and commits logs.
+- `src/game/iov/PersonImpactScene.ts`  
+  Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
+
+Semantic level controller:
+- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology`, with explicit `OPEN_SYSTEM_IMPACT` playback from topology when empowerment is triggered.
+
+Interaction host:
+- `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
+
+---
+
+## Interaction Flow (Current Runtime)
+
+1. `System` (`IovTopologyScene`): inspect/reclaim organization bricks.
+2. `Organization` (`BlockInteriorScene`): select a person token.
+3. `Person` (`PersonIdentityScene`): inspect identity state and open Time Slice.
+4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
+5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
+6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
+7. Return to `System`: org activation is queued and panel shows `Empower Community Pillar (N)`.
+8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, Community pillar builds upward, stress ramps, and impact targets the real bridge geometry.
+9. Return to `System`: source brick remains radiant; bridge collapses only when stress threshold is crossed and visible community-to-bridge contact is reached.
+
+---
+
 ## 🚀 Project Structure
 
 ```text
@@ -32,7 +67,14 @@ src/
     IovTopologyCanvas.tsx        # Three.js canvas wiring + render loop
   game/
     iov/
-      IovTopologyScene.ts        # Core scene generation + interactions
+      IovTopologyScene.ts        # System (macro) scene
+      BlockInteriorScene.ts      # Organization (meso) scene
+      PersonIdentityScene.ts     # Person (micro) scene
+      ValueLogScene.ts           # Time Slice action scene
+      PersonImpactScene.ts       # Impact transition FX scene
+      IovSemanticZoomController.ts # Semantic level state machine
+      PersonStateEngine.ts       # Person wellbeing/aura evolution engine
+      iovTimelogs.ts             # Value log loading + resolution
       iov.topology.json          # Topology regions and UI toggle metadata
       iovValues.ts               # Values loader + helpers
       iovNarrativeConfig.ts      # Scale / identity / phase config

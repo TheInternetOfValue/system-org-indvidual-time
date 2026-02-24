@@ -1,5 +1,15 @@
 # IoV Topology Design Notes
 
+## Scene Stack
+- `IovTopologyScene` (`System`): macro topology, reclaim mechanics, bridge instability.
+- `BlockInteriorScene` (`Organization`): people composition and person-level selection.
+- `PersonIdentityScene` (`Person`): wellbeing identity layers and aura/wellbeing evolution.
+- `ValueLogScene` (`Time Slice`): value action composition and outcome calculation.
+- `PersonImpactScene` (`Impact`): transition FX between commit and updated person state.
+
+Current semantic zoom chain:
+- `topology -> block -> person -> valuelog -> impact`.
+
 ## Coordinate System
 - All structures use one shared world coordinate space and one shared baseplate.
 - Ground reference is `GROUND_Y`; first brick centers sit at `GROUND_Y + BRICK_H / 2`.
@@ -23,6 +33,12 @@
   - `empty` -> `build_market` -> `build_state` -> `build_community` -> `reveal_bridge`.
 - Reclaim animation preserves original brick color in flight.
 - State change feedback uses pulse/outline effects instead of recoloring brick identity.
+- Value commit flow uses explicit transition FX:
+  - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
+- Post-impact propagation:
+  - impacted person activation ring in `BlockInteriorScene`.
+  - source organization brick activation in `IovTopologyScene`.
+  - bridge collapse trigger available once reclaim pressure crosses threshold.
 
 ## Color Rendering
 - Detailed rendering diagnosis and target semantics are in `docs/IOV_COLOR_RENDERING.md`.

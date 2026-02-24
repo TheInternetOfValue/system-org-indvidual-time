@@ -9,6 +9,7 @@ import {
   IOV_IDENTITY_COLORS,
   IOV_SCALE_CONFIG,
 } from "./iovNarrativeConfig";
+import type { OrgImpactResult, SystemImpactResult } from "./iovImpactEscalation";
 
 export type RegionId = "market" | "state" | "community" | "crony_bridge";
 export type ToggleId = "derivativesMist" | "communityErosion";
@@ -192,6 +193,24 @@ const DEFAULT_MEANING_BY_REGION: Record<RegionId, string> = {
 };
 const REGION_IDS: RegionId[] = ["market", "state", "community", "crony_bridge"];
 
+interface FallingBrick {
+  instanceId: number; // -1 if using direct mesh reference
+  regionId: RegionId;
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  rotation: THREE.Vector3;
+  rotationSpeed: THREE.Vector3;
+  targetMesh?: THREE.Mesh; 
+}
+
+interface SystemImpactPlayback {
+  orgImpact: OrgImpactResult;
+  communityPillarHeightBefore: number;
+  bridgeStressBefore: number;
+  bridgeStressThreshold: number;
+  empowerSurge?: boolean;
+}
+
 export class IovTopologyScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 180);
@@ -294,6 +313,40 @@ export class IovTopologyScene {
     crony_bridge: 0,
   };
 
+  private isBridgeCollapsed = false;
+  private fallingBricks: FallingBrick[] = [];
+  private readonly systemImpactPhoton = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 18, 14),
+    new THREE.MeshBasicMaterial({
+      color: "#ffe07f",
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+  private readonly systemImpactPhotonLight = new THREE.PointLight("#ffd166", 0, 6.5);
+  private systemImpactActive = false;
+  private systemImpactCollapseTriggered = false;
+  private systemImpactElapsed = 0;
+  private systemImpactCommunityScale = 1;
+  private systemImpactCommunityScaleStart = 1;
+  private systemImpactCommunityScaleEnd = 1;
+  private systemImpactBridgeStressStart = 0;
+  private systemImpactBridgeStressEnd = 0;
+  private systemImpactBridgeStressThreshold = 1;
+  private systemImpactStressThresholdCrossed = false;
+  private readonly systemImpactBridgeTarget = new THREE.Vector3();
+  private systemImpactBridgeContactY = 0;
+  private systemImpactOnComplete: ((result: SystemImpactResult) => void) | null = null;
+  private systemImpactResult: SystemImpactResult | null = null;
+  private readonly systemImpactBuildGroup = new THREE.Group();
+  private readonly systemImpactBuildBricks: Array<{
+    mesh: THREE.Mesh;
+    startY: number;
+    targetY: number;
+    revealAt: number;
+  }> = [];
+  private systemImpactBuiltBrickCount = 0;
+
   constructor(
     private readonly domElement: HTMLElement,
     private readonly data: IovTopologyData,
@@ -301,6 +354,7 @@ export class IovTopologyScene {
   ) {
     this.scene.add(this.root);
     this.root.add(this.baseplateGroup, this.structureGroup, this.fxGroup);
+    this.structureGroup.add(this.systemImpactBuildGroup);
 
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
@@ -331,6 +385,11 @@ export class IovTopologyScene {
     this.slotHoverMarker.visible = false;
     this.slotHoverMarker.renderOrder = 48;
     this.fxGroup.add(this.hoverFill, this.hoverOutline, this.selectedOutline, this.slotHoverMarker);
+    this.systemImpactPhoton.visible = false;
+    this.systemImpactPhotonLight.visible = false;
+    this.systemImpactPhoton.add(this.systemImpactPhotonLight);
+    this.systemImpactPhotonLight.position.set(0, 0.5, 0);
+    this.fxGroup.add(this.systemImpactPhoton);
 
     this.camera.position.set(0, 15, 35);
     this.controls.target.set(0, 6, 0);
@@ -355,6 +414,81 @@ export class IovTopologyScene {
 
   setBrickInteractionMode(mode: BrickInteractionMode) {
     this.brickInteractionMode = mode;
+  }
+
+  activateBrick(regionId: RegionId, instanceId: number) {
+    const runtime = this.regions.get(regionId);
+    if (!runtime || !runtime.mesh.instanceColor) return;
+
+    // Change color to Radiant Gold
+    const color = new THREE.Color("#ffcd3c");
+    const matrix = new THREE.Matrix4();
+    runtime.mesh.getMatrixAt(instanceId, matrix);
+    runtime.mesh.setColorAt(instanceId, color);
+    runtime.mesh.instanceColor.needsUpdate = true;
+  }
+
+  playSystemImpact(
+    context: SystemImpactPlayback,
+    onComplete: (result: SystemImpactResult) => void
+  ) {
+    let growthDelta = Math.max(0.18, Math.min(0.95, context.orgImpact.communityPowerDelta * 2.35));
+    let stressDelta = Math.max(
+      0.08,
+      Math.min(0.48, context.orgImpact.communityPowerDelta * 1.25 + growthDelta * 0.12)
+    );
+
+    if (context.empowerSurge) {
+      const requiredDelta = context.bridgeStressThreshold - context.bridgeStressBefore + 0.06;
+      stressDelta = Math.max(stressDelta, requiredDelta);
+      growthDelta = Math.max(growthDelta, 0.72);
+    }
+
+    const communityPillarHeightAfter = Number(
+      (context.communityPillarHeightBefore + growthDelta).toFixed(3)
+    );
+    const bridgeStressAfter = Number(
+      Math.min(1.45, context.bridgeStressBefore + stressDelta).toFixed(3)
+    );
+    const baseScaleEnd = this.mapCommunityHeightToScale(communityPillarHeightAfter);
+    const bridgeTarget = this.resolveBridgeImpactTarget();
+    this.systemImpactBridgeTarget.copy(bridgeTarget.point);
+    this.systemImpactBridgeContactY = bridgeTarget.contactY;
+    this.systemImpactStressThresholdCrossed = bridgeStressAfter >= context.bridgeStressThreshold;
+
+    const baseTopSurfaceY = this.getCommunityTopSurfaceY(baseScaleEnd);
+    const currentTopY = this.getSystemImpactBuildTopY(baseTopSurfaceY);
+    const baseBrickCount = Math.max(6, Math.round(growthDelta * 16));
+    let buildBrickCount = baseBrickCount;
+    if (context.empowerSurge) {
+      const contactGap = this.systemImpactBridgeContactY - currentTopY;
+      if (contactGap > 0) {
+        const requiredBricks = Math.ceil(contactGap / STEP_Y) + 1;
+        buildBrickCount = Math.max(buildBrickCount, requiredBricks);
+      }
+    }
+
+    this.systemImpactResult = {
+      communityPillarHeightBefore: Number(context.communityPillarHeightBefore.toFixed(3)),
+      communityPillarHeightAfter,
+      bridgeStressBefore: Number(context.bridgeStressBefore.toFixed(3)),
+      bridgeStressAfter,
+      bridgeCollapsed: false,
+    };
+
+    this.systemImpactOnComplete = onComplete;
+    this.systemImpactActive = true;
+    this.systemImpactCollapseTriggered = false;
+    this.systemImpactElapsed = 0;
+    this.systemImpactCommunityScaleStart = this.systemImpactCommunityScale;
+    this.systemImpactCommunityScaleEnd = baseScaleEnd;
+    this.systemImpactBridgeStressStart = context.bridgeStressBefore;
+    this.systemImpactBridgeStressEnd = bridgeStressAfter;
+    this.systemImpactBridgeStressThreshold = Math.max(0.25, context.bridgeStressThreshold);
+    this.queueSystemImpactBuildStack(buildBrickCount, baseTopSurfaceY);
+
+    this.systemImpactPhoton.visible = true;
+    this.systemImpactPhotonLight.visible = true;
   }
 
   resize(width: number, height: number) {
@@ -466,6 +600,102 @@ export class IovTopologyScene {
     }
   }
 
+  clearSelectedBrick() {
+    this.selectedBrickInfo = null;
+    this.selectedOutline.visible = false;
+    this.callbacks.onBrickSelectionChange?.(null);
+  }
+
+  private getInstanceTransform(mesh: THREE.InstancedMesh, instanceId: number) {
+    const matrix = new THREE.Matrix4();
+    mesh.getMatrixAt(instanceId, matrix);
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    matrix.decompose(position, rotation, scale);
+    return { position, rotation, scale };
+  }
+
+  private setSelectionMarker(mesh: THREE.InstancedMesh, instanceId: number) {
+    const { position, rotation } = this.getInstanceTransform(mesh, instanceId);
+    this.selectedOutline.visible = true;
+    this.selectedOutline.position.copy(position);
+    this.selectedOutline.quaternion.copy(rotation);
+    this.selectedOutline.scale.set(1.02, 1.02, 1.02);
+  }
+
+  private setSelectedBrick(regionId: RegionId, instanceId: number) { 
+    const runtime = this.regions.get(regionId);
+    if (!runtime) return;
+    const isTop = runtime.currentBricks[instanceId]?.isTopLayer ?? false;
+    
+    this.selectedBrickInfo = {
+      regionId,
+      instanceId,
+      canTransfer: (regionId === 'market' || regionId === 'state') && isTop
+    }; 
+    this.callbacks.onBrickSelectionChange?.(this.selectedBrickInfo);
+  }
+
+  private updateLandingPulses(delta: number) {
+    for (let i = this.landingPulses.length - 1; i >= 0; i--) {
+      const pulse = this.landingPulses[i];
+      if (!pulse) continue;
+      pulse.elapsed += delta;
+      
+      if (pulse.elapsed >= pulse.duration) {
+        this.fxGroup.remove(pulse.mesh);
+        pulse.mesh.geometry.dispose();
+        (pulse.mesh.material as THREE.Material).dispose();
+        this.landingPulses.splice(i, 1);
+        continue;
+      }
+      
+      const t = pulse.elapsed / pulse.duration;
+      const scale = 1 + t * 0.5;
+      const opacity = Math.max(0, 1 - t);
+      
+      pulse.mesh.scale.set(scale, scale, scale);
+      const mat = pulse.mesh.material as THREE.LineBasicMaterial;
+      if (mat) mat.opacity = opacity;
+    }
+  }
+
+  private updateSlotMarkers() {
+    if (!this.selectedBrickInfo?.canTransfer) {
+      if (this.slotMarkers.visible) {
+        // keep markers visible for context but static
+      }
+      return; 
+    }
+    const time = this.elapsed * 2.0;
+    this.slotMarkers.children.forEach((child, i) => {
+      const offset = i * 0.2;
+      const slot = this.communitySlots[i];
+      if (slot) {
+        child.position.y = slot.y + Math.sin(time + offset) * 0.05;
+      }
+      
+      const mat = (child as THREE.LineSegments).material;
+      if (mat && !Array.isArray(mat)) {
+        mat.opacity = 0.3 + Math.sin(time + offset) * 0.15;
+      }
+    });
+  }
+
+  private getNearestOpenSlotIndex(pos: THREE.Vector3): number | null {
+    let bestIdx = -1;
+    let minDst = 1.2; 
+    this.communitySlots.forEach((slot, i) => {
+      const dst = pos.distanceTo(slot);
+      if (dst < minDst) {
+        minDst = dst;
+        bestIdx = i;
+      }
+    });
+    return bestIdx >= 0 ? bestIdx : null;
+  }
+
   update(deltaSeconds: number) {
     this.elapsed += deltaSeconds;
 
@@ -481,6 +711,8 @@ export class IovTopologyScene {
     this.updateLandingPulses(deltaSeconds);
     this.updateSlotMarkers();
     this.updateBuildPhases(deltaSeconds);
+    this.updateSystemImpact(deltaSeconds);
+    this.updateFallingBricks(deltaSeconds);
   }
 
   render(renderer: THREE.WebGLRenderer) {
@@ -538,11 +770,25 @@ export class IovTopologyScene {
       this.hoverFill,
       this.hoverOutline,
       this.selectedOutline,
-      this.slotHoverMarker
+      this.slotHoverMarker,
+      this.systemImpactPhoton
     );
+    this.clearSystemImpactBuildStack();
+    this.structureGroup.remove(this.systemImpactBuildGroup);
+    this.systemImpactPhoton.geometry.dispose();
+    (this.systemImpactPhoton.material as THREE.Material).dispose();
   }
 
   private rebuildTopologyFromValues() {
+    this.systemImpactActive = false;
+    this.systemImpactCollapseTriggered = false;
+    this.systemImpactElapsed = 0;
+    this.systemImpactCommunityScale = 1;
+    this.systemImpactPhoton.visible = false;
+    this.systemImpactPhotonLight.visible = false;
+    this.systemImpactOnComplete = null;
+    this.systemImpactResult = null;
+    this.clearSystemImpactBuildStack();
     this.clearSelectedBrick();
     this.disposeRegionObjects();
     this.regions.clear();
@@ -612,6 +858,75 @@ export class IovTopologyScene {
     this.setBridgeDecorReveal(0);
   }
 
+  shatterBridge() {
+    if (this.isBridgeCollapsed) return;
+    this.isBridgeCollapsed = true;
+
+    // Support both instanced and mesh group approaches
+    const regionId: RegionId = "crony_bridge";
+    const runtime = this.regions.get(regionId);
+    
+    // Check if we are using the new textured mesh group
+    if (this.bridgeBricks.children.length > 0) {
+      const random = createSeededRandom(12345);
+      
+      this.bridgeBricks.children.forEach((child, i) => {
+         const mesh = child as THREE.Mesh;
+         const offsetX = (random() - 0.5) * 0.5;
+         const offsetZ = (random() - 0.5) * 0.5;
+         
+         this.fallingBricks.push({
+             instanceId: -1,
+             regionId: "crony_bridge",
+             position: mesh.position.clone(),
+             velocity: new THREE.Vector3(offsetX, 0, offsetZ),
+             rotation: new THREE.Vector3(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z),
+             rotationSpeed: new THREE.Vector3(
+                (random() - 0.5) * 2,
+                (random() - 0.5) * 2,
+                (random() - 0.5) * 2
+             ),
+             targetMesh: mesh
+         });
+      });
+      
+    } else if (runtime && runtime.currentBricks.length > 0) {
+      // Fallback for previous instanced logic 
+      const count = runtime.currentBricks.length;
+      const dummy = new THREE.Object3D();
+      const random = Math.random;
+
+      for (let i = 0; i < count; i++) {
+          runtime.mesh.getMatrixAt(i, dummy.matrix);
+          dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
+          
+          const offsetX = (random() - 0.5) * 0.5;
+          const offsetZ = (random() - 0.5) * 0.5;
+
+          this.fallingBricks.push({
+              instanceId: i,
+              regionId: regionId,
+              position: dummy.position.clone(),
+              velocity: new THREE.Vector3(offsetX, 0, offsetZ), // Small horizontal drift
+              rotation: new THREE.Vector3(
+                  dummy.rotation.x, 
+                  dummy.rotation.y, 
+                  dummy.rotation.z
+              ),
+              rotationSpeed: new THREE.Vector3(
+                  (random() - 0.5) * 2,
+                  (random() - 0.5) * 2,
+                  (random() - 0.5) * 2
+              )
+          });
+      }
+    }
+
+    // Hide the static bridge support markers
+    this.bridgeSupports.visible = false;
+    this.cronyMarkers.visible = false;
+  }
+
   private updateBuildPhases(deltaSeconds: number) {
     if (!IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild) return;
     const revealSpeed = 1 - Math.exp(-6 * deltaSeconds);
@@ -623,6 +938,247 @@ export class IovTopologyScene {
       this.setRegionReveal(regionId, this.regionReveal[regionId]);
     });
     this.setBridgeDecorReveal(this.regionReveal.crony_bridge);
+  }
+
+  private updateSystemImpact(deltaSeconds: number) {
+    if (!this.systemImpactActive || !this.systemImpactResult) return;
+
+    this.systemImpactElapsed += deltaSeconds;
+
+    const growDuration = 1.15;
+    const photonDelay = 0.24;
+    const photonDuration = 0.95;
+    const settleDuration = this.systemImpactStressThresholdCrossed ? 1.1 : 0.75;
+    const totalDuration = growDuration + photonDelay + photonDuration + settleDuration;
+
+    const growT = Math.min(1, this.systemImpactElapsed / growDuration);
+    this.systemImpactCommunityScale = lerp(
+      this.systemImpactCommunityScaleStart,
+      this.systemImpactCommunityScaleEnd,
+      easeOutCubic(growT)
+    );
+    this.setRegionReveal("community", this.regionReveal.community);
+    this.systemImpactBuildBricks.forEach((brick) => {
+      if (this.systemImpactElapsed < brick.revealAt) return;
+      brick.mesh.visible = true;
+      const t = Math.min(1, (this.systemImpactElapsed - brick.revealAt) / 0.2);
+      brick.mesh.position.y = lerp(brick.startY, brick.targetY, easeOutCubic(t));
+    });
+
+    const stressT = Math.min(1, this.systemImpactElapsed / (growDuration + photonDuration));
+    const bridgeStressNow = lerp(
+      this.systemImpactBridgeStressStart,
+      this.systemImpactBridgeStressEnd,
+      stressT
+    );
+    this.applyBridgeStressVisual(bridgeStressNow);
+
+    const community = this.regions.get("community");
+    const bridge = this.regions.get("crony_bridge");
+    if (community && bridge && this.systemImpactElapsed >= photonDelay) {
+      const photonT = Math.min(1, (this.systemImpactElapsed - photonDelay) / photonDuration);
+      const start = community.topCapCenter.clone();
+      const topBuildY = this.getSystemImpactBuildTopY(
+        this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)
+      );
+      start.y = topBuildY + 0.3;
+      const end = this.systemImpactBridgeTarget.clone();
+
+      this.systemImpactPhoton.visible = true;
+      this.systemImpactPhoton.position.lerpVectors(start, end, easeOutCubic(photonT));
+      this.systemImpactPhoton.position.y += Math.sin(photonT * Math.PI) * 0.9;
+      const pulse = 1 + Math.sin(this.elapsed * 15) * 0.18;
+      this.systemImpactPhoton.scale.setScalar(pulse);
+      this.systemImpactPhotonLight.intensity = 1.7 + Math.sin(this.elapsed * 18) * 0.35;
+
+      const contactReached = topBuildY >= this.systemImpactBridgeContactY - 0.04;
+
+      if (
+        this.systemImpactStressThresholdCrossed &&
+        contactReached &&
+        !this.systemImpactCollapseTriggered &&
+        photonT >= 0.86
+      ) {
+        this.systemImpactCollapseTriggered = true;
+        this.systemImpactResult.bridgeCollapsed = true;
+        this.shatterBridge();
+      }
+    }
+
+    if (this.systemImpactElapsed >= totalDuration) {
+      this.systemImpactActive = false;
+      this.systemImpactPhoton.visible = false;
+      this.systemImpactPhotonLight.visible = false;
+      const done = this.systemImpactOnComplete;
+      const result = this.systemImpactResult;
+      this.systemImpactOnComplete = null;
+      if (done && result) {
+        done(result);
+      }
+    }
+  }
+
+  private applyBridgeStressVisual(stressValue: number) {
+    const normalized = Math.max(
+      0,
+      Math.min(1.25, stressValue / Math.max(0.1, this.systemImpactBridgeStressThreshold))
+    );
+    const color = new THREE.Color(
+      lerp(0.36, 0.86, normalized),
+      lerp(0.4, 0.28, normalized),
+      lerp(0.45, 0.2, normalized)
+    );
+    this.bridgeBricks.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(color);
+    });
+
+    this.bridgeSupports.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(color.clone().multiplyScalar(0.9));
+    });
+  }
+
+  private mapCommunityHeightToScale(heightScore: number) {
+    return Math.max(1, Math.min(2.2, 0.88 + heightScore * 0.17));
+  }
+
+  private getCommunityTopSurfaceY(scale: number) {
+    const community = this.regions.get("community");
+    if (!community) return STRUCTURE_LAYER0_Y + BRICK_H;
+    const revealScale = Math.max(0.001, this.regionReveal.community);
+    const yScale = revealScale * scale;
+    return (community.topCapCenter.y + HALF_H) * yScale;
+  }
+
+  private resolveBridgeImpactTarget() {
+    if (this.bridgeBricks.children.length > 0) {
+      const bounds = new THREE.Box3().setFromObject(this.bridgeBricks);
+      if (
+        Number.isFinite(bounds.min.x) &&
+        Number.isFinite(bounds.min.y) &&
+        Number.isFinite(bounds.min.z)
+      ) {
+        const center = new THREE.Vector3();
+        bounds.getCenter(center);
+        const contactY = bounds.min.y - 0.02;
+        const point = new THREE.Vector3(center.x, bounds.min.y + 0.25, center.z);
+        return { point, contactY };
+      }
+    }
+
+    const fallbackContactY = Math.min(this.bridgeStartY, this.bridgeEndY) - HALF_H;
+    return {
+      point: new THREE.Vector3((MARKET_X + STATE_X) * 0.5, fallbackContactY + 0.25, TOPOLOGY_Z),
+      contactY: fallbackContactY,
+    };
+  }
+
+  private queueSystemImpactBuildStack(brickCount: number, baseTopSurfaceY: number) {
+    const community = this.regions.get("community");
+    if (!community) return;
+
+    const center = community.topCapCenter;
+    const color = new THREE.Color("#d9b114");
+
+    for (let i = 0; i < brickCount; i += 1) {
+      const logicalIndex = this.systemImpactBuiltBrickCount + i;
+      const targetY = baseTopSurfaceY + HALF_H + logicalIndex * STEP_Y;
+      const startY = targetY - 1.1;
+
+      const mesh = new THREE.Mesh(
+        this.brickGeometry,
+        new THREE.MeshBasicMaterial({
+          color: color.clone(),
+        })
+      );
+      mesh.position.set(center.x, startY, center.z);
+      mesh.visible = false;
+      this.systemImpactBuildGroup.add(mesh);
+      this.systemImpactBuildBricks.push({
+        mesh,
+        startY,
+        targetY,
+        revealAt: i * 0.06,
+      });
+    }
+
+    this.systemImpactBuiltBrickCount += brickCount;
+  }
+
+  private getSystemImpactBuildTopY(fallbackY: number) {
+    let maxY = fallbackY;
+    this.systemImpactBuildBricks.forEach((brick) => {
+      if (!brick.mesh.visible) return;
+      maxY = Math.max(maxY, brick.mesh.position.y + HALF_H);
+    });
+    return maxY;
+  }
+
+  private clearSystemImpactBuildStack() {
+    this.systemImpactBuildBricks.forEach((brick) => {
+      this.systemImpactBuildGroup.remove(brick.mesh);
+      (brick.mesh.material as THREE.Material).dispose();
+    });
+    this.systemImpactBuildBricks.length = 0;
+    this.systemImpactBuiltBrickCount = 0;
+    this.systemImpactStressThresholdCrossed = false;
+    this.systemImpactBridgeContactY = 0;
+    this.systemImpactBridgeTarget.set(0, 0, 0);
+  }
+
+  private updateFallingBricks(delta: number) {
+    if (this.fallingBricks.length === 0) return;
+
+    try {
+      const regionId = "crony_bridge";
+      const runtime = this.regions.get(regionId);
+      const groundY = IOV_TOPOLOGY_CONFIG.layout.groundY;
+      
+      const dummy = new THREE.Object3D();
+
+      this.fallingBricks.forEach(brick => {
+          // Gravity
+          brick.velocity.y -= 9.8 * delta * 2; // Exaggerated gravity
+          
+          // Position integration
+          brick.position.addScaledVector(brick.velocity, delta);
+          
+          // Floor collision
+          if (brick.position.y < groundY + BRICK_H/2) {
+              brick.position.y = groundY + BRICK_H/2;
+              brick.velocity.y *= -0.3; // Dampened bounce
+              brick.velocity.x *= 0.8;  // Friction
+              brick.velocity.z *= 0.8;
+              brick.rotationSpeed.multiplyScalar(0.5); // Slow rotation on floor
+          }
+
+          // Rotation
+          brick.rotation.x += brick.rotationSpeed.x * delta;
+          brick.rotation.y += brick.rotationSpeed.y * delta;
+          brick.rotation.z += brick.rotationSpeed.z * delta;
+
+          // Apply to mesh or instance
+          if (brick.targetMesh) {
+             brick.targetMesh.position.copy(brick.position);
+             brick.targetMesh.rotation.set(brick.rotation.x, brick.rotation.y, brick.rotation.z);
+          } else if (runtime && brick.instanceId >= 0) {
+             dummy.position.copy(brick.position);
+             dummy.rotation.set(brick.rotation.x, brick.rotation.y, brick.rotation.z);
+             dummy.updateMatrix();
+             runtime.mesh.setMatrixAt(brick.instanceId, dummy.matrix);
+          }
+      });
+
+      if (runtime && runtime.mesh) {
+          runtime.mesh.instanceMatrix.needsUpdate = true;
+      }
+    } catch (err) {
+      console.warn('Bridge physics error:', err);
+      this.fallingBricks = []; // disable on error
+    }
   }
 
   private setRegionReveal(regionId: RegionId, reveal: number) {
@@ -637,11 +1193,13 @@ export class IovTopologyScene {
     if (runtime.flag) runtime.flag.visible = visible;
 
     const yScale = Math.max(0.001, reveal);
-    runtime.mesh.scale.y = yScale;
-    runtime.edgeGroup.scale.y = yScale;
-    if (runtime.studs) runtime.studs.scale.y = yScale;
-    if (runtime.flagPole) runtime.flagPole.scale.y = yScale;
-    if (runtime.flag) runtime.flag.scale.y = yScale;
+    const regionYScale =
+      regionId === "community" ? yScale * this.systemImpactCommunityScale : yScale;
+    runtime.mesh.scale.y = regionYScale;
+    runtime.edgeGroup.scale.y = regionYScale;
+    if (runtime.studs) runtime.studs.scale.y = regionYScale;
+    if (runtime.flagPole) runtime.flagPole.scale.y = regionYScale;
+    if (runtime.flag) runtime.flag.scale.y = regionYScale;
 
     if (regionId === "market") {
       if (this.derivativesMist) {
@@ -1703,21 +2261,13 @@ export class IovTopologyScene {
     });
   }
 
-  private getInteractiveMeshes() {
-    return Array.from(this.regions.values()).map((runtime) => runtime.mesh);
-  }
-
   private seedErosionMask() {
     this.erodedCommunityIndexes.clear();
-    const community = this.regions.get("community");
-    if (!community) return;
-
-    const baseCount = community.baseBricks.length;
-    const target = Math.floor(baseCount * this.erosionRatio);
-    const random = createSeededRandom(Math.floor(this.elapsed * 1000) + 51);
-
-    while (this.erodedCommunityIndexes.size < target) {
-      this.erodedCommunityIndexes.add(Math.floor(random() * baseCount));
+    const count = this.regions.get('community')?.baseBricks.length ?? 0;
+    for(let i=0; i<count; i++) {
+        if (Math.random() < this.erosionRatio) {
+              this.erodedCommunityIndexes.add(i);
+        }
     }
   }
 
@@ -1850,8 +2400,6 @@ export class IovTopologyScene {
     this.fxGroup.remove(this.activeTransfer.mesh, this.activeTransfer.trail);
     this.activeTransfer.mesh.geometry.dispose();
     (this.activeTransfer.mesh.material as THREE.Material).dispose();
-    this.activeTransfer.trail.geometry.dispose();
-    (this.activeTransfer.trail.material as THREE.Material).dispose();
     this.activeTransfer = null;
   }
 
@@ -1859,118 +2407,56 @@ export class IovTopologyScene {
     const pulse = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(BRICK_W + 0.2, BRICK_H + 0.2, BRICK_D + 0.2)),
       new THREE.LineBasicMaterial({
-        color: "#49c76c",
+        color: "#ffffff",
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.8,
       })
     );
     pulse.position.copy(position);
-    pulse.renderOrder = 60;
     this.fxGroup.add(pulse);
-
     this.landingPulses.push({
       mesh: pulse,
       elapsed: 0,
-      duration: 1,
+      duration: 0.6,
     });
-  }
-
-  private updateLandingPulses(deltaSeconds: number) {
-    for (let i = this.landingPulses.length - 1; i >= 0; i -= 1) {
-      const pulse = this.landingPulses[i];
-      if (!pulse) continue;
-      pulse.elapsed += deltaSeconds;
-
-      const t = Math.min(pulse.elapsed / pulse.duration, 1);
-      pulse.mesh.scale.setScalar(1 + t * 0.35);
-      const mat = pulse.mesh.material as THREE.LineBasicMaterial;
-      mat.opacity = 0.9 * (1 - t);
-
-      if (t >= 1) {
-        this.fxGroup.remove(pulse.mesh);
-        pulse.mesh.geometry.dispose();
-        mat.dispose();
-        this.landingPulses.splice(i, 1);
-      }
-    }
-  }
-
-  private updateSlotMarkers() {
-    if (!IOV_TOPOLOGY_CONFIG.render.enableSlotGuides) return;
-
-    this.slotMarkers.children.forEach((child, index) => {
-      const line = child as THREE.LineSegments;
-      const mat = line.material as THREE.LineBasicMaterial;
-      const isFilled = index < this.transferredBricks.length;
-      mat.opacity = isFilled ? 0.05 : 0.2;
-    });
-  }
-
-  private setSelectionMarker(mesh: THREE.InstancedMesh, instanceId: number) {
-    if (instanceId < 0) return;
-    const { position, rotation } = this.getInstanceTransform(mesh, instanceId);
-    this.selectedOutline.visible = true;
-    this.selectedOutline.position.copy(position);
-    this.selectedOutline.quaternion.copy(rotation);
-    this.selectedOutline.scale.set(1.04, 1.04, 1.04);
-  }
-
-  private setSelectedBrick(regionId: RegionId, instanceId: number) {
-    this.selectedBrickInfo = {
-      regionId,
-      instanceId,
-      canTransfer: this.canTransferBrick(regionId, instanceId),
-    };
-    this.callbacks.onBrickSelectionChange?.(this.selectedBrickInfo);
-  }
-
-  private clearSelectedBrick() {
-    this.selectedBrickInfo = null;
-    this.selectedOutline.visible = false;
-    this.callbacks.onBrickSelectionChange?.(null);
-  }
-
-  private getInstanceTransform(mesh: THREE.InstancedMesh, instanceId: number) {
-    const matrix = new THREE.Matrix4();
-    mesh.getMatrixAt(instanceId, matrix);
-
-    const position = new THREE.Vector3();
-    const rotation = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    matrix.decompose(position, rotation, scale);
-    return { position, rotation };
-  }
-
-  private getNearestOpenSlotIndex(fromPosition: THREE.Vector3) {
-    const openCount = Math.max(this.communitySlots.length - this.transferredBricks.length, 0);
-    if (openCount <= 0) return null;
-
-    let bestIndex: number | null = null;
-    let bestDistance = Infinity;
-
-    for (let i = this.transferredBricks.length; i < this.communitySlots.length; i += 1) {
-      const slot = this.communitySlots[i];
-      if (!slot) continue;
-      const distance = slot.distanceToSquared(fromPosition);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = i;
-      }
-    }
-
-    return bestIndex;
   }
 
   // Community placement uses absolute world coordinates on shared baseplate.
   // This avoids floating/misaligned reclaimed bricks caused by mixed local offsets.
   private getNextCommunityPlacement() {
-    const index = Math.min(this.transferredBricks.length, this.communitySlots.length - 1);
-    const slot = this.communitySlots[index];
-    if (slot) {
-      return slot.clone();
+    const spaceIndex = this.transferredBricks.length;
+    
+    // Safety check if slots are empty
+    if (this.communitySlots.length === 0) {
+      return new THREE.Vector3();
     }
+    
+    if (spaceIndex < this.communitySlots.length) {
+      const slot = this.communitySlots[spaceIndex];
+      if (slot) return slot.clone();
+    }
+    
+    // Fallback: stack on last slot if full
+    const lastSlot = this.communitySlots[this.communitySlots.length - 1];
+    if (lastSlot) {
+      const last = lastSlot.clone();
+      last.y += (spaceIndex - this.communitySlots.length + 1) * 0.1;
+      return last;
+    }
+    
+    return new THREE.Vector3();
+  }
 
-    return new THREE.Vector3(COMMUNITY_X, this.communityBaseTopY + STEP_Y, TOPOLOGY_Z);
+  private getInteractiveMeshes() {
+    return Array.from(this.regions.values())
+      .map((r) => r.mesh)
+      .filter((m) => m.visible);
+  }
+
+  // End of helper methods
+  build(regionId: RegionId) {
+    const isRevealing = this.regionRevealTarget[regionId] > 0.5;
+    this.regionRevealTarget[regionId] = isRevealing ? 0 : 1;
   }
 }
 

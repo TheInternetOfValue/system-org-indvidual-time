@@ -42,6 +42,7 @@ interface IovTopologyPanelProps {
   onToggle: (toggleId: ToggleId) => void;
   onBuild: (regionId: RegionId) => void;
   onOpenBrick: () => void;
+  onOpenPerson: () => void;
   onBackSemantic: () => void;
   onInteractionModeChange: (mode: BrickInteractionMode) => void;
   onTogglePresentationMode: () => void;
@@ -49,6 +50,10 @@ interface IovTopologyPanelProps {
   onValueLogNext: () => void;
   onValueLogPrev: () => void;
   onValueLogCommit: () => void;
+  onOpenValueLog: () => void; // Added for Person Identity view
+  canEmpowerCommunity: boolean;
+  empowerLabel: string;
+  onEmpowerCommunity: () => void;
 }
 
 const IovTopologyPanel = ({
@@ -73,6 +78,7 @@ const IovTopologyPanel = ({
   onToggle,
   onBuild,
   onOpenBrick,
+  onOpenPerson,
   onBackSemantic,
   onInteractionModeChange,
   onTogglePresentationMode,
@@ -80,6 +86,10 @@ const IovTopologyPanel = ({
   onValueLogNext,
   onValueLogPrev,
   onValueLogCommit,
+  onOpenValueLog,
+  canEmpowerCommunity,
+  empowerLabel,
+  onEmpowerCommunity,
 }: IovTopologyPanelProps) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -169,6 +179,11 @@ const IovTopologyPanel = ({
           >
             Reclaim
           </button>
+          {canEmpowerCommunity && (
+            <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
+              {empowerLabel}
+            </button>
+          )}
         </div>
       )}
       {isMobile && semanticLevel === "valuelog" && (
@@ -342,6 +357,11 @@ const IovTopologyPanel = ({
             >
               Reclaim
             </button>
+            {canEmpowerCommunity && (
+              <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
+                {empowerLabel}
+              </button>
+            )}
           </div>
         </>
       ) : (
@@ -360,6 +380,16 @@ const IovTopologyPanel = ({
               <div className="iov-panel-value-subline">
                 Selected person: {blockSummary.selectedPersonId ?? "None"}
               </div>
+              {blockSummary.selectedPersonId && (
+                <button
+                  type="button"
+                  className="iov-btn-action"
+                  onClick={onOpenPerson}
+                  style={{ marginTop: "8px", width: "100%" }}
+                >
+                  Inspect Person
+                </button>
+              )}
               <div className="iov-panel-value-subline">
                 Profile mix:{" "}
                 {Object.entries(blockSummary.profileMix)
@@ -386,6 +416,15 @@ const IovTopologyPanel = ({
               </div>
               <div className="iov-panel-value-subline">
                 Active build layer: {personSummary.identityBuildLayerLabel ?? "None"}
+              </div>
+              <div className="iov-panel-buttons" style={{ marginTop: "12px", marginBottom: "12px" }}>
+                   <button
+                   className="iov-btn-action"
+                    onClick={onOpenValueLog}
+                    type="button"
+                    >
+                        Create Value Log (Action)
+                    </button>
               </div>
               <div className="iov-panel-layer-rail">
                 {personSummary.layerLabels.map((layer) => {
@@ -639,6 +678,12 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
       return "Person";
     case "valuelog":
       return "Time Slice";
+    case "impact":
+      return "Impact";
+    case "orgimpact":
+      return "Org Impact";
+    case "systemimpact":
+      return "System Impact";
     default:
       return level;
   }

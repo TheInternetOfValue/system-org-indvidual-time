@@ -9,18 +9,206 @@ Build the next narrative layer of the Internet of Value experience through seman
 1. `System` level: Market / State / Community / Crony Bridge.
 2. `Brick` level: each institution brick is composed of people.
 3. `Person` level: each person contains identity layers.
+4. `Time Slice` level: compose a value action.
+5. `Impact` level: visualize causal drop/ripple before state return.
 
 Core message: institutions are abstractions made from people, people are structured by identity, and identity evolves through daily logged behavior.
+
+## Current Runtime Snapshot
+- Active scene host: `src/components/IovTopologyCanvas.tsx`
+- Active semantic chain: `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology -> systemimpact -> topology`
+- Active scenes:
+  - `src/game/iov/IovTopologyScene.ts` (System)
+  - `src/game/iov/BlockInteriorScene.ts` (Organization)
+  - `src/game/iov/PersonIdentityScene.ts` (Person)
+  - `src/game/iov/ValueLogScene.ts` (Time Slice)
+  - `src/game/iov/PersonImpactScene.ts` (Impact transition)
+- Legacy note: old puzzle scene `src/game/GameScene.ts` has been removed from this repo.
 
 Narrative chain:
 1. `System`: Market / State / Community / Bridge.
 2. `Brick`: organizations composed of people.
 3. `Person`: stable identity layers (slow-changing profile structure).
 4. `Breathing Layer`: daily protocol logs that update wellbeing state/aura over time.
+5. `Impact`: post-commit transition that makes state change legible.
+
+## Impact Escalation Contract (Implemented)
+Goal: make impact progression explicit and modular across three scenes:
+`Person Impact -> Org Impact -> System Impact`.
+
+### Scene A: Person Impact (`impact`, existing)
+Purpose:
+- Show causal event from committed Time Slice to one person state change.
+
+Input:
+- `selectedPersonId`
+- committed `IovValueLogEntry`
+- computed `ValueLogOutcome` (`wellbeingDelta`, `auraDelta`, `identityStateDelta`)
+- source org context (`selectedRegionId`, `selectedBrickId`)
+
+Behavior:
+- photon drop and ripple visualization.
+- returns control to person context after animation.
+
+Output:
+- `PersonImpactResult`:
+  - `personId`
+  - `sourceRegionId`
+  - `sourceBrickId`
+  - `auraDelta`
+  - `timestamp`
+
+### Scene B: Org Impact (`orgimpact`, new)
+Purpose:
+- Show contagion from one impacted person to the full organization.
+
+Input:
+- `PersonImpactResult`
+- block population snapshot (`personIds`, positions, profile mix)
+- deterministic contagion config (`spreadIntervalMs`, `spreadBatchSize`, `motionGainCurve`)
+
+Behavior:
+- impacted person starts with aura.
+- aura spreads person-to-person in timed waves.
+- people motion transitions from mostly static to active.
+- once contagion completes, org brick transitions to radiant state.
+
+Output:
+- `OrgImpactResult`:
+  - `regionId`
+  - `brickId`
+  - `activatedPeopleCount`
+  - `populationCount`
+  - `contagionComplete`
+  - `orgRadiance` (0..1)
+  - `communityPowerDelta` (derived from full-org activation quality)
+
+### Scene C: System Impact (`systemimpact`, new)
+Purpose:
+- Convert org activation into macro-level Community growth and bridge pressure.
+
+Input:
+- `OrgImpactResult`
+- current macro state (`communityPillarHeight`, `communityPower`, `bridgeStress`, `bridgeResistance`)
+- source alignment context (Market/State/Community origin)
+- explicit trigger from topology panel (`Empower Community Pillar`)
+
+Behavior:
+- applies `communityPowerDelta` into Community pillar growth.
+- animates Community pillar height increase (not just brick count changes).
+- builds a rapid upward community stack and launches impact photon from stack top.
+- maps increased Community pillar to bridge collision/stress using real bridge geometry bounds.
+- collapses bridge only when both conditions are true:
+  - bridge stress threshold crossed
+  - community build reaches bridge underside (contact gate)
+
+Output:
+- `SystemImpactResult`:
+  - `communityPillarHeightBefore`
+  - `communityPillarHeightAfter`
+  - `bridgeStressBefore`
+  - `bridgeStressAfter`
+  - `bridgeCollapsed`
+
+Important rule:
+- bridge collapse trigger must not be raw reclaim count (`transferredCount > N`).
+- bridge collapse must be driven by accumulated Community pillar growth and resulting bridge stress.
+- bridge collapse must remain contact-gated so break timing matches visible geometry.
+
+## Modular Execution Plan (Safe Rollout)
+Implementation should be merged in isolated passes with docs updated at each pass.
+
+### Pass 1: Contracts + State Model (no visual overhaul)
+Deliverables:
+- Add typed contracts for `PersonImpactResult`, `OrgImpactResult`, `SystemImpactResult`.
+- Add shared impact state store (or controller slice) for deterministic progression.
+- Add feature flag (`enableImpactEscalation`) defaulting to `false`.
+
+Done when:
+- app behavior unchanged with flag off.
+- contract tests compile and pass.
+
+Pass 1 progress (implemented):
+- Added impact contract/controller module: `src/game/iov/iovImpactEscalation.ts`.
+- Added default-off feature flag in `src/game/iov/iovNarrativeConfig.ts`:
+  - `IOV_FEATURE_FLAGS.enableImpactEscalation = false`.
+- Wired no-op-safe integration in `src/components/IovTopologyCanvas.tsx`:
+  - when flag is `false`, existing runtime path is unchanged.
+  - when enabled later, person impact results are recorded and marked for org impact pending.
+- Added tests:
+  - `src/game/iov/__tests__/IovImpactEscalationController.test.ts`
+  - verifies default flag state and controller phase progression.
+
+### Pass 2: Org Impact Scene
+Deliverables:
+- add `OrgImpactScene` module.
+- wire transition `impact -> orgimpact -> block`.
+- implement aura contagion, progressive activation, and movement gain.
+- emit `OrgImpactResult`.
+
+Done when:
+- one impacted person can activate full org in deterministic waves.
+- org brick reaches radiant state only after contagion complete.
+
+Pass 2 progress (implemented behind flag):
+- Org impact is now rendered in-place inside `BlockInteriorScene` (real org people remain visible):
+  - one impacted person seeds activation
+  - contagion spreads sequentially (one-by-one)
+  - moving light cue travels person-to-person
+  - each person gains an aura ring at activation
+  - full-org glow resolves only after all people activate
+- Extended semantic routing:
+  - `IovSemanticZoomController` now supports `OPEN_ORG_IMPACT` and `level="orgimpact"`.
+  - `NAV_BACK` from `orgimpact` returns to `block`.
+- Wired `IovTopologyCanvas` transition flow:
+  - `impact -> orgimpact` uses `BlockInteriorScene.playOrgContagion(...)`.
+  - completion emits and records `OrgImpactResult`.
+- Added routing test:
+  - `src/game/iov/__tests__/IovSemanticZoomController.test.ts`
+
+### Pass 3: System Impact Scene
+Deliverables:
+- wire explicit topology trigger for `systemimpact` after org activation.
+- implement Community pillar growth animation from `communityPowerDelta` on the live topology scene.
+- replace bridge collapse logic with stress/resistance model.
+
+Done when:
+- Community pillar visibly grows from org outcomes.
+- bridge collapse occurs from stress model, not transfer count.
+
+Pass 3 progress (implemented):
+- Added `systemimpact` semantic level with explicit topology-triggered playback.
+- System-impact playback now runs on `IovTopologyScene` (not detached from topology context):
+  - community pillar scale increases from `communityPowerDelta`
+  - bridge color/stress ramps during impact
+  - bridge collapse triggers only when stress threshold crosses and contact gate is reached
+- `IovTopologyCanvas` now queues org outcomes and requires explicit topology action:
+  - `impact -> orgimpact -> block -> topology`
+  - press `Empower Community Pillar` -> `systemimpact -> topology`
+- Escalation feature flag is now enabled:
+  - `IOV_FEATURE_FLAGS.enableImpactEscalation = true`.
+
+### Pass 4: Cleanup + Migration
+Deliverables:
+- remove deprecated transfer-count collapse path.
+- tune timings, camera framing, mobile safe controls.
+- update all docs and handoff notes.
+
+Done when:
+- old fallback logic removed.
+- narrative chain is consistent across panel text, scenes, and docs.
+
+## Documentation Protocol For Each Pass
+For every pass above, update in the same commit:
+1. `docs/IOV_SEMANTIC_ZOOM_PROJECT.md`
+2. `docs/LLM_HANDOFF_CONTEXT.md`
+3. `README.md` (scene inventory/flow if changed)
+4. Change Log + Decision Log entries with date and rationale
 
 ## Scope
 - In scope:
-  - Multi-level scene flow (`topology -> brick -> person`)
+  - Current multi-level scene flow (`topology -> block -> person -> valuelog -> impact`)
+  - Impact escalation flow (`impact -> orgimpact -> block -> topology -> systemimpact -> topology`)
   - Smooth transitions and clear back-navigation
   - Data-driven person/identity modeling
   - Mobile-safe interaction patterns
@@ -36,16 +224,23 @@ Narrative chain:
 
 ## Architecture Plan
 - Keep one route/canvas, split rendering into scene modules:
-  - `TopologyScene` (existing)
+  - `IovTopologyScene` (existing)
   - `BlockInteriorScene` (new)
   - `PersonIdentityScene` (new)
+  - `ValueLogScene` (new)
+  - `PersonImpactScene` (new)
+  - `OrgImpactScene` (planned)
+  - `SystemImpactScene` (planned)
 - Introduce a scene controller:
   - File target: `src/game/iov/IovSemanticZoomController.ts`
-  - State shape:
-    - `level: "topology" | "block" | "person"`
+  - Current state shape:
+    - `level: "topology" | "block" | "person" | "valuelog" | "impact"`
     - `selectedRegionId`
     - `selectedBrickId`
     - `selectedPersonId`
+  - Planned extension:
+    - `level` adds `"orgimpact" | "systemimpact"`
+    - `impactState` carries typed outputs across scenes (`PersonImpactResult -> OrgImpactResult -> SystemImpactResult`)
 - Add breadcrumb UI:
   - `Topology > Brick > Person`
   - Back actions from each deep level.
@@ -346,7 +541,7 @@ Status: `in_progress`
 3. Transition timing: fixed duration vs performance-adaptive?
 
 ## Definition of Done (v1)
-- User can move across all 3 semantic levels and back.
+- User can move across all active semantic levels and back (`System -> Organization -> Person -> Time Slice -> Impact`).
 - No level blocks mobile usability.
 - 60 FPS target on desktop; acceptable performance on mobile.
 - Data files drive labels and counts (no hardcoded narrative constants).
@@ -365,6 +560,15 @@ After each implementation pass:
 - 2026-02-22: Mobile flow uses tap-first CTAs (`Open Brick`, `Back`) with no hover dependency.
 - 2026-02-22: Person semantics split into `stable identity` vs `daily breathing logs`; only the breathing layer updates per timeslice and affects wellbeing/aura.
 - 2026-02-22: Canonical vocabulary source of truth remains `the-internet-of-value-spec`; visualization mirrors protocol terms instead of introducing ad-hoc labels.
+- 2026-02-24: Impact must escalate in three explicit scenes (`Person Impact -> Org Impact -> System Impact`) with typed outputs between scenes.
+- 2026-02-24: System bridge collapse is tied to Community pillar growth and bridge stress, not raw reclaimed-brick count.
+- 2026-02-24: Pass 1 ships behind `IOV_FEATURE_FLAGS.enableImpactEscalation=false` to preserve existing demo behavior while contracts/controller land.
+- 2026-02-24: Pass 2 org-impact routing and scene logic are also integrated behind the same feature flag; default demo flow remains unchanged while scaffold stabilizes.
+- 2026-02-24: Block interior must persist contagion completion state per brick so revisits show full-org activation (not only single-person seed aura).
+- 2026-02-24: Org impact must stay in the org-people scene; contagion is represented as sequential aura spread across people, with moving light only as a cue.
+- 2026-02-24: System impact must run on `IovTopologyScene` (shared world context), not a detached abstract scene.
+- 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
+- 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -377,11 +581,18 @@ After each implementation pass:
 - 2026-02-22: Project model explicitly aligned to "system -> brick -> people -> person identity -> daily protocol logs" narrative with clear slow-vs-fast state separation.
 - 2026-02-22: Added person/value split with separate `ValueLog` semantic level, explicit canonical protocol cards, and timeline playback controls for auditable breathing-layer evolution.
 - 2026-02-22: Reworked person aura from center sphere pulse to orbit-field pulse bands/waves; daily logs now explicitly drive Story/Skills (direct) and IdentityState (derived) in the panel narrative.
+- 2026-02-24: Added Impact Escalation Contract with explicit scene-by-scene `Input -> Behavior -> Output` definitions for Person, Org, and System impact.
+- 2026-02-24: Added modular rollout plan (Pass 1-4) and documentation protocol to reduce regression risk during end-scenes implementation.
+- 2026-02-24: Implemented Pass 1 contracts/state slice + default-off feature flag + tests, with no visual runtime changes when flag is off.
+- 2026-02-24: Implemented Pass 2 scaffold: `OrgImpactScene`, semantic routing (`impact -> orgimpact -> block`), contagion animation logic, and controller test coverage.
+- 2026-02-24: Fixed regression in Time Slice commit wiring (`onValueLogCommit` / `onValueLogDraftChange`) to restore end-to-end commit flow.
+- 2026-02-24: Added block-level org activation persistence and visuals so contagion completion resolves to full-organization glow state on return/revisit.
+- 2026-02-24: Reworked org contagion to run in `BlockInteriorScene` with real people visible and one-by-one aura spread.
+- 2026-02-24: Implemented Pass 3 on live topology (`IovTopologyScene.playSystemImpact`) and enabled escalation route `impact -> orgimpact -> systemimpact -> topology`.
+- 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
+- 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
 
 ## Next Up
-1. Add `public/data/iov_people.json` to bind canonical identity attributes per person (stable band) without mixing ValueLog state.
-2. Replace mobile person overlay card with compact anchored variant so controls do not occlude the avatar/orbit center.
-3. Add per-log drilldown depth:
-   expandable sections for `~~TimeSlice`, `~~Activity`, `~~Proof`, `~~Validation`.
-4. Add explicit identity-state linkage text:
-   current log delta -> wellbeing score -> aura strength.
+1. Pass 4: remove legacy transfer-count bridge collapse path entirely (currently gated off when escalation flag is enabled).
+2. Tune org/system impact camera and timing for presentation clarity.
+3. Add panel telemetry for macro stress state (pillar height, bridge stress, threshold).

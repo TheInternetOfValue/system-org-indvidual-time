@@ -11,6 +11,10 @@ The experience is a semantic zoom story:
 2. `Organization`  
 3. `Person` (wellbeing identity layers)  
 4. `Time Slice` (value log cascade)
+5. `Impact` (photon drop + ripple transition)
+6. `Org Impact` (aura contagion across people in selected organization)
+7. Return to `System` with queued org activation (`Empower Community Pillar`)
+8. `System Impact` (Community pillar growth that stresses and can collapse the bridge)
 
 The core message:
 - institutions are made of organizations,
@@ -23,6 +27,9 @@ The core message:
 - `Organization` = former brick level
 - `Person` = wellbeing identity layer view
 - `Time Slice` = value log composition / protocol cascade view
+- `Org Impact` = contagion activation of one organization after person impact
+- `Empower Community Pillar` = explicit system-level trigger to consume queued org activation
+- `System Impact` = Community pillar growth + bridge stress/collapse sequence
 
 ## Current implementation map
 - Main canvas/router:
@@ -32,6 +39,7 @@ The core message:
   - `src/game/iov/BlockInteriorScene.ts`
   - `src/game/iov/PersonIdentityScene.ts`
   - `src/game/iov/ValueLogScene.ts`
+  - `src/game/iov/PersonImpactScene.ts`
 - Zoom controller:
   - `src/game/iov/IovSemanticZoomController.ts`
 - Left panel:
@@ -41,6 +49,40 @@ The core message:
   - loader/types in `src/game/iov/iovTimelogs.ts`
 - State evolution:
   - `src/game/iov/PersonStateEngine.ts`
+
+## New Priority Contract (locked for next passes)
+Implement impact as a strict three-scene pipeline:
+1. `Person Impact` (existing): committed log updates one person.
+2. `Org Impact` (new): one impacted person spreads aura through org until full activation and radiant brick state.
+3. `System Impact` (new): org activation increases Community pillar height and bridge stress until collapse threshold.
+
+Critical rule:
+- bridge collapse must be driven by Community pillar growth / stress model.
+- do not use raw reclaimed-brick count as collapse trigger.
+- collapse timing must be contact-gated: no bridge shatter before visible community-to-bridge contact.
+
+### Contract IO (must remain explicit)
+- `Person Impact` output: `PersonImpactResult`.
+- `Org Impact` input: `PersonImpactResult`; output: `OrgImpactResult` with `communityPowerDelta`.
+- `System Impact` input: `OrgImpactResult` + macro state; output: `SystemImpactResult` with `bridgeCollapsed`.
+
+### Safe rollout requirement
+- Add behind feature flag first (`enableImpactEscalation`).
+- Keep current behavior unchanged when flag is off.
+- Update docs after each pass before moving to next pass.
+
+Current pass status:
+- Pass 1, Pass 2, and Pass 3 are implemented.
+- Contracts/state live in `src/game/iov/iovImpactEscalation.ts`.
+- Org contagion playback now lives in `src/game/iov/BlockInteriorScene.ts` via `playOrgContagion(...)`.
+- System impact playback now lives in `src/game/iov/IovTopologyScene.ts` via `playSystemImpact(...)`.
+- Block scene now persists completed org activation state per brick (full glow + aura rings).
+- Time Slice commit wiring regression was fixed (`onValueLogCommit` and draft change handlers restored).
+- Feature flag is currently `true` in `src/game/iov/iovNarrativeConfig.ts`.
+- Escalation route is now `impact -> orgimpact -> block -> topology`; system impact is user-triggered via `Empower Community Pillar`.
+- System impact now includes rapid community build-up visuals before bridge collision and stress evaluation.
+- Bridge collapse now requires both threshold and contact gate, using bridge geometry bounds for impact targeting.
+- Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

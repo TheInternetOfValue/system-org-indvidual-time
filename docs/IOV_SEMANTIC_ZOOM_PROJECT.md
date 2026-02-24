@@ -81,6 +81,13 @@ Module 2 status:
 - safety guard:
   - transition-busy lock to prevent concurrent interaction during pre-focus/settle windows
 
+Module 3 status (phase 1):
+- `completed` on `2026-02-25`
+- topology-level primary actions now available in-scene:
+  - `Inspect` / `Reclaim` mode toggle
+  - `Open Organization` action
+- panel controls are preserved as fallback for continuity and safety.
+
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
@@ -622,6 +629,7 @@ After each implementation pass:
 - 2026-02-24: Camera choreography must be implemented from a locked shot contract (durations, framing, interrupt rules, mobile variants) before runtime camera refactors.
 - 2026-02-25: Camera transitions are orchestrated through `IovCameraDirector` with shot-level blocking to prevent concurrent interaction during playback.
 - 2026-02-25: Transition polish must preserve determinism and must not permit concurrent input during cue/settle phases.
+- 2026-02-25: In-scene-first migration must land with panel fallback retained until full interaction parity is reached.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -648,8 +656,9 @@ After each implementation pass:
 - 2026-02-24: Completed Module 0 and added locked shot contract doc `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
 - 2026-02-25: Completed Module 1 camera foundation (`IovCameraDirector`) and wired cinematic `System -> Organization -> Person` transitions.
 - 2026-02-25: Completed Module 2 transition polish (pre-focus cues, settle holds, subtle shot emphasis, transition-busy lock).
+- 2026-02-25: Completed Module 3 phase 1 by moving topology primary actions into in-scene controls while retaining panel fallback.
 
 ## Next Up
-1. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.
-2. Module 4 (phase 2): move person/time-slice primary actions into in-scene controls and make panel secondary.
-3. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.
+1. Module 4 (phase 2): move person/time-slice primary actions into in-scene controls and make panel secondary.
+2. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.
+3. Refine in-scene topology card spatial anchoring to follow selected brick position in screen space.

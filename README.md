@@ -16,6 +16,7 @@ The visualization uses a 3D “brick stack” analogy:
 The interface includes:
 - Click-to-assemble phases (Market, State, Community, Bridge)
 - Brick transfer interaction (top bricks can be reclaimed into Community)
+- In-scene topology action card for selected organizations (`Inspect/Reclaim` + `Open Organization`)
 - Tooltip + left info panel with definitions and values
 - Presentation Mode toggle for cleaner demo/readability view
 - Dynamic phase headline messaging (build/reveal state text)

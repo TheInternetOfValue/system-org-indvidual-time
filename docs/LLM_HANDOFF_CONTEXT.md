@@ -122,7 +122,10 @@ Module status update:
   - settle holds added after shot completion before level swap
   - subtle FOV overshoot/settle emphasis added to `IovCameraDirector.playShot(...)`
   - transition-busy lock added to prevent concurrent interactions during cue/settle windows.
-- next implementation target: `Module 3` (in-scene controls phase 1).
+- `Module 3` phase 1 is complete:
+  - topology selected-organization actions now appear in-scene (`Inspect`, `Reclaim`, `Open Organization`)
+  - side panel remains available as fallback.
+- next implementation target: `Module 4` (in-scene controls phase 2 for person/time-slice).
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

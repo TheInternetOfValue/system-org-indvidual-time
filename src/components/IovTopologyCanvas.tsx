@@ -1031,6 +1031,46 @@ function getRegionMeaning(regionId: RegionId) {
         ))}
       </div>
 
+      {semanticLevel === "topology" && selectedBrickInfo && (
+        <div className="iov-scene-card iov-scene-card-center" style={{ width: "440px" }}>
+          <div className="iov-scene-card-header">
+            <h3>{selectedBrickLabel ?? "Selected Organization"}</h3>
+            <div className="iov-scene-card-sub">System Actions In Scene</div>
+          </div>
+          <div className="iov-scene-card-content">
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#cbd5e1",
+                marginBottom: "12px",
+                lineHeight: 1.45,
+              }}
+            >
+              Toggle interaction mode directly in-scene, then continue into the selected
+              organization.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+              <button
+                className={interactionMode === "inspect" ? "iov-btn-primary" : "iov-btn-secondary"}
+                onClick={() => handleInteractionModeChange("inspect")}
+              >
+                Inspect
+              </button>
+              <button
+                className={interactionMode === "reclaim" ? "iov-btn-primary" : "iov-btn-secondary"}
+                onClick={() => handleInteractionModeChange("reclaim")}
+              >
+                Reclaim
+              </button>
+            </div>
+            <div className="iov-scene-card-divider" />
+            <button className="iov-btn-action" onClick={onOpenBrick}>
+              Open Organization
+            </button>
+          </div>
+        </div>
+      )}
+
       {semanticLevel === "block" && blockSummary && blockSummary.selectedPersonId && (
         <div className="iov-scene-card iov-scene-card-center" style={{ width: '420px' }}>
           <div className="iov-scene-card-header">

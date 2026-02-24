@@ -26,7 +26,6 @@ import {
 } from "@/game/iov/PersonIdentityScene";
 import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
 import { OrgImpactScene } from "@/game/iov/OrgImpactScene";
-import { SystemImpactScene } from "@/game/iov/SystemImpactScene";
 import {
   ValueLogScene,
   WIZARD_STEP_ORDER,
@@ -54,7 +53,6 @@ import {
 } from "@/game/iov/iovTimelogs";
 import {
   IovImpactEscalationController,
-  type OrgImpactResult,
   type PersonImpactResult,
 } from "@/game/iov/iovImpactEscalation";
 
@@ -76,18 +74,12 @@ const IovTopologyCanvas = () => {
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
   const impactSceneRef = useRef<PersonImpactScene | null>(null);
   const orgImpactSceneRef = useRef<OrgImpactScene | null>(null);
-  const systemImpactSceneRef = useRef<SystemImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const impactEscalationRef = useRef(
     new IovImpactEscalationController(IOV_FEATURE_FLAGS.enableImpactEscalation)
   );
   const orgActivatedBrickKeysRef = useRef<Set<string>>(new Set());
-  const systemImpactModelRef = useRef({
-    communityPillarHeight: 3.6,
-    bridgeStress: 0.42,
-    bridgeStressThreshold: 1,
-  });
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -165,8 +157,6 @@ const IovTopologyCanvas = () => {
     impactSceneRef.current = impactScene;
     const orgImpactScene = new OrgImpactScene(renderer.domElement);
     orgImpactSceneRef.current = orgImpactScene;
-    const systemImpactScene = new SystemImpactScene(renderer.domElement);
-    systemImpactSceneRef.current = systemImpactScene;
 
     const valueLogScene = new ValueLogScene(renderer.domElement);
     valueLogSceneRef.current = valueLogScene;
@@ -203,8 +193,6 @@ const IovTopologyCanvas = () => {
       impactScene.resize(clientWidth, clientHeight);
       orgImpactScene.setViewportProfile(nextIsMobile);
       orgImpactScene.resize(clientWidth, clientHeight);
-      systemImpactScene.setViewportProfile(nextIsMobile);
-      systemImpactScene.resize(clientWidth, clientHeight);
       valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
       blockScene.resize(clientWidth, clientHeight);
@@ -256,9 +244,6 @@ const IovTopologyCanvas = () => {
       } else if (semanticLevelRef.current === "orgimpact") {
         orgImpactScene.update(delta);
         orgImpactScene.render(renderer);
-      } else if (semanticLevelRef.current === "systemimpact") {
-        systemImpactScene.update(delta);
-        systemImpactScene.render(renderer);
       } else {
         valueLogScene.update(delta);
         valueLogScene.render(renderer);
@@ -391,7 +376,6 @@ const IovTopologyCanvas = () => {
       blockScene.dispose();
       personScene.dispose();
       orgImpactScene.dispose();
-      systemImpactScene.dispose();
       valueLogScene.dispose();
       composer?.dispose();
       renderer.dispose();
@@ -400,7 +384,6 @@ const IovTopologyCanvas = () => {
       blockSceneRef.current = null;
       personSceneRef.current = null;
       orgImpactSceneRef.current = null;
-      systemImpactSceneRef.current = null;
       valueLogSceneRef.current = null;
     };
   }, []);
@@ -484,8 +467,6 @@ const IovTopologyCanvas = () => {
       // Logic handled via handleValueLogCommit transaction flow
     } else if (level === "orgimpact") {
       setPhaseHeadline("Organization impact: aura contagion across the team.");
-    } else if (level === "systemimpact") {
-      setPhaseHeadline("System impact: Community pillar grows and loads pressure into the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
         "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
@@ -679,51 +660,6 @@ const IovTopologyCanvas = () => {
     setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
-  const startSystemImpactSequence = (orgImpactResult: OrgImpactResult) => {
-    const systemImpactScene = systemImpactSceneRef.current;
-    if (!systemImpactScene) {
-      const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-      applySemanticTransition(back.level);
-      return;
-    }
-
-    const openSystemImpact = zoomControllerRef.current.dispatch({ type: "OPEN_SYSTEM_IMPACT" });
-    applySemanticTransition(openSystemImpact.level);
-    impactEscalationRef.current.dispatch({ type: "START_SYSTEM_IMPACT" });
-
-    const before = systemImpactModelRef.current;
-    systemImpactScene.playImpact(
-      {
-        orgImpact: orgImpactResult,
-        communityPillarHeightBefore: before.communityPillarHeight,
-        bridgeStressBefore: before.bridgeStress,
-        bridgeStressThreshold: before.bridgeStressThreshold,
-      },
-      (systemImpactResult) => {
-        impactEscalationRef.current.dispatch({
-          type: "COMPLETE_SYSTEM_IMPACT",
-          result: systemImpactResult,
-        });
-
-        systemImpactModelRef.current.communityPillarHeight =
-          systemImpactResult.communityPillarHeightAfter;
-        systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
-
-        if (systemImpactResult.bridgeCollapsed) {
-          sceneRef.current?.shatterBridge();
-        }
-
-        const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-        applySemanticTransition(back.level);
-        setPhaseHeadline(
-          systemImpactResult.bridgeCollapsed
-            ? "System impact complete: Community pillar breached bridge tolerance. Bridge collapse triggered."
-            : "System impact complete: Community pillar strengthened and bridge stress increased."
-        );
-      }
-    );
-  };
-
   const startOrgImpactSequence = (personImpactResult: PersonImpactResult) => {
     const orgImpactScene = orgImpactSceneRef.current;
     if (!orgImpactScene || !selectedBrickInfo) {
@@ -753,11 +689,6 @@ const IovTopologyCanvas = () => {
         orgActivatedBrickKeysRef.current.add(key);
         blockSceneRef.current?.activateOrganization(personImpactResult.personId);
       }
-      if (IOV_FEATURE_FLAGS.enableImpactEscalation) {
-        startSystemImpactSequence(orgImpactResult);
-        return;
-      }
-
       const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
       applySemanticTransition(back.level);
     });
@@ -857,10 +788,6 @@ function getRegionMeaning(regionId: RegionId) {
 
   // Check for bridge collapse condition
   useEffect(() => {
-    if (IOV_FEATURE_FLAGS.enableImpactEscalation) {
-      return;
-    }
-
     // If community has gained enough bricks (e.g., > 3), trigger collapse animation
     if (transferredCount > 3 && sceneRef.current) {
         // @ts-ignore - method newly added

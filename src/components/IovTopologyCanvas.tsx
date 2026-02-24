@@ -75,6 +75,7 @@ interface PendingEmpowerState {
 
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const topologyActionCardRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<IovTopologyScene | null>(null);
   const blockSceneRef = useRef<BlockInteriorScene | null>(null);
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
@@ -93,6 +94,8 @@ const IovTopologyCanvas = () => {
     bridgeStressThreshold: 1,
   });
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
+  const selectedBrickInfoRef = useRef<SelectedBrickInfo | null>(null);
+  const isMobileRef = useRef(window.innerWidth <= 900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
   const [selectedRegionId, setSelectedRegionId] = useState<RegionId>("community");
@@ -198,6 +201,7 @@ const IovTopologyCanvas = () => {
       const { clientWidth, clientHeight } = container;
       const nextIsMobile = clientWidth <= 900;
       setIsMobile(nextIsMobile);
+      isMobileRef.current = nextIsMobile;
       renderer.setSize(clientWidth, clientHeight);
       scene.setViewportProfile(nextIsMobile);
       blockScene.setViewportProfile(nextIsMobile);
@@ -231,6 +235,7 @@ const IovTopologyCanvas = () => {
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
       cameraDirectorRef.current.update(delta);
+      updateTopologyActionCardAnchor();
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -281,6 +286,38 @@ const IovTopologyCanvas = () => {
       dragStartX = event.clientX;
       dragStartY = event.clientY;
       dragDistance = 0;
+    };
+
+    const updateTopologyActionCardAnchor = () => {
+      const card = topologyActionCardRef.current;
+      if (!card) return;
+      if (semanticLevelRef.current !== "topology") return;
+      const selected = selectedBrickInfoRef.current;
+      if (!selected) return;
+      const anchor = scene.getBrickAnchor(selected.regionId, selected.instanceId);
+      if (!anchor) return;
+
+      const target = anchor.clone();
+      target.y += 0.42;
+      target.project(scene.camera);
+      const { clientWidth, clientHeight } = container;
+      const cardWidth = Math.max(220, card.offsetWidth || 220);
+      const cardHeight = Math.max(120, card.offsetHeight || 120);
+      const halfWidth = cardWidth * 0.5;
+
+      let x = (target.x * 0.5 + 0.5) * clientWidth;
+      let y = (-target.y * 0.5 + 0.5) * clientHeight - 16;
+
+      const safeLeft = isMobileRef.current ? halfWidth + 12 : 320 + halfWidth;
+      const safeRight = clientWidth - halfWidth - 12;
+      const safeTop = cardHeight + 72;
+      const safeBottom = clientHeight - 22;
+
+      x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
+      y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
+
+      card.style.left = `${x}px`;
+      card.style.top = `${y}px`;
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -406,6 +443,10 @@ const IovTopologyCanvas = () => {
   }, []);
 
   useEffect(() => {
+    selectedBrickInfoRef.current = selectedBrickInfo;
+  }, [selectedBrickInfo]);
+
+  useEffect(() => {
     let mounted = true;
     loadIovValues().then((loaded) => {
       if (!mounted) return;
@@ -441,6 +482,12 @@ const IovTopologyCanvas = () => {
   const empowerLabel = pendingEmpower
     ? `Empower Community Pillar (${pendingEmpower.activationCount})`
     : "Empower Community Pillar";
+  const valueLogStepIndex = valueLogSummary
+    ? WIZARD_STEP_ORDER.indexOf(valueLogSummary.step)
+    : WIZARD_STEP_ORDER.indexOf(valueLogStep);
+  const canValueLogPrev = valueLogStepIndex > 0;
+  const canValueLogNext = valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
+  const canValueLogCommit = valueLogSummary?.step === "show_outcome";
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
 
   const handleToggle = (toggleId: ToggleId) => {
@@ -1032,7 +1079,16 @@ function getRegionMeaning(regionId: RegionId) {
       </div>
 
       {semanticLevel === "topology" && selectedBrickInfo && (
-        <div className="iov-scene-card iov-scene-card-center" style={{ width: "440px" }}>
+        <div
+          ref={topologyActionCardRef}
+          className="iov-scene-card"
+          style={{
+            width: "440px",
+            position: "absolute",
+            transform: "translate(-50%, -100%)",
+            zIndex: 16,
+          }}
+        >
           <div className="iov-scene-card-header">
             <h3>{selectedBrickLabel ?? "Selected Organization"}</h3>
             <div className="iov-scene-card-sub">System Actions In Scene</div>
@@ -1149,6 +1205,59 @@ function getRegionMeaning(regionId: RegionId) {
                 Back to Org
                 </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {semanticLevel === "valuelog" && valueLogSummary && (
+        <div className="iov-scene-card iov-scene-card-center" style={{ width: "440px" }}>
+          <div className="iov-scene-card-header">
+            <h3>Time Slice Composer</h3>
+            <div className="iov-scene-card-sub">
+              Step {Math.max(1, valueLogStepIndex + 1)} / {WIZARD_STEP_ORDER.length}
+            </div>
+          </div>
+          <div className="iov-scene-card-content">
+            <div className="iov-scene-card-stat">
+              Active step: {valueLogSummary.step.replace("select_", "").replace("_", " ")}
+            </div>
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#cbd5e1",
+                marginBottom: "12px",
+                lineHeight: 1.45,
+              }}
+            >
+              Scene clicks are primary. Use these controls only when needed.
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+              <button
+                className="iov-btn-secondary"
+                onClick={handleValueLogPrev}
+                disabled={!canValueLogPrev}
+              >
+                Prev
+              </button>
+              <button
+                className="iov-btn-secondary"
+                onClick={handleValueLogNext}
+                disabled={!canValueLogNext}
+              >
+                Next
+              </button>
+              <button className="iov-btn-secondary" onClick={handleBackSemantic}>
+                Back
+              </button>
+            </div>
+            <div className="iov-scene-card-divider" />
+            <button
+              className="iov-btn-action"
+              onClick={handleValueLogCommit}
+              disabled={!canValueLogCommit}
+            >
+              Commit Time Slice
+            </button>
           </div>
         </div>
       )}

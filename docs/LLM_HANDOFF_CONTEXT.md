@@ -125,7 +125,15 @@ Module status update:
 - `Module 3` phase 1 is complete:
   - topology selected-organization actions now appear in-scene (`Inspect`, `Reclaim`, `Open Organization`)
   - side panel remains available as fallback.
-- next implementation target: `Module 4` (in-scene controls phase 2 for person/time-slice).
+- `Module 4` phase 2 is complete:
+  - Time Slice now has an in-scene control card (`Prev`, `Next`, `Back`, `Commit Time Slice`)
+  - step index and active-step visibility added in-scene for guided progress.
+  - side panel remains available as fallback.
+- `Module 5` is complete:
+  - topology in-scene action card now anchors to the selected brick in screen space
+  - safe-area clamping keeps card readable away from panel and viewport edges
+  - integrated camera + interaction polish from Modules 1-4 remains stable.
+- current module track (`Module 0` to `Module 5`) is complete.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

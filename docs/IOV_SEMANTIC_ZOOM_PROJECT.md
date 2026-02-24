@@ -88,6 +88,20 @@ Module 3 status (phase 1):
   - `Open Organization` action
 - panel controls are preserved as fallback for continuity and safety.
 
+Module 4 status (phase 2):
+- `completed` on `2026-02-25`
+- in-scene controls extended into person/time-slice flow:
+  - Time Slice scene card added with `Prev`, `Next`, `Back`, and `Commit Time Slice`
+  - step index/status surfaced in-scene for guided progression
+- panel remains as secondary/fallback control surface.
+
+Module 5 status:
+- `completed` on `2026-02-25`
+- cinematic consistency/performance sweep delivered:
+  - topology action card now anchors to selected brick in screen space (with safe-area clamping)
+  - transition locking and camera polish retained across modules 1-4
+  - runtime remains deterministic and build/test clean after integration
+
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
@@ -630,6 +644,8 @@ After each implementation pass:
 - 2026-02-25: Camera transitions are orchestrated through `IovCameraDirector` with shot-level blocking to prevent concurrent interaction during playback.
 - 2026-02-25: Transition polish must preserve determinism and must not permit concurrent input during cue/settle phases.
 - 2026-02-25: In-scene-first migration must land with panel fallback retained until full interaction parity is reached.
+- 2026-02-25: Time Slice progression must be completable through in-scene controls to reduce panel dependence in presentation mode.
+- 2026-02-25: In-scene overlays should spatially align to selected world objects where practical to strengthen semantic zoom continuity.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -657,8 +673,10 @@ After each implementation pass:
 - 2026-02-25: Completed Module 1 camera foundation (`IovCameraDirector`) and wired cinematic `System -> Organization -> Person` transitions.
 - 2026-02-25: Completed Module 2 transition polish (pre-focus cues, settle holds, subtle shot emphasis, transition-busy lock).
 - 2026-02-25: Completed Module 3 phase 1 by moving topology primary actions into in-scene controls while retaining panel fallback.
+- 2026-02-25: Completed Module 4 phase 2 with in-scene Time Slice progression/commit controls and step visibility.
+- 2026-02-25: Completed Module 5 consistency sweep with selected-brick-anchored topology action card and integrated camera/interaction polish.
 
 ## Next Up
-1. Module 4 (phase 2): move person/time-slice primary actions into in-scene controls and make panel secondary.
-2. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.
-3. Refine in-scene topology card spatial anchoring to follow selected brick position in screen space.
+1. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.
+2. Optional: add shot replay/debug overlay for presentation rehearsal.
+3. Optional: extend object-anchored card behavior to block/person cards for full spatial consistency.

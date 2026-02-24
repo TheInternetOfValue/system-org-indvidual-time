@@ -9,6 +9,7 @@ import {
   IOV_IDENTITY_COLORS,
   IOV_SCALE_CONFIG,
 } from "./iovNarrativeConfig";
+import type { OrgImpactResult, SystemImpactResult } from "./iovImpactEscalation";
 
 export type RegionId = "market" | "state" | "community" | "crony_bridge";
 export type ToggleId = "derivativesMist" | "communityErosion";
@@ -202,6 +203,13 @@ interface FallingBrick {
   targetMesh?: THREE.Mesh; 
 }
 
+interface SystemImpactPlayback {
+  orgImpact: OrgImpactResult;
+  communityPillarHeightBefore: number;
+  bridgeStressBefore: number;
+  bridgeStressThreshold: number;
+}
+
 export class IovTopologyScene {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(42, 1, 0.1, 180);
@@ -306,6 +314,26 @@ export class IovTopologyScene {
 
   private isBridgeCollapsed = false;
   private fallingBricks: FallingBrick[] = [];
+  private readonly systemImpactPhoton = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 18, 14),
+    new THREE.MeshBasicMaterial({
+      color: "#ffe07f",
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+  private readonly systemImpactPhotonLight = new THREE.PointLight("#ffd166", 0, 6.5);
+  private systemImpactActive = false;
+  private systemImpactCollapseTriggered = false;
+  private systemImpactElapsed = 0;
+  private systemImpactCommunityScale = 1;
+  private systemImpactCommunityScaleStart = 1;
+  private systemImpactCommunityScaleEnd = 1;
+  private systemImpactBridgeStressStart = 0;
+  private systemImpactBridgeStressEnd = 0;
+  private systemImpactBridgeStressThreshold = 1;
+  private systemImpactOnComplete: ((result: SystemImpactResult) => void) | null = null;
+  private systemImpactResult: SystemImpactResult | null = null;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -344,6 +372,11 @@ export class IovTopologyScene {
     this.slotHoverMarker.visible = false;
     this.slotHoverMarker.renderOrder = 48;
     this.fxGroup.add(this.hoverFill, this.hoverOutline, this.selectedOutline, this.slotHoverMarker);
+    this.systemImpactPhoton.visible = false;
+    this.systemImpactPhotonLight.visible = false;
+    this.systemImpactPhoton.add(this.systemImpactPhotonLight);
+    this.systemImpactPhotonLight.position.set(0, 0.5, 0);
+    this.fxGroup.add(this.systemImpactPhoton);
 
     this.camera.position.set(0, 15, 35);
     this.controls.target.set(0, 6, 0);
@@ -380,6 +413,45 @@ export class IovTopologyScene {
     runtime.mesh.getMatrixAt(instanceId, matrix);
     runtime.mesh.setColorAt(instanceId, color);
     runtime.mesh.instanceColor.needsUpdate = true;
+  }
+
+  playSystemImpact(
+    context: SystemImpactPlayback,
+    onComplete: (result: SystemImpactResult) => void
+  ) {
+    const growthDelta = Math.max(0.18, Math.min(0.95, context.orgImpact.communityPowerDelta * 2.35));
+    const stressDelta = Math.max(
+      0.08,
+      Math.min(0.48, context.orgImpact.communityPowerDelta * 1.25 + growthDelta * 0.12)
+    );
+    const communityPillarHeightAfter = Number(
+      (context.communityPillarHeightBefore + growthDelta).toFixed(3)
+    );
+    const bridgeStressAfter = Number(
+      Math.min(1.45, context.bridgeStressBefore + stressDelta).toFixed(3)
+    );
+    const bridgeCollapsed = bridgeStressAfter >= context.bridgeStressThreshold;
+
+    this.systemImpactResult = {
+      communityPillarHeightBefore: Number(context.communityPillarHeightBefore.toFixed(3)),
+      communityPillarHeightAfter,
+      bridgeStressBefore: Number(context.bridgeStressBefore.toFixed(3)),
+      bridgeStressAfter,
+      bridgeCollapsed,
+    };
+
+    this.systemImpactOnComplete = onComplete;
+    this.systemImpactActive = true;
+    this.systemImpactCollapseTriggered = false;
+    this.systemImpactElapsed = 0;
+    this.systemImpactCommunityScaleStart = this.systemImpactCommunityScale;
+    this.systemImpactCommunityScaleEnd = this.mapCommunityHeightToScale(communityPillarHeightAfter);
+    this.systemImpactBridgeStressStart = context.bridgeStressBefore;
+    this.systemImpactBridgeStressEnd = bridgeStressAfter;
+    this.systemImpactBridgeStressThreshold = Math.max(0.25, context.bridgeStressThreshold);
+
+    this.systemImpactPhoton.visible = true;
+    this.systemImpactPhotonLight.visible = true;
   }
 
   resize(width: number, height: number) {
@@ -602,6 +674,7 @@ export class IovTopologyScene {
     this.updateLandingPulses(deltaSeconds);
     this.updateSlotMarkers();
     this.updateBuildPhases(deltaSeconds);
+    this.updateSystemImpact(deltaSeconds);
     this.updateFallingBricks(deltaSeconds);
   }
 
@@ -660,11 +733,22 @@ export class IovTopologyScene {
       this.hoverFill,
       this.hoverOutline,
       this.selectedOutline,
-      this.slotHoverMarker
+      this.slotHoverMarker,
+      this.systemImpactPhoton
     );
+    this.systemImpactPhoton.geometry.dispose();
+    (this.systemImpactPhoton.material as THREE.Material).dispose();
   }
 
   private rebuildTopologyFromValues() {
+    this.systemImpactActive = false;
+    this.systemImpactCollapseTriggered = false;
+    this.systemImpactElapsed = 0;
+    this.systemImpactCommunityScale = 1;
+    this.systemImpactPhoton.visible = false;
+    this.systemImpactPhotonLight.visible = false;
+    this.systemImpactOnComplete = null;
+    this.systemImpactResult = null;
     this.clearSelectedBrick();
     this.disposeRegionObjects();
     this.regions.clear();
@@ -816,6 +900,99 @@ export class IovTopologyScene {
     this.setBridgeDecorReveal(this.regionReveal.crony_bridge);
   }
 
+  private updateSystemImpact(deltaSeconds: number) {
+    if (!this.systemImpactActive || !this.systemImpactResult) return;
+
+    this.systemImpactElapsed += deltaSeconds;
+
+    const growDuration = 1.15;
+    const photonDelay = 0.24;
+    const photonDuration = 0.95;
+    const settleDuration = this.systemImpactResult.bridgeCollapsed ? 1.1 : 0.75;
+    const totalDuration = growDuration + photonDelay + photonDuration + settleDuration;
+
+    const growT = Math.min(1, this.systemImpactElapsed / growDuration);
+    this.systemImpactCommunityScale = lerp(
+      this.systemImpactCommunityScaleStart,
+      this.systemImpactCommunityScaleEnd,
+      easeOutCubic(growT)
+    );
+    this.setRegionReveal("community", this.regionReveal.community);
+
+    const stressT = Math.min(1, this.systemImpactElapsed / (growDuration + photonDuration));
+    const bridgeStressNow = lerp(
+      this.systemImpactBridgeStressStart,
+      this.systemImpactBridgeStressEnd,
+      stressT
+    );
+    this.applyBridgeStressVisual(bridgeStressNow);
+
+    const community = this.regions.get("community");
+    const bridge = this.regions.get("crony_bridge");
+    if (community && bridge && this.systemImpactElapsed >= photonDelay) {
+      const photonT = Math.min(1, (this.systemImpactElapsed - photonDelay) / photonDuration);
+      const start = community.topCapCenter.clone();
+      start.y += 0.7 + this.systemImpactCommunityScale * 0.45;
+      const end = bridge.topCapCenter.clone();
+      end.y += 0.55;
+
+      this.systemImpactPhoton.visible = true;
+      this.systemImpactPhoton.position.lerpVectors(start, end, easeOutCubic(photonT));
+      this.systemImpactPhoton.position.y += Math.sin(photonT * Math.PI) * 0.9;
+      const pulse = 1 + Math.sin(this.elapsed * 15) * 0.18;
+      this.systemImpactPhoton.scale.setScalar(pulse);
+      this.systemImpactPhotonLight.intensity = 1.7 + Math.sin(this.elapsed * 18) * 0.35;
+
+      if (
+        this.systemImpactResult.bridgeCollapsed &&
+        !this.systemImpactCollapseTriggered &&
+        photonT >= 0.86
+      ) {
+        this.systemImpactCollapseTriggered = true;
+        this.shatterBridge();
+      }
+    }
+
+    if (this.systemImpactElapsed >= totalDuration) {
+      this.systemImpactActive = false;
+      this.systemImpactPhoton.visible = false;
+      this.systemImpactPhotonLight.visible = false;
+      const done = this.systemImpactOnComplete;
+      const result = this.systemImpactResult;
+      this.systemImpactOnComplete = null;
+      if (done && result) {
+        done(result);
+      }
+    }
+  }
+
+  private applyBridgeStressVisual(stressValue: number) {
+    const normalized = Math.max(
+      0,
+      Math.min(1.25, stressValue / Math.max(0.1, this.systemImpactBridgeStressThreshold))
+    );
+    const color = new THREE.Color(
+      lerp(0.36, 0.86, normalized),
+      lerp(0.4, 0.28, normalized),
+      lerp(0.45, 0.2, normalized)
+    );
+    this.bridgeBricks.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(color);
+    });
+
+    this.bridgeSupports.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(color.clone().multiplyScalar(0.9));
+    });
+  }
+
+  private mapCommunityHeightToScale(heightScore: number) {
+    return Math.max(1, Math.min(2.2, 0.88 + heightScore * 0.17));
+  }
+
   private updateFallingBricks(delta: number) {
     if (this.fallingBricks.length === 0) return;
 
@@ -880,11 +1057,13 @@ export class IovTopologyScene {
     if (runtime.flag) runtime.flag.visible = visible;
 
     const yScale = Math.max(0.001, reveal);
-    runtime.mesh.scale.y = yScale;
-    runtime.edgeGroup.scale.y = yScale;
-    if (runtime.studs) runtime.studs.scale.y = yScale;
-    if (runtime.flagPole) runtime.flagPole.scale.y = yScale;
-    if (runtime.flag) runtime.flag.scale.y = yScale;
+    const regionYScale =
+      regionId === "community" ? yScale * this.systemImpactCommunityScale : yScale;
+    runtime.mesh.scale.y = regionYScale;
+    runtime.edgeGroup.scale.y = regionYScale;
+    if (runtime.studs) runtime.studs.scale.y = regionYScale;
+    if (runtime.flagPole) runtime.flagPole.scale.y = regionYScale;
+    if (runtime.flag) runtime.flag.scale.y = regionYScale;
 
     if (regionId === "market") {
       if (this.derivativesMist) {

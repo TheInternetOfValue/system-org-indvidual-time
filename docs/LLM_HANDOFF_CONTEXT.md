@@ -69,13 +69,15 @@ Critical rule:
 - Update docs after each pass before moving to next pass.
 
 Current pass status:
-- Pass 1 and Pass 2 are implemented behind feature flag.
+- Pass 1, Pass 2, and Pass 3 are implemented.
 - Contracts/state live in `src/game/iov/iovImpactEscalation.ts`.
-- Org contagion scene lives in `src/game/iov/OrgImpactScene.ts`.
+- Org contagion playback now lives in `src/game/iov/BlockInteriorScene.ts` via `playOrgContagion(...)`.
+- System impact playback now lives in `src/game/iov/IovTopologyScene.ts` via `playSystemImpact(...)`.
 - Block scene now persists completed org activation state per brick (full glow + aura rings).
 - Time Slice commit wiring regression was fixed (`onValueLogCommit` and draft change handlers restored).
-- Feature flag is currently `false` in `src/game/iov/iovNarrativeConfig.ts`.
-- Next pass should implement `SystemImpactScene` and bridge-stress model migration.
+- Feature flag is currently `true` in `src/game/iov/iovNarrativeConfig.ts`.
+- Escalation route is now `impact -> orgimpact -> systemimpact -> topology`.
+- Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

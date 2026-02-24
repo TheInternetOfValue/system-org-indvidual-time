@@ -3,8 +3,8 @@ import { IOV_FEATURE_FLAGS } from "../iovNarrativeConfig";
 import { IovImpactEscalationController } from "../iovImpactEscalation";
 
 describe("IOV feature flags", () => {
-  it("keeps impact escalation disabled by default", () => {
-    expect(IOV_FEATURE_FLAGS.enableImpactEscalation).toBe(false);
+  it("keeps impact escalation enabled for end-scenes flow", () => {
+    expect(IOV_FEATURE_FLAGS.enableImpactEscalation).toBe(true);
   });
 });
 

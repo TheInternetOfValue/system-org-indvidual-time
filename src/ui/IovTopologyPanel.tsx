@@ -666,6 +666,8 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
       return "Impact";
     case "orgimpact":
       return "Org Impact";
+    case "systemimpact":
+      return "System Impact";
     default:
       return level;
   }

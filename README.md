@@ -29,7 +29,7 @@ The interface includes:
 - `src/game/iov/IovTopologyScene.ts`  
   Macro/system scene. Renders Market, State, Community, and Bridge, handles selection/reclaim, transfer counts, brick activation, and bridge shatter behavior.
 - `src/game/iov/BlockInteriorScene.ts`  
-  Organization interior scene. Shows people tokens, profile mix, person hover/select, and person activation aura feedback.
+  Organization interior scene. Shows people tokens, profile mix, person hover/select, person activation, and org-level contagion playback (one-by-one aura spread).
 - `src/game/iov/PersonIdentityScene.ts`  
   Person identity scene. Renders identity layers/facets, wellbeing/aura evolution, and timeline-driven ripple updates.
 - `src/game/iov/ValueLogScene.ts`  
@@ -38,7 +38,7 @@ The interface includes:
   Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
 
 Semantic level controller:
-- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact`.
+- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> systemimpact -> topology`.
 
 Interaction host:
 - `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
@@ -52,9 +52,9 @@ Interaction host:
 3. `Person` (`PersonIdentityScene`): inspect identity state and open Time Slice.
 4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
 5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
-6. Return to `Person` with updated wellbeing/aura.
-7. Returning to `Organization` activates the impacted person.
-8. Returning to `System` activates the source brick; sustained reclaim pressure can shatter the bridge.
+6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
+7. `System Impact` (`IovTopologyScene`): live topology playback; Community pillar scales up and bridge stress ramps.
+8. Return to `System`: source brick remains radiant; bridge can collapse when stress crosses threshold.
 
 ---
 

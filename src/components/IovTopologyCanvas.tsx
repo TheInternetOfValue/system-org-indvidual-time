@@ -288,19 +288,21 @@ const IovTopologyCanvas = () => {
       dragDistance = 0;
     };
 
-    const updateTopologyActionCardAnchor = () => {
+    function updateTopologyActionCardAnchor() {
       const card = topologyActionCardRef.current;
       if (!card) return;
       if (semanticLevelRef.current !== "topology") return;
       const selected = selectedBrickInfoRef.current;
       if (!selected) return;
+      const host = containerRef.current;
+      if (!host) return;
       const anchor = scene.getBrickAnchor(selected.regionId, selected.instanceId);
       if (!anchor) return;
 
       const target = anchor.clone();
       target.y += 0.42;
       target.project(scene.camera);
-      const { clientWidth, clientHeight } = container;
+      const { clientWidth, clientHeight } = host;
       const cardWidth = Math.max(220, card.offsetWidth || 220);
       const cardHeight = Math.max(120, card.offsetHeight || 120);
       const halfWidth = cardWidth * 0.5;
@@ -318,7 +320,7 @@ const IovTopologyCanvas = () => {
 
       card.style.left = `${x}px`;
       card.style.top = `${y}px`;
-    };
+    }
 
     const onPointerMove = (event: PointerEvent) => {
       if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;

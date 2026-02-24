@@ -9,18 +9,32 @@ Build the next narrative layer of the Internet of Value experience through seman
 1. `System` level: Market / State / Community / Crony Bridge.
 2. `Brick` level: each institution brick is composed of people.
 3. `Person` level: each person contains identity layers.
+4. `Time Slice` level: compose a value action.
+5. `Impact` level: visualize causal drop/ripple before state return.
 
 Core message: institutions are abstractions made from people, people are structured by identity, and identity evolves through daily logged behavior.
+
+## Current Runtime Snapshot
+- Active scene host: `src/components/IovTopologyCanvas.tsx`
+- Active semantic chain: `topology -> block -> person -> valuelog -> impact`
+- Active scenes:
+  - `src/game/iov/IovTopologyScene.ts` (System)
+  - `src/game/iov/BlockInteriorScene.ts` (Organization)
+  - `src/game/iov/PersonIdentityScene.ts` (Person)
+  - `src/game/iov/ValueLogScene.ts` (Time Slice)
+  - `src/game/iov/PersonImpactScene.ts` (Impact transition)
+- Legacy note: old puzzle scene `src/game/GameScene.ts` has been removed from this repo.
 
 Narrative chain:
 1. `System`: Market / State / Community / Bridge.
 2. `Brick`: organizations composed of people.
 3. `Person`: stable identity layers (slow-changing profile structure).
 4. `Breathing Layer`: daily protocol logs that update wellbeing state/aura over time.
+5. `Impact`: post-commit transition that makes state change legible.
 
 ## Scope
 - In scope:
-  - Multi-level scene flow (`topology -> brick -> person`)
+  - Multi-level scene flow (`topology -> block -> person -> valuelog -> impact`)
   - Smooth transitions and clear back-navigation
   - Data-driven person/identity modeling
   - Mobile-safe interaction patterns
@@ -36,13 +50,15 @@ Narrative chain:
 
 ## Architecture Plan
 - Keep one route/canvas, split rendering into scene modules:
-  - `TopologyScene` (existing)
+  - `IovTopologyScene` (existing)
   - `BlockInteriorScene` (new)
   - `PersonIdentityScene` (new)
+  - `ValueLogScene` (new)
+  - `PersonImpactScene` (new)
 - Introduce a scene controller:
   - File target: `src/game/iov/IovSemanticZoomController.ts`
   - State shape:
-    - `level: "topology" | "block" | "person"`
+    - `level: "topology" | "block" | "person" | "valuelog" | "impact"`
     - `selectedRegionId`
     - `selectedBrickId`
     - `selectedPersonId`
@@ -346,7 +362,7 @@ Status: `in_progress`
 3. Transition timing: fixed duration vs performance-adaptive?
 
 ## Definition of Done (v1)
-- User can move across all 3 semantic levels and back.
+- User can move across all active semantic levels and back (`System -> Organization -> Person -> Time Slice -> Impact`).
 - No level blocks mobile usability.
 - 60 FPS target on desktop; acceptable performance on mobile.
 - Data files drive labels and counts (no hardcoded narrative constants).

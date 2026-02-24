@@ -90,6 +90,9 @@ export class BlockInteriorScene {
   private selectedBrickLabel = "Brick";
   private hoveredPersonId: string | null = null;
   private selectedPersonId: string | null = null;
+  private activatedPersonId: string | null = null;
+  private activationMesh: THREE.Mesh | null = null;
+  private readonly activationLight = new THREE.PointLight("#ffcd3c", 2, 4);
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -192,12 +195,51 @@ export class BlockInteriorScene {
     this.callbacks.onSelectPersonChange?.(token.id);
   }
 
+  activatePerson(personId: string) {
+    if (this.activatedPersonId === personId) return;
+    this.activatedPersonId = personId;
+
+    if (!this.activationMesh) {
+      // Create a glowing ring/aura for the activated person
+      const geo = new THREE.TorusGeometry(0.3, 0.05, 8, 24);
+      const mat = new THREE.MeshBasicMaterial({
+        color: "#ffda57",
+        transparent: true,
+        opacity: 0.8,
+      });
+      this.activationMesh = new THREE.Mesh(geo, mat);
+      this.activationMesh.rotation.x = Math.PI / 2;
+      this.root.add(this.activationMesh);
+      this.activationMesh.add(this.activationLight);
+      this.activationLight.position.set(0, 1.5, 0);
+    }
+
+    const person = this.personTokens.find((p) => p.id === personId);
+    if (person && this.activationMesh) {
+      this.activationMesh.visible = true;
+      this.activationMesh.position.set(person.position.x, 0.1, person.position.z);
+      this.activationLight.visible = true;
+    } else if (this.activationMesh) {
+      this.activationMesh.visible = false;
+      this.activationLight.visible = false;
+    }
+  }
+
   update(deltaSeconds: number) {
     this.controls.update();
     if (this.hasPointer) this.updateHover();
 
     // Small idle sway keeps interior scene alive without expensive animation.
     this.peopleGroup.position.y = Math.sin(performance.now() * 0.0012) * 0.02;
+
+    if (this.activationMesh && this.activationMesh.visible) {
+      // Pulse the activation aura
+      const time = performance.now() * 0.001;
+      this.activationMesh.rotation.z = time;
+      const pulse = 1 + Math.sin(time * 3) * 0.2;
+      this.activationMesh.scale.set(pulse, pulse, 1);
+      this.activationLight.intensity = 2 + Math.sin(time * 5) * 0.5;
+    }
   }
 
   render(renderer: THREE.WebGLRenderer) {

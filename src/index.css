@@ -505,6 +505,133 @@ body {
   pointer-events: none;
 }
 
+/* Scene Overlay Card */
+.iov-scene-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(14, 21, 33, 0.95);
+  border: 1px solid rgba(75, 105, 142, 0.4);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 24px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  pointer-events: auto;
+  color: #e2e8f0;
+  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.iov-scene-card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.iov-scene-card-sub {
+  font-size: 12px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.iov-scene-card-stat {
+  font-weight: 500;
+  margin: 4px 0 12px;
+  color: #cbd5e1;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 6px 10px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.iov-scene-card-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 8px 0;
+}
+
+.iov-btn-primary {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+  width: 100%;
+  display: block;
+  text-align: center;
+}
+
+.iov-btn-primary:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
+
+.iov-btn-secondary {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+  width: 100%;
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.iov-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.iov-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.iov-btn-action {
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+  transition: all 0.2s;
+}
+
+.iov-btn-action:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.35);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -46%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
 @media (max-width: 900px) {
   .iov-breadcrumb {
     top: 8px;

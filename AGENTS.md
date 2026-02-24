@@ -2,42 +2,51 @@
 
 ## Product Goal
 - Build a presentable, interactive systems-visualization of Market / State / Community value topology.
-- Show structure, concentration, and interlock dynamics through animation, not static charts.
+- Show **Fractal Escalation of Value**: Personal Alignment (Micro) $\to$ Organizational Integrity (Meso) $\to$ Systemic Restoration (Macro).
 
-## Design Philosophy (Canonical)
-- Log-scaled growth keeps extreme economic differences readable.
-- Physics-inspired motion encodes accumulation and structural behavior.
-- Brick identity is preserved through state changes (no recolor identity drift).
-- Bridge animation reveals elite/top-layer interlock dynamics.
-- Goal: make structure visible, not just display numbers.
+## Scene Inventory & Purpose
+Our architecture is split into zoom levels that handle specific parts of the narrative loop.
 
-## Current Priority (Presentation First)
-- Improve visual readability and distinctness of regions.
-- Ensure Market / State / Community / Bridge are clearly differentiable in color and silhouette.
-- Keep interactions smooth and understandable for demos.
-- Do not over-complicate feature scope until presentation quality is stable.
+### 1. IOV Topology Scene (`src/game/iov/IovTopologyScene.ts`)
+*   **Level:** Macro
+*   **Purpose:** The "World Map". Renders the four main regions (Market, State, Community, Crony Bridge/Elite).
+*   **Goal:** Visualize structural inequality (log-scale towers) and the parasitic extraction via the Bridge.
+*   **Key Transitions:** Zoom In to Block; Receive "Radiant Bricks" from below; Bridge Collapse event.
 
-## Tech Stack
-- React 18 + TypeScript + Vite
-- Three.js for rendering
-- Vitest for tests
+### 2. Block Interior Scene (`src/game/iov/BlockInteriorScene.ts`)
+*   **Level:** Meso (Organization)
+*   **Purpose:** The interior of a single brick. Represents a Company, Unit, or Community Group.
+*   **Goal:** Humanize the abstract system. Show the people inside (Tokens) and their profiles.
+*   **New Requirement:** **"Activation State"**. When value is generated at the person level, this scene must show the contagion of wellbeing (auras spreading from person to group).
 
-## Core Files
-- `src/components/IovTopologyCanvas.tsx`: Three renderer setup, loop, events, UI wiring
-- `src/game/iov/IovTopologyScene.ts`: scene generation, build phases, interactions, stress behavior
-- `src/game/iov/iovNarrativeConfig.ts`: identity colors, phase ordering, scale config
-- `src/game/iov/iov.topology.json`: region metadata, palettes, toggles
-- `src/game/iov/iovValues.ts`: values schema + loader (`public/data/iov_values.json`)
-- `src/ui/IovTopologyPanel.tsx`: controls, values panel, formation actions
-- `src/index.css`: global UI styling
-- `docs/IOV_DESIGN.md`: architecture/coordinate/motion notes
+### 3. Person Identity Scene (`src/game/iov/PersonIdentityScene.ts`)
+*   **Level:** Micro (Individual)
+*   **Purpose:** The "Identity Stack" (Physiology, Safety, Love, Esteem, Actualization).
+*   **Goal:** Visualize the human condition beyond financial metrics. Show the impact of "Value Actions" on Wellbeing Scores and Aura Strength.
 
-## Interaction Flow (Target)
-1. Empty world baseline
-2. Build Market
-3. Build State
-4. Build Community
-5. Reveal Crony Bridge
+### 4. Value Log Scene (`src/game/iov/ValueLogScene.ts`)
+*   **Level:** Action Interface
+*   **Purpose:** The input mechanism (Time/Energy/Money logger).
+*   **Goal:** Allow the user/narrative to inject *Causal Force* into the system.
+*   **Flow:** Leads directly to the Impact scene.
+
+### 5. Person Impact Scene (`src/game/iov/PersonImpactScene.ts`)
+*   **Level:** Transition / FX
+*   **Purpose:** Visual feedback loop.
+*   **Goal:** The "Photon Drop". Visually connects the Value Log (Action) to the Identity Layers (Result), creating ripples that update the Person State.
+
+---
+
+## Interaction Flow (The Complete Loop)
+
+1.  **Topology (Macro):** User sees the imbalance. Selects a brick (Organization) in the Market/State.
+2.  **Block (Org):** User enters the brick. Sees the people. Selects a Person.
+3.  **Person (Micro):** User creates a Value Log (Action).
+4.  **Impact (Result):** The action ripples through the Person's identity.
+5.  **Person (Update):** Person glows with new Aura.
+6.  **$\to$ [NEXT] Block Activation:** Returning to the Block, the Person's aura activates the Organization. The Brick becomes "Radiant".
+7.  **$\to$ [NEXT] System Alignment:** Returning to Topology, the Radiant Brick shifts allegiance or strengthens the Community.
+8.  **$\to$ [NEXT] Bridge Shatter:** If Community Power > Threshold, the Crony Bridge collapses.
 
 ## Visual Rules
 - Region base colors:

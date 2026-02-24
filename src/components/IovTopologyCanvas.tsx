@@ -87,7 +87,6 @@ const IovTopologyCanvas = () => {
   const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
   const [hoveredRegionId, setHoveredRegionId] = useState<RegionId | null>(null);
-  const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const [transferredCount, setTransferredCount] = useState(0);
   const [semanticLevel, setSemanticLevel] = useState<SemanticZoomLevel>("topology");
   const [values, setValues] = useState(DEFAULT_IOV_VALUES);
@@ -99,6 +98,8 @@ const IovTopologyCanvas = () => {
   const [toggles, setToggles] = useState<Record<ToggleId, boolean>>(() =>
     buildInitialToggles(topologyData)
   );
+  const [lastImpactedPersonId, setLastImpactedPersonId] = useState<string | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   const hoveredRegion = useMemo(
     () => topologyData.regions.find((region) => region.id === hoveredRegionId),
@@ -144,6 +145,9 @@ const IovTopologyCanvas = () => {
     impactSceneRef.current = impactScene;
 
     const onImpactComplete = () => {
+        if (selectedPersonId) {
+            setLastImpactedPersonId(selectedPersonId);
+        }
         applySemanticTransition("person");
         // Also update local state to reflect new log? 
         // Ideally we'd append the log to PersonIdentityScene here
@@ -467,12 +471,46 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  const handleOpenBrick = () => {
+  const getPhaseHeadline = (regionId?: RegionId) => {
+    switch (regionId) {
+      case "market": return "This is the Market. It accumulates wealth.";
+      case "state": return "This is the State. It captures and redistributes.";
+      case "community": return "This is the Community. It holds the foundation.";
+      case "crony_bridge": return "The Bridge connects the top layers.";
+      default: return "Select a region to explore.";
+    }
+  };
+
+  const onOpenBrick = () => {
     if (!selectedBrickInfo) return;
-    blockSceneRef.current?.setSourceBrick(selectedBrickInfo);
-    setBlockSummary(blockSceneRef.current?.getSummary() ?? null);
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
     applySemanticTransition(next.level);
+    if (blockSceneRef.current) {
+        blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+    }
+  };
+
+  const onValueLogNext = () => {
+      valueLogSceneRef.current?.nextStep();
+      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
+  };
+
+  const onValueLogPrev = () => {
+      valueLogSceneRef.current?.prevStep();
+      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
+  };
+
+  const handleOpenBrick = () => {
+    if (!selectedBrickInfo) return;
+    
+    // Dispatch zoom event
+    const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
+    applySemanticTransition(next.level);
+    
+    // Set the block scene context
+    if (blockSceneRef.current) {
+        blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+    }
   };
 
   const handleBackSemantic = () => {
@@ -579,35 +617,13 @@ const IovTopologyCanvas = () => {
   };
 
   const handleValueLogNext = () => {
-    const currentIndex = WIZARD_STEP_ORDER.indexOf(valueLogStep);
-    
-    // Check if we are at the last step (Outcome) and clicking Next implies Commit
-    if (valueLogStep === "show_outcome") {
-        // Trigger the transition to Impact Scene
-        const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
-        applySemanticTransition(next.level);
-        return;
-    }
-
-    const next =
-      WIZARD_STEP_ORDER[Math.min(WIZARD_STEP_ORDER.length - 1, currentIndex + 1)] ??
-      valueLogStep;
-    if (next === "select_performance" && valueLogDraft.wellbeingNode !== "~~Performance") {
-      setValueLogStep("show_outcome");
-      return;
-    }
-    setValueLogStep(next);
+    valueLogSceneRef.current?.nextStep();
+    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
   const handleValueLogPrev = () => {
-    const currentIndex = WIZARD_STEP_ORDER.indexOf(valueLogStep);
-    if (currentIndex <= 0) return;
-    if (valueLogStep === "show_outcome" && valueLogDraft.wellbeingNode !== "~~Performance") {
-      setValueLogStep("select_wellbeing");
-      return;
-    }
-    const prev = WIZARD_STEP_ORDER[currentIndex - 1] ?? valueLogStep;
-    setValueLogStep(prev);
+    valueLogSceneRef.current?.prevStep();
+    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
   const handleValueLogCommit = () => {
@@ -654,6 +670,58 @@ const IovTopologyCanvas = () => {
     }
   };
 
+  // Propagate activation state when entering block view
+  useEffect(() => {
+    if ( semanticLevelRef.current === "block" && lastImpactedPersonId && blockSceneRef.current) {
+        // @ts-ignore - method added dynamically
+        if (typeof blockSceneRef.current.activatePerson === 'function') {
+            // @ts-ignore
+            blockSceneRef.current.activatePerson(lastImpactedPersonId);
+        }
+    }
+  }, [semanticLevelRef.current, lastImpactedPersonId]);
+
+  // Propagate activation to topology when zooming out
+  useEffect(() => {
+    if (semanticLevel === "topology" && lastImpactedPersonId && selectedBrickInfo && sceneRef.current) {
+        sceneRef.current.activateBrick(selectedBrickInfo.regionId, selectedBrickInfo.instanceId);
+        // Optional: trigger "community reclaim" logic here if needed
+        // sceneRef.current.reclaimBrick(...)
+        
+        // Clear the impact flag so we don't re-activate on next visit unless there is a new impact
+        setLastImpactedPersonId(null);
+    }
+  }, [semanticLevel, lastImpactedPersonId, selectedBrickInfo]);
+
+  function getRegionLabel(regionId: RegionId) {
+    const region = topologyData.regions.find(r => r.id === regionId);
+    return region?.label ?? regionId;
+}
+
+function getRegionMeaning(regionId: RegionId) {
+    // Basic meanings, could be moved to config
+    const meanings: Record<RegionId, string> = {
+        market: "Market height combines cash markets and derivatives in one pillar. Dark green shows cash layers and light green shows derivatives leverage.",
+        state: "State height reflects fiscal and institutional capacity. Transfers from upper state layers represent redirected public capture back to common foundations.",
+        community: "Community is intentionally wide and load-bearing: households, co-ops, and trust networks distribute value horizontally.",
+        crony_bridge: "The bridge exists only near the top, not at the public foundation. Highlighted connectors show the elite-level coupling point where capture flows through."
+    };
+    return meanings[regionId];
+}
+
+  // Check for bridge collapse condition
+  useEffect(() => {
+    // If community has gained enough bricks (e.g., > 3), trigger collapse animation
+    if (transferredCount > 3 && sceneRef.current) {
+        // @ts-ignore - method newly added
+        if (typeof sceneRef.current.shatterBridge === 'function') {
+            // @ts-ignore
+            sceneRef.current.shatterBridge();
+            setPhaseHeadline("CRITICAL MASS: The Crony Bridge collapses under community pressure!");
+        }
+    }
+  }, [transferredCount]);
+
   return (
     <div
       className={`iov-stage ${presentationMode ? "is-presentation" : ""} iov-level-${semanticLevel}`}
@@ -667,185 +735,144 @@ const IovTopologyCanvas = () => {
             type="button"
             className={item.active ? "is-active" : ""}
             onClick={() => {
-              if (item.level === semanticLevel) return;
-              const next = zoomControllerRef.current.dispatch({
-                type: "SET_LEVEL",
-                level: item.level,
-              });
-              applySemanticTransition(next.level);
+              if (item.active) return;
+              zoomControllerRef.current.dispatch({ type: "SET_LEVEL", level: item.level });
+              applySemanticTransition(item.level);
             }}
           >
             {item.label}
           </button>
         ))}
-        {semanticLevel !== "topology" && (
-          <button type="button" className="iov-breadcrumb-back" onClick={handleBackSemantic}>
-            Back
-          </button>
-        )}
       </div>
+
+      {semanticLevel === "block" && blockSummary && blockSummary.selectedPersonId && (
+        <div className="iov-scene-card iov-scene-card-center" style={{ width: '420px' }}>
+          <div className="iov-scene-card-header">
+            <h3>{blockSummary.brickLabel || "Organization Interior"}</h3>
+            <div className="iov-scene-card-sub">Organization Interior</div>
+          </div>
+          <div className="iov-scene-card-content">
+            <div style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '12px', lineHeight: 1.5 }}>
+              {blockSummary.brickLabel} contains {blockSummary.peopleCount} people proxies.
+              Selected <strong>{blockSummary.selectedPersonId}</strong>. Continue to view their wellbeing identity.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button className="iov-btn-primary" onClick={handleOpenPersonStub}>
+                Open Person
+              </button>
+              <button
+                className="iov-btn-secondary"
+                style={{ marginTop: 0 }}
+                onClick={() => {
+                  const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+                  applySemanticTransition(back.level);
+                }}
+              >
+                Back to System
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {semanticLevel === "person" && personSummary && (
+        <div className="iov-scene-card iov-scene-card-center">
+          <div className="iov-scene-card-header">
+            <h3>{personSummary.personId}</h3>
+            <div className="iov-scene-card-sub">Identity Stack</div>
+          </div>
+          <div className="iov-scene-card-content">
+            {!personSummary.identityBuildMode ? (
+              <button className="iov-btn-primary" onClick={handleStartIdentityBuild}>
+                Reveal Identity Layers
+              </button>
+            ) : (
+              <>
+                <div className="iov-scene-card-stat">
+                  Layer: {personSummary.identityBuildLayerLabel ?? "Initializing..."}
+                </div>
+                {!personSummary.identityBuildComplete && (
+                  <button className="iov-btn-primary" onClick={handleNextIdentityLayer}>
+                    Next Layer ({personSummary.identityBuildLayerIndex + 1}/
+                    {personSummary.identityBuildLayerCount})
+                  </button>
+                )}
+                <button
+                  className="iov-btn-secondary"
+                  onClick={handleReplayIdentityLayer}
+                  disabled={personSummary.identityBuildLayerIndex < 0}
+                >
+                  Replay Animation
+                </button>
+              </>
+            )}
+            <div className="iov-scene-card-divider" />
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <button className="iov-btn-action" onClick={handleOpenValueLog}>
+                Open Time Slice
+                </button>
+                <button 
+                className="iov-btn-secondary"
+                style={{ marginTop: 0 }}
+                onClick={() => {
+                    const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+                    applySemanticTransition(back.level);
+                }}
+                >
+                Back to Org
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <IovTopologyPanel
         data={topologyData}
         selectedRegionId={selectedRegionId}
         toggles={toggles}
+        phaseHeadline={phaseHeadline}
+        presentationMode={presentationMode}
+        values={values}
+        meaningText={getRegionMeaning(selectedRegionId)}
+        transferredCount={transferredCount}
         isMobile={isMobile}
         semanticLevel={semanticLevel}
-        selectedBrickLabel={selectedBrickLabel}
-        canOpenBrick={canOpenBrick}
+        selectedBrickLabel={
+          selectedBrickInfo
+            ? `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`
+            : null
+        }
+        canOpenBrick={!!selectedBrickInfo}
         blockSummary={blockSummary}
         personSummary={personSummary}
         valueLogDraft={valueLogDraft}
         valueLogSummary={valueLogSummary}
         valueLogStep={valueLogStep}
         interactionMode={interactionMode}
-        phaseHeadline={phaseHeadline}
-        presentationMode={presentationMode}
-        meaningText={
-          sceneRef.current?.getMeaningForRegion(selectedRegionId) ?? ""
-        }
         onToggle={handleToggle}
-        onBuild={handleBuild}
-        onOpenBrick={handleOpenBrick}
-        onBackSemantic={handleBackSemantic}
-        onInteractionModeChange={handleInteractionModeChange}
-        onTogglePresentationMode={() => setPresentationMode((prev) => !prev)}
-        onValueLogDraftChange={handleValueLogDraftChange}
-        onValueLogNext={handleValueLogNext}
-        onValueLogPrev={handleValueLogPrev}
-        onValueLogCommit={handleValueLogCommit}
-        transferredCount={transferredCount}
-        values={values}
+        onBuild={(id) => sceneRef.current?.build(id)}
+        onOpenBrick={onOpenBrick}
+        onOpenPerson={handleOpenPersonStub}
+        onBackSemantic={() => {
+          const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+          applySemanticTransition(back.level);
+        }}
+        onInteractionModeChange={(mode) => {
+          setInteractionMode(mode);
+          sceneRef.current?.setBrickInteractionMode(mode);
+        }}
+        onTogglePresentationMode={() => setPresentationMode((p) => !p)}
+        onValueLogDraftChange={(patch) =>
+          setValueLogDraft((prev) => ({ ...prev, ...patch }))
+        }
+        onValueLogNext={onValueLogNext}
+        onValueLogPrev={onValueLogPrev}
+        onValueLogCommit={() => valueLogSceneRef.current?.commit(selectedPersonId ?? "unknown")}
+        onOpenValueLog={handleOpenValueLog}
       />
-
-      {(semanticLevel === "block" || semanticLevel === "person") && (
-        <div className="iov-semantic-overlay">
-          <div className="iov-semantic-card">
-            {semanticLevel === "block" && blockSummary ? (
-              <>
-                <div className="iov-semantic-title">Organization Interior</div>
-                <div className="iov-semantic-body">
-                  {blockSummary.brickLabel} contains {blockSummary.peopleCount} people proxies.
-                  Select one person token to continue into wellbeing identity view.
-                </div>
-                <div className="iov-semantic-actions">
-                  <button type="button" onClick={handleOpenPersonStub} disabled={!selectedPersonId}>
-                    Open Person
-                  </button>
-                  <button type="button" onClick={handleBackSemantic}>
-                    Back to System
-                  </button>
-                </div>
-              </>
-            ) : semanticLevel === "person" ? (
-              <>
-                <div className="iov-semantic-title">Person Wellbeing Identity</div>
-                <div className="iov-semantic-body">
-                  {personSummary
-                    ? `${personSummary.personId}: build identity layer-by-layer in-scene, then open Time Slice once build is complete.`
-                    : "Build identity layers progressively."}
-                </div>
-                {personSummary && (
-                  <div className="iov-semantic-body">
-                    Build:{" "}
-                    {personSummary.identityBuildMode
-                      ? `${Math.max(0, personSummary.identityBuildLayerIndex + 1)} / ${
-                          personSummary.identityBuildLayerCount
-                        }${personSummary.identityBuildComplete ? " (complete)" : ""}`
-                      : "Not started"}{" "}
-                    | Active layer: {personSummary.identityBuildLayerLabel ?? "None"}
-                  </div>
-                )}
-                <div className="iov-semantic-actions">
-                  <button type="button" onClick={handleStartIdentityBuild}>
-                    {personSummary?.identityBuildMode ? "Restart Build" : "Start Identity Build"}
-                  </button>
-                  <button type="button" onClick={handleNextIdentityLayer}>
-                    Next Identity
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReplayIdentityLayer}
-                    disabled={!personSummary?.identityBuildMode}
-                  >
-                    Replay Layer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenValueLog}
-                    disabled={!personSummary?.identityBuildComplete}
-                  >
-                    Open Time Slice
-                  </button>
-                  <button type="button" onClick={handleBackSemantic}>
-                    Back to Organization
-                  </button>
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
-
-      {hoveredRegion && (
-        semanticLevel === "topology" ? (
-          <div
-            className="iov-tooltip"
-            style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}
-          >
-            <div className="iov-tooltip-title">{hoveredRegion.label}</div>
-            <div className="iov-tooltip-body">{toOneLine(hoveredRegion.notes)}</div>
-          </div>
-        ) : null
-      )}
-      {semanticLevel === "block" && hoveredPersonId && (
-        <div
-          className="iov-tooltip"
-          style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}
-        >
-          <div className="iov-tooltip-title">{hoveredPersonId}</div>
-          <div className="iov-tooltip-body">
-            Person token inside {blockSummary?.brickLabel ?? "selected organization unit"}.
-          </div>
-        </div>
-      )}
-      {(semanticLevel === "person" || semanticLevel === "valuelog") && hoveredFacet && (
-        <div
-          className="iov-tooltip"
-          style={{ left: tooltipPosition.x + 12, top: tooltipPosition.y + 12 }}
-        >
-          <div className="iov-tooltip-title">{hoveredFacet.replace("~~~", "")}</div>
-          <div className="iov-tooltip-body">
-            Wellbeing identity facet from protocol vocabulary.
-          </div>
-        </div>
-      )}
-
-      <div className="iov-concept">{topologyData.concept}</div>
-      <div className="iov-selection-indicator">Selected: {selectedRegion?.label}</div>
     </div>
   );
 };
 
-const toOneLine = (notes: string) => {
-  const firstSentence = notes.split(".")[0] ?? "";
-  return firstSentence.trim().length > 0 ? `${firstSentence.trim()}.` : notes;
-};
-
-const getRegionLabel = (regionId: RegionId) => {
-  const map: Record<RegionId, string> = {
-    market: "Market",
-    state: "State",
-    community: "Community",
-    crony_bridge: "Bridge",
-  };
-  return map[regionId];
-};
-
 export default IovTopologyCanvas;
-
-const getPhaseHeadline = (regionId: RegionId) => {
-  if (regionId === "market") return "Building Market - value stacks and settles.";
-  if (regionId === "state") return "Building State - capacity assembles with weight.";
-  if (regionId === "community") return "Building Community - base tiles spread outward.";
-  return "Revealing Crony Bridge - top-layer interlock becomes visible.";
-};

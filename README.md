@@ -24,6 +24,40 @@ The interface includes:
 
 ---
 
+## Scene Inventory (Current)
+
+- `src/game/iov/IovTopologyScene.ts`  
+  Macro/system scene. Renders Market, State, Community, and Bridge, handles selection/reclaim, transfer counts, brick activation, and bridge shatter behavior.
+- `src/game/iov/BlockInteriorScene.ts`  
+  Organization interior scene. Shows people tokens, profile mix, person hover/select, and person activation aura feedback.
+- `src/game/iov/PersonIdentityScene.ts`  
+  Person identity scene. Renders identity layers/facets, wellbeing/aura evolution, and timeline-driven ripple updates.
+- `src/game/iov/ValueLogScene.ts`  
+  Time Slice composition scene. Captures action context, wellbeing node, optional SAOcommons tags, computes outcome deltas, and commits logs.
+- `src/game/iov/PersonImpactScene.ts`  
+  Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
+
+Semantic level controller:
+- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact`.
+
+Interaction host:
+- `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
+
+---
+
+## Interaction Flow (Current Runtime)
+
+1. `System` (`IovTopologyScene`): inspect/reclaim organization bricks.
+2. `Organization` (`BlockInteriorScene`): select a person token.
+3. `Person` (`PersonIdentityScene`): inspect identity state and open Time Slice.
+4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
+5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
+6. Return to `Person` with updated wellbeing/aura.
+7. Returning to `Organization` activates the impacted person.
+8. Returning to `System` activates the source brick; sustained reclaim pressure can shatter the bridge.
+
+---
+
 ## 🚀 Project Structure
 
 ```text
@@ -32,7 +66,14 @@ src/
     IovTopologyCanvas.tsx        # Three.js canvas wiring + render loop
   game/
     iov/
-      IovTopologyScene.ts        # Core scene generation + interactions
+      IovTopologyScene.ts        # System (macro) scene
+      BlockInteriorScene.ts      # Organization (meso) scene
+      PersonIdentityScene.ts     # Person (micro) scene
+      ValueLogScene.ts           # Time Slice action scene
+      PersonImpactScene.ts       # Impact transition FX scene
+      IovSemanticZoomController.ts # Semantic level state machine
+      PersonStateEngine.ts       # Person wellbeing/aura evolution engine
+      iovTimelogs.ts             # Value log loading + resolution
       iov.topology.json          # Topology regions and UI toggle metadata
       iovValues.ts               # Values loader + helpers
       iovNarrativeConfig.ts      # Scale / identity / phase config

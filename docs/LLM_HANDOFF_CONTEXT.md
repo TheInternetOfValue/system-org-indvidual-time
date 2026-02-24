@@ -11,6 +11,7 @@ The experience is a semantic zoom story:
 2. `Organization`  
 3. `Person` (wellbeing identity layers)  
 4. `Time Slice` (value log cascade)
+5. `Impact` (photon drop + ripple transition)
 
 The core message:
 - institutions are made of organizations,
@@ -32,6 +33,7 @@ The core message:
   - `src/game/iov/BlockInteriorScene.ts`
   - `src/game/iov/PersonIdentityScene.ts`
   - `src/game/iov/ValueLogScene.ts`
+  - `src/game/iov/PersonImpactScene.ts`
 - Zoom controller:
   - `src/game/iov/IovSemanticZoomController.ts`
 - Left panel:

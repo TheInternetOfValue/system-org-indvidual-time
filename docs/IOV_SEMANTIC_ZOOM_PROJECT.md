@@ -2,6 +2,7 @@
 
 Handoff companion:
 - `docs/LLM_HANDOFF_CONTEXT.md` (plain-language transfer brief for next LLM, including known UX failures and required next-pass contract)
+- `docs/IOV_CAMERA_SHOT_CONTRACT.md` (locked camera choreography contract for Aesthetic + Interaction track)
 
 ## Purpose
 Build the next narrative layer of the Internet of Value experience through semantic zoom:
@@ -56,6 +57,10 @@ Checkpoint policy:
 - commit after every module with a local checkpoint before any push.
 - keep regression checks on each module (`npm run test -- --run`, `npm run build`).
 - preserve existing impact-escalation behavior while migrating camera/interaction UX.
+
+Module 0 status:
+- `completed` on `2026-02-24`
+- output doc: `docs/IOV_CAMERA_SHOT_CONTRACT.md`
 
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
@@ -595,6 +600,7 @@ After each implementation pass:
 - 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
 - 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
 - 2026-02-24: New development track approved: prioritize cinematic camera choreography and in-scene-first interaction migration in modular checkpoints.
+- 2026-02-24: Camera choreography must be implemented from a locked shot contract (durations, framing, interrupt rules, mobile variants) before runtime camera refactors.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -618,8 +624,9 @@ After each implementation pass:
 - 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
 - 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
 - 2026-02-24: Started `Aesthetic + Interaction Development` track and documented modular rollout/checkpoint policy.
+- 2026-02-24: Completed Module 0 and added locked shot contract doc `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
 
 ## Next Up
-1. Module 0: author and lock camera shot contract for all semantic transitions.
-2. Module 1: implement `CameraDirector` and wire `System -> Organization -> Person` cinematic moves.
-3. Module 3 (phase 1 after camera foundation): move topology/block primary actions into in-scene controls while retaining panel fallback.
+1. Module 1: implement `CameraDirector` and wire `System -> Organization -> Person` cinematic moves from shot contract.
+2. Module 2: add transition polish (pre-focus, settle hold, subtle emphasis) without breaking current flow.
+3. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.

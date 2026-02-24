@@ -59,6 +59,7 @@ Implement impact as a strict three-scene pipeline:
 Critical rule:
 - bridge collapse must be driven by Community pillar growth / stress model.
 - do not use raw reclaimed-brick count as collapse trigger.
+- collapse timing must be contact-gated: no bridge shatter before visible community-to-bridge contact.
 
 ### Contract IO (must remain explicit)
 - `Person Impact` output: `PersonImpactResult`.
@@ -80,6 +81,7 @@ Current pass status:
 - Feature flag is currently `true` in `src/game/iov/iovNarrativeConfig.ts`.
 - Escalation route is now `impact -> orgimpact -> block -> topology`; system impact is user-triggered via `Empower Community Pillar`.
 - System impact now includes rapid community build-up visuals before bridge collision and stress evaluation.
+- Bridge collapse now requires both threshold and contact gate, using bridge geometry bounds for impact targeting.
 - Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
 
 ## Newly added (this pass)

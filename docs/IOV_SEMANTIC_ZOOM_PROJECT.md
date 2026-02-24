@@ -97,8 +97,10 @@ Behavior:
 - applies `communityPowerDelta` into Community pillar growth.
 - animates Community pillar height increase (not just brick count changes).
 - builds a rapid upward community stack and launches impact photon from stack top.
-- maps increased Community pillar to bridge collision/stress.
-- collapses bridge when stress/resistance condition is met.
+- maps increased Community pillar to bridge collision/stress using real bridge geometry bounds.
+- collapses bridge only when both conditions are true:
+  - bridge stress threshold crossed
+  - community build reaches bridge underside (contact gate)
 
 Output:
 - `SystemImpactResult`:
@@ -111,6 +113,7 @@ Output:
 Important rule:
 - bridge collapse trigger must not be raw reclaim count (`transferredCount > N`).
 - bridge collapse must be driven by accumulated Community pillar growth and resulting bridge stress.
+- bridge collapse must remain contact-gated so break timing matches visible geometry.
 
 ## Modular Execution Plan (Safe Rollout)
 Implementation should be merged in isolated passes with docs updated at each pass.
@@ -174,11 +177,11 @@ Done when:
 - bridge collapse occurs from stress model, not transfer count.
 
 Pass 3 progress (implemented):
-- Added `systemimpact` semantic level and routing (`orgimpact -> systemimpact -> topology`).
+- Added `systemimpact` semantic level with explicit topology-triggered playback.
 - System-impact playback now runs on `IovTopologyScene` (not detached from topology context):
   - community pillar scale increases from `communityPowerDelta`
   - bridge color/stress ramps during impact
-  - bridge collapse triggers only when stress crosses threshold
+  - bridge collapse triggers only when stress threshold crosses and contact gate is reached
 - `IovTopologyCanvas` now queues org outcomes and requires explicit topology action:
   - `impact -> orgimpact -> block -> topology`
   - press `Empower Community Pillar` -> `systemimpact -> topology`
@@ -565,6 +568,7 @@ After each implementation pass:
 - 2026-02-24: Org impact must stay in the org-people scene; contagion is represented as sequential aura spread across people, with moving light only as a cue.
 - 2026-02-24: System impact must run on `IovTopologyScene` (shared world context), not a detached abstract scene.
 - 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
+- 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -586,6 +590,7 @@ After each implementation pass:
 - 2026-02-24: Reworked org contagion to run in `BlockInteriorScene` with real people visible and one-by-one aura spread.
 - 2026-02-24: Implemented Pass 3 on live topology (`IovTopologyScene.playSystemImpact`) and enabled escalation route `impact -> orgimpact -> systemimpact -> topology`.
 - 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
+- 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
 
 ## Next Up
 1. Pass 4: remove legacy transfer-count bridge collapse path entirely (currently gated off when escalation flag is enabled).

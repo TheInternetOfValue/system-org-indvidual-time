@@ -54,8 +54,8 @@ Interaction host:
 5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
 6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
 7. Return to `System`: org activation is queued and panel shows `Empower Community Pillar (N)`.
-8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, Community pillar builds upward, stress ramps, and bridge collapse is evaluated against threshold.
-9. Return to `System`: source brick remains radiant; bridge collapses only when stress crosses threshold.
+8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, Community pillar builds upward, stress ramps, and impact targets the real bridge geometry.
+9. Return to `System`: source brick remains radiant; bridge collapses only when stress threshold is crossed and visible community-to-bridge contact is reached.
 
 ---
 

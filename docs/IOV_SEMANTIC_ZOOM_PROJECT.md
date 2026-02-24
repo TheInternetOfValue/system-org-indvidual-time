@@ -32,6 +32,31 @@ Narrative chain:
 4. `Breathing Layer`: daily protocol logs that update wellbeing state/aura over time.
 5. `Impact`: post-commit transition that makes state change legible.
 
+## Aesthetic + Interaction Development Track (Approved)
+Track date: `2026-02-24`
+
+Primary goals:
+1. Camera choreography for semantic transitions:
+   - `System -> Organization`: move from macro frame into selected brick.
+   - `Organization -> Person`: move into clicked person.
+   - maintain cinematic reverse transitions on back-navigation.
+2. In-scene-first interaction model:
+   - migrate core actions from side panel into world-space/in-scene affordances.
+   - keep side panel as secondary telemetry/help fallback.
+
+Execution modules (with checkpoints):
+1. `Module 0` (spec only): camera shot contract document (durations/easing/FOV/framing/interrupt rules/mobile variants).
+2. `Module 1`: `CameraDirector` foundation (`playShot`, `cancelShot`, deterministic transitions).
+3. `Module 2`: transition polish (pre-focus highlight, settle hold, subtle cinematic emphasis).
+4. `Module 3`: in-scene controls phase 1 (`Open Organization`, `Inspect/Reclaim`, `Open Person`) with panel fallback retained.
+5. `Module 4`: in-scene controls phase 2 (person/time-slice primary actions in scene; panel becomes optional for demos).
+6. `Module 5`: cinematic consistency/perf sweep (timing continuity, lighting continuity, perf guardrails).
+
+Checkpoint policy:
+- commit after every module with a local checkpoint before any push.
+- keep regression checks on each module (`npm run test -- --run`, `npm run build`).
+- preserve existing impact-escalation behavior while migrating camera/interaction UX.
+
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
@@ -569,6 +594,7 @@ After each implementation pass:
 - 2026-02-24: System impact must run on `IovTopologyScene` (shared world context), not a detached abstract scene.
 - 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
 - 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
+- 2026-02-24: New development track approved: prioritize cinematic camera choreography and in-scene-first interaction migration in modular checkpoints.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -591,8 +617,9 @@ After each implementation pass:
 - 2026-02-24: Implemented Pass 3 on live topology (`IovTopologyScene.playSystemImpact`) and enabled escalation route `impact -> orgimpact -> systemimpact -> topology`.
 - 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
 - 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
+- 2026-02-24: Started `Aesthetic + Interaction Development` track and documented modular rollout/checkpoint policy.
 
 ## Next Up
-1. Pass 4: remove legacy transfer-count bridge collapse path entirely (currently gated off when escalation flag is enabled).
-2. Tune org/system impact camera and timing for presentation clarity.
-3. Add panel telemetry for macro stress state (pillar height, bridge stress, threshold).
+1. Module 0: author and lock camera shot contract for all semantic transitions.
+2. Module 1: implement `CameraDirector` and wire `System -> Organization -> Person` cinematic moves.
+3. Module 3 (phase 1 after camera foundation): move topology/block primary actions into in-scene controls while retaining panel fallback.

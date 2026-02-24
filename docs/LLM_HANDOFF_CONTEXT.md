@@ -84,6 +84,28 @@ Current pass status:
 - Bridge collapse now requires both threshold and contact gate, using bridge geometry bounds for impact targeting.
 - Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
 
+## New Approved Track: Aesthetic + Interaction Development
+Branch context:
+- active implementation branch for this track: `codex/aesthetic-interaction-development`
+- branched from `codex/end-scenes-overhaul` to retain latest end-scene fixes.
+
+Primary goals:
+1. Cinematic camera transitions across semantic zoom levels.
+2. Move primary actions from side panel into in-scene interaction affordances.
+
+Module plan:
+1. `Module 0`: camera shot contract (spec doc only, no runtime changes).
+2. `Module 1`: camera director implementation and transition wiring.
+3. `Module 2`: transition polish pass (focus cue, settle hold, subtle cinematic emphasis).
+4. `Module 3`: in-scene controls phase 1 (`Open Organization`, `Inspect/Reclaim`, `Open Person`) with panel fallback.
+5. `Module 4`: in-scene controls phase 2 (person/time-slice primary actions in scene).
+6. `Module 5`: cinematic consistency/performance sweep.
+
+Execution policy:
+- commit each module as a checkpoint before moving to the next.
+- run regression checks on each module (`npm run test -- --run`, `npm run build`).
+- keep current impact escalation logic stable while camera/interaction UX evolves.
+
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:
   - `Start Identity Build` begins at `GivenIdentity`.

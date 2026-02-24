@@ -38,6 +38,7 @@ import {
   getSemanticBreadcrumb,
   type SemanticZoomLevel,
 } from "@/game/iov/IovSemanticZoomController";
+import { IovCameraDirector } from "@/game/iov/IovCameraDirector";
 import {
   DEFAULT_IOV_VALUES,
   loadIovValues,
@@ -79,6 +80,7 @@ const IovTopologyCanvas = () => {
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
   const impactSceneRef = useRef<PersonImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
+  const cameraDirectorRef = useRef(new IovCameraDirector());
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const impactEscalationRef = useRef(
     new IovImpactEscalationController(IOV_FEATURE_FLAGS.enableImpactEscalation)
@@ -227,6 +229,7 @@ const IovTopologyCanvas = () => {
     let personSummaryAccumulator = 0;
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
+      cameraDirectorRef.current.update(delta);
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -280,6 +283,7 @@ const IovTopologyCanvas = () => {
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      if (cameraDirectorRef.current.isPlaying) return;
       const rect = renderer.domElement.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
@@ -329,6 +333,7 @@ const IovTopologyCanvas = () => {
     };
 
     const onPointerUp = () => {
+      if (cameraDirectorRef.current.isPlaying) return;
       if (dragDistance <= 4) {
         if (semanticLevelRef.current === "topology") {
           // Click selection maps the hovered brick instance back to region id.
@@ -345,6 +350,7 @@ const IovTopologyCanvas = () => {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!sceneRef.current) return;
+      if (cameraDirectorRef.current.isPlaying) return;
 
       if (event.key === "Escape" && semanticLevelRef.current !== "topology") {
         const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
@@ -386,6 +392,7 @@ const IovTopologyCanvas = () => {
       blockScene.dispose();
       personScene.dispose();
       valueLogScene.dispose();
+      cameraDirectorRef.current.cancelShot();
       composer?.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
@@ -528,13 +535,52 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  const onOpenBrick = () => {
+  const onOpenBrick = async () => {
     if (!selectedBrickInfo) return;
+    if (cameraDirectorRef.current.isPlaying) return;
+
+    const scene = sceneRef.current;
+    const blockScene = blockSceneRef.current;
+    if (scene && blockScene) {
+      const anchor = scene.getBrickAnchor(
+        selectedBrickInfo.regionId,
+        selectedBrickInfo.instanceId
+      );
+      if (anchor) {
+        cameraDirectorRef.current.captureLevelPose("topology", {
+          camera: scene.camera,
+          controls: scene.controls,
+        });
+        const target = anchor.clone();
+        target.y += isMobile ? 1.05 : 0.95;
+        const position = target
+          .clone()
+          .add(new THREE.Vector3(0, isMobile ? 7.2 : 6.5, isMobile ? 12.8 : 11.5));
+        await cameraDirectorRef.current.playShot({
+          id: "SYSTEM_TO_ORGANIZATION",
+          rig: {
+            camera: scene.camera,
+            controls: scene.controls,
+          },
+          endPose: {
+            position,
+            target,
+            fov: isMobile ? 46 : 38,
+          },
+          durationMs: isMobile ? 1200 : 1100,
+        });
+      }
+    }
+
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
     applySemanticTransition(next.level);
-    if (blockSceneRef.current) {
-      blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+    if (blockScene) {
+      blockScene.setSourceBrick(selectedBrickInfo);
       applyBlockActivationState(selectedBrickInfo);
+      cameraDirectorRef.current.captureLevelPose("block", {
+        camera: blockScene.camera,
+        controls: blockScene.controls,
+      });
     }
   };
 
@@ -548,21 +594,8 @@ const IovTopologyCanvas = () => {
       setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
-  const handleOpenBrick = () => {
-    if (!selectedBrickInfo) return;
-    
-    // Dispatch zoom event
-    const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
-    applySemanticTransition(next.level);
-    
-    // Set the block scene context
-    if (blockSceneRef.current) {
-      blockSceneRef.current.setSourceBrick(selectedBrickInfo);
-      applyBlockActivationState(selectedBrickInfo);
-    }
-  };
-
   const handleBackSemantic = () => {
+    if (cameraDirectorRef.current.isPlaying) return;
     const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
     applySemanticTransition(next.level);
     if (next.level === "topology") {
@@ -573,8 +606,37 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  const handleOpenPersonStub = () => {
+  const handleOpenPersonStub = async () => {
     if (!selectedPersonId) return;
+    if (cameraDirectorRef.current.isPlaying) return;
+    const blockScene = blockSceneRef.current;
+    if (blockScene) {
+      const anchor = blockScene.getPersonAnchor(selectedPersonId);
+      if (anchor) {
+        cameraDirectorRef.current.captureLevelPose("block", {
+          camera: blockScene.camera,
+          controls: blockScene.controls,
+        });
+        const target = anchor.clone();
+        target.y += isMobile ? 0.26 : 0.2;
+        const position = target
+          .clone()
+          .add(new THREE.Vector3(0, isMobile ? 3.0 : 2.6, isMobile ? 5.6 : 4.8));
+        await cameraDirectorRef.current.playShot({
+          id: "ORGANIZATION_TO_PERSON",
+          rig: {
+            camera: blockScene.camera,
+            controls: blockScene.controls,
+          },
+          endPose: {
+            position,
+            target,
+            fov: isMobile ? 40 : 33,
+          },
+          durationMs: isMobile ? 980 : 900,
+        });
+      }
+    }
     const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
     personSceneRef.current?.setPersonContext(selectedPersonId, sourceRegion);
     const logs = resolvePersonValuelogs(valueLogData, selectedPersonId, sourceRegion);
@@ -587,6 +649,12 @@ const IovTopologyCanvas = () => {
       personId: selectedPersonId,
     });
     applySemanticTransition(next.level);
+    if (personSceneRef.current) {
+      cameraDirectorRef.current.captureLevelPose("person", {
+        camera: personSceneRef.current.camera,
+        controls: personSceneRef.current.controls,
+      });
+    }
   };
 
   const handleOpenValueLog = () => {
@@ -925,6 +993,7 @@ function getRegionMeaning(regionId: RegionId) {
             type="button"
             className={item.active ? "is-active" : ""}
             onClick={() => {
+              if (cameraDirectorRef.current.isPlaying) return;
               if (item.active) return;
               zoomControllerRef.current.dispatch({ type: "SET_LEVEL", level: item.level });
               applySemanticTransition(item.level);
@@ -1044,10 +1113,7 @@ function getRegionMeaning(regionId: RegionId) {
         onBuild={(id) => sceneRef.current?.build(id)}
         onOpenBrick={onOpenBrick}
         onOpenPerson={handleOpenPersonStub}
-        onBackSemantic={() => {
-          const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-          applySemanticTransition(back.level);
-        }}
+        onBackSemantic={handleBackSemantic}
         onInteractionModeChange={(mode) => {
           setInteractionMode(mode);
           sceneRef.current?.setBrickInteractionMode(mode);

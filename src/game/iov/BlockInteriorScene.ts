@@ -185,6 +185,14 @@ export class BlockInteriorScene {
     };
   }
 
+  getPersonAnchor(personId: string | null) {
+    const targetId = personId ?? this.selectedPersonId;
+    if (!targetId) return null;
+    const token = this.personTokens.find((person) => person.id === targetId);
+    if (!token) return null;
+    return new THREE.Vector3(token.position.x, 0.78 * token.heightScale, token.position.z);
+  }
+
   resize(width: number, height: number) {
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();

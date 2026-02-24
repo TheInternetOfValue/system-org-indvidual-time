@@ -412,6 +412,20 @@ export class IovTopologyScene {
     return this.selectedBrickInfo;
   }
 
+  getBrickAnchor(regionId: RegionId, instanceId: number) {
+    const runtime = this.regions.get(regionId);
+    if (!runtime) return null;
+    if (instanceId < 0 || instanceId >= runtime.currentBricks.length) return null;
+
+    const matrix = new THREE.Matrix4();
+    runtime.mesh.getMatrixAt(instanceId, matrix);
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    matrix.decompose(position, rotation, scale);
+    return position;
+  }
+
   setBrickInteractionMode(mode: BrickInteractionMode) {
     this.brickInteractionMode = mode;
   }

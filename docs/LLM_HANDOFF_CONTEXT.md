@@ -40,6 +40,8 @@ The core message:
   - `src/game/iov/PersonIdentityScene.ts`
   - `src/game/iov/ValueLogScene.ts`
   - `src/game/iov/PersonImpactScene.ts`
+- Camera orchestration:
+  - `src/game/iov/IovCameraDirector.ts`
 - Zoom controller:
   - `src/game/iov/IovSemanticZoomController.ts`
 - Left panel:
@@ -109,7 +111,13 @@ Execution policy:
 Module status update:
 - `Module 0` is complete.
 - camera contract doc added: `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
-- next implementation target: `Module 1` (`CameraDirector` runtime foundation).
+- `Module 1` is complete:
+  - `IovCameraDirector` added and wired into `IovTopologyCanvas`.
+  - cinematic shots active for:
+    - `Open Organization` (`SYSTEM_TO_ORGANIZATION`)
+    - `Open Person` (`ORGANIZATION_TO_PERSON`)
+  - interactions are blocked during active shot playback to avoid transition conflicts.
+- next implementation target: `Module 2` (transition polish pass).
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

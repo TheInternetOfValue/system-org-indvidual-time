@@ -72,6 +72,7 @@ src/
       PersonIdentityScene.ts     # Person (micro) scene
       ValueLogScene.ts           # Time Slice action scene
       PersonImpactScene.ts       # Impact transition FX scene
+      IovCameraDirector.ts       # Cinematic camera shot orchestrator
       IovSemanticZoomController.ts # Semantic level state machine
       PersonStateEngine.ts       # Person wellbeing/aura evolution engine
       iovTimelogs.ts             # Value log loading + resolution

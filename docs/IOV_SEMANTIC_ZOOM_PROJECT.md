@@ -62,6 +62,16 @@ Module 0 status:
 - `completed` on `2026-02-24`
 - output doc: `docs/IOV_CAMERA_SHOT_CONTRACT.md`
 
+Module 1 status:
+- `completed` on `2026-02-25`
+- runtime module added: `src/game/iov/IovCameraDirector.ts`
+- wired shots:
+  - `SYSTEM_TO_ORGANIZATION` on `Open Organization`
+  - `ORGANIZATION_TO_PERSON` on `Open Person`
+- guardrails added:
+  - pointer/key/breadcrumb actions are blocked during active camera shot playback
+  - fallback to existing immediate transition path when shot anchors are unavailable
+
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
@@ -601,6 +611,7 @@ After each implementation pass:
 - 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
 - 2026-02-24: New development track approved: prioritize cinematic camera choreography and in-scene-first interaction migration in modular checkpoints.
 - 2026-02-24: Camera choreography must be implemented from a locked shot contract (durations, framing, interrupt rules, mobile variants) before runtime camera refactors.
+- 2026-02-25: Camera transitions are orchestrated through `IovCameraDirector` with shot-level blocking to prevent concurrent interaction during playback.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -625,8 +636,9 @@ After each implementation pass:
 - 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
 - 2026-02-24: Started `Aesthetic + Interaction Development` track and documented modular rollout/checkpoint policy.
 - 2026-02-24: Completed Module 0 and added locked shot contract doc `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
+- 2026-02-25: Completed Module 1 camera foundation (`IovCameraDirector`) and wired cinematic `System -> Organization -> Person` transitions.
 
 ## Next Up
-1. Module 1: implement `CameraDirector` and wire `System -> Organization -> Person` cinematic moves from shot contract.
-2. Module 2: add transition polish (pre-focus, settle hold, subtle emphasis) without breaking current flow.
-3. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.
+1. Module 2: add transition polish (pre-focus, settle hold, subtle emphasis) without breaking current flow.
+2. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.
+3. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.

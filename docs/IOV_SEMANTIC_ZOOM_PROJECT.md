@@ -16,7 +16,7 @@ Core message: institutions are abstractions made from people, people are structu
 
 ## Current Runtime Snapshot
 - Active scene host: `src/components/IovTopologyCanvas.tsx`
-- Active semantic chain: `topology -> block -> person -> valuelog -> impact`
+- Active semantic chain: `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology -> systemimpact -> topology`
 - Active scenes:
   - `src/game/iov/IovTopologyScene.ts` (System)
   - `src/game/iov/BlockInteriorScene.ts` (Organization)
@@ -32,7 +32,7 @@ Narrative chain:
 4. `Breathing Layer`: daily protocol logs that update wellbeing state/aura over time.
 5. `Impact`: post-commit transition that makes state change legible.
 
-## Impact Escalation Contract (Next Pass)
+## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
 
@@ -91,10 +91,12 @@ Input:
 - `OrgImpactResult`
 - current macro state (`communityPillarHeight`, `communityPower`, `bridgeStress`, `bridgeResistance`)
 - source alignment context (Market/State/Community origin)
+- explicit trigger from topology panel (`Empower Community Pillar`)
 
 Behavior:
 - applies `communityPowerDelta` into Community pillar growth.
 - animates Community pillar height increase (not just brick count changes).
+- builds a rapid upward community stack and launches impact photon from stack top.
 - maps increased Community pillar to bridge collision/stress.
 - collapses bridge when stress/resistance condition is met.
 
@@ -163,7 +165,7 @@ Pass 2 progress (implemented behind flag):
 
 ### Pass 3: System Impact Scene
 Deliverables:
-- wire transition `orgimpact -> systemimpact -> topology`.
+- wire explicit topology trigger for `systemimpact` after org activation.
 - implement Community pillar growth animation from `communityPowerDelta` on the live topology scene.
 - replace bridge collapse logic with stress/resistance model.
 
@@ -177,8 +179,9 @@ Pass 3 progress (implemented):
   - community pillar scale increases from `communityPowerDelta`
   - bridge color/stress ramps during impact
   - bridge collapse triggers only when stress crosses threshold
-- `IovTopologyCanvas` now chains:
-  - `impact -> orgimpact -> systemimpact -> topology`
+- `IovTopologyCanvas` now queues org outcomes and requires explicit topology action:
+  - `impact -> orgimpact -> block -> topology`
+  - press `Empower Community Pillar` -> `systemimpact -> topology`
 - Escalation feature flag is now enabled:
   - `IOV_FEATURE_FLAGS.enableImpactEscalation = true`.
 
@@ -202,7 +205,7 @@ For every pass above, update in the same commit:
 ## Scope
 - In scope:
   - Current multi-level scene flow (`topology -> block -> person -> valuelog -> impact`)
-  - Planned impact escalation flow (`impact -> orgimpact -> systemimpact -> topology`)
+  - Impact escalation flow (`impact -> orgimpact -> block -> topology -> systemimpact -> topology`)
   - Smooth transitions and clear back-navigation
   - Data-driven person/identity modeling
   - Mobile-safe interaction patterns
@@ -561,6 +564,7 @@ After each implementation pass:
 - 2026-02-24: Block interior must persist contagion completion state per brick so revisits show full-org activation (not only single-person seed aura).
 - 2026-02-24: Org impact must stay in the org-people scene; contagion is represented as sequential aura spread across people, with moving light only as a cue.
 - 2026-02-24: System impact must run on `IovTopologyScene` (shared world context), not a detached abstract scene.
+- 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -581,6 +585,7 @@ After each implementation pass:
 - 2026-02-24: Added block-level org activation persistence and visuals so contagion completion resolves to full-organization glow state on return/revisit.
 - 2026-02-24: Reworked org contagion to run in `BlockInteriorScene` with real people visible and one-by-one aura spread.
 - 2026-02-24: Implemented Pass 3 on live topology (`IovTopologyScene.playSystemImpact`) and enabled escalation route `impact -> orgimpact -> systemimpact -> topology`.
+- 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
 
 ## Next Up
 1. Pass 4: remove legacy transfer-count bridge collapse path entirely (currently gated off when escalation flag is enabled).

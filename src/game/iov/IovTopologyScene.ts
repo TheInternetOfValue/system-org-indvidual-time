@@ -208,6 +208,7 @@ interface SystemImpactPlayback {
   communityPillarHeightBefore: number;
   bridgeStressBefore: number;
   bridgeStressThreshold: number;
+  empowerSurge?: boolean;
 }
 
 export class IovTopologyScene {
@@ -334,6 +335,14 @@ export class IovTopologyScene {
   private systemImpactBridgeStressThreshold = 1;
   private systemImpactOnComplete: ((result: SystemImpactResult) => void) | null = null;
   private systemImpactResult: SystemImpactResult | null = null;
+  private readonly systemImpactBuildGroup = new THREE.Group();
+  private readonly systemImpactBuildBricks: Array<{
+    mesh: THREE.Mesh;
+    startY: number;
+    targetY: number;
+    revealAt: number;
+  }> = [];
+  private systemImpactBuiltBrickCount = 0;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -342,6 +351,7 @@ export class IovTopologyScene {
   ) {
     this.scene.add(this.root);
     this.root.add(this.baseplateGroup, this.structureGroup, this.fxGroup);
+    this.structureGroup.add(this.systemImpactBuildGroup);
 
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
@@ -419,11 +429,18 @@ export class IovTopologyScene {
     context: SystemImpactPlayback,
     onComplete: (result: SystemImpactResult) => void
   ) {
-    const growthDelta = Math.max(0.18, Math.min(0.95, context.orgImpact.communityPowerDelta * 2.35));
-    const stressDelta = Math.max(
+    let growthDelta = Math.max(0.18, Math.min(0.95, context.orgImpact.communityPowerDelta * 2.35));
+    let stressDelta = Math.max(
       0.08,
       Math.min(0.48, context.orgImpact.communityPowerDelta * 1.25 + growthDelta * 0.12)
     );
+
+    if (context.empowerSurge) {
+      const requiredDelta = context.bridgeStressThreshold - context.bridgeStressBefore + 0.06;
+      stressDelta = Math.max(stressDelta, requiredDelta);
+      growthDelta = Math.max(growthDelta, 0.72);
+    }
+
     const communityPillarHeightAfter = Number(
       (context.communityPillarHeightBefore + growthDelta).toFixed(3)
     );
@@ -449,6 +466,7 @@ export class IovTopologyScene {
     this.systemImpactBridgeStressStart = context.bridgeStressBefore;
     this.systemImpactBridgeStressEnd = bridgeStressAfter;
     this.systemImpactBridgeStressThreshold = Math.max(0.25, context.bridgeStressThreshold);
+    this.queueSystemImpactBuildStack(Math.max(6, Math.round(growthDelta * 16)));
 
     this.systemImpactPhoton.visible = true;
     this.systemImpactPhotonLight.visible = true;
@@ -736,6 +754,8 @@ export class IovTopologyScene {
       this.slotHoverMarker,
       this.systemImpactPhoton
     );
+    this.clearSystemImpactBuildStack();
+    this.structureGroup.remove(this.systemImpactBuildGroup);
     this.systemImpactPhoton.geometry.dispose();
     (this.systemImpactPhoton.material as THREE.Material).dispose();
   }
@@ -749,6 +769,7 @@ export class IovTopologyScene {
     this.systemImpactPhotonLight.visible = false;
     this.systemImpactOnComplete = null;
     this.systemImpactResult = null;
+    this.clearSystemImpactBuildStack();
     this.clearSelectedBrick();
     this.disposeRegionObjects();
     this.regions.clear();
@@ -918,6 +939,12 @@ export class IovTopologyScene {
       easeOutCubic(growT)
     );
     this.setRegionReveal("community", this.regionReveal.community);
+    this.systemImpactBuildBricks.forEach((brick) => {
+      if (this.systemImpactElapsed < brick.revealAt) return;
+      brick.mesh.visible = true;
+      const t = Math.min(1, (this.systemImpactElapsed - brick.revealAt) / 0.2);
+      brick.mesh.position.y = lerp(brick.startY, brick.targetY, easeOutCubic(t));
+    });
 
     const stressT = Math.min(1, this.systemImpactElapsed / (growDuration + photonDuration));
     const bridgeStressNow = lerp(
@@ -932,7 +959,8 @@ export class IovTopologyScene {
     if (community && bridge && this.systemImpactElapsed >= photonDelay) {
       const photonT = Math.min(1, (this.systemImpactElapsed - photonDelay) / photonDuration);
       const start = community.topCapCenter.clone();
-      start.y += 0.7 + this.systemImpactCommunityScale * 0.45;
+      const topBuildY = this.getSystemImpactBuildTopY(start.y + this.systemImpactCommunityScale * 0.45);
+      start.y = topBuildY + 0.52;
       const end = bridge.topCapCenter.clone();
       end.y += 0.55;
 
@@ -991,6 +1019,67 @@ export class IovTopologyScene {
 
   private mapCommunityHeightToScale(heightScore: number) {
     return Math.max(1, Math.min(2.2, 0.88 + heightScore * 0.17));
+  }
+
+  private queueSystemImpactBuildStack(brickCount: number) {
+    const community = this.regions.get("community");
+    if (!community) return;
+
+    const cols = 4;
+    const rows = 3;
+    const perLayer = cols * rows;
+    const xStep = STEP_XZ * 0.92;
+    const zStep = STEP_XZ * 0.92;
+    const center = community.topCapCenter;
+    const color = new THREE.Color("#d9b114");
+
+    for (let i = 0; i < brickCount; i += 1) {
+      const logicalIndex = this.systemImpactBuiltBrickCount + i;
+      const layer = Math.floor(logicalIndex / perLayer);
+      const slot = logicalIndex % perLayer;
+      const row = Math.floor(slot / cols);
+      const col = slot % cols;
+      const x = center.x + (col - (cols - 1) * 0.5) * xStep;
+      const z = center.z + (row - (rows - 1) * 0.5) * zStep;
+      const targetY = center.y + HALF_H + layer * STEP_Y + 0.12;
+      const startY = targetY - 1.1;
+
+      const mesh = new THREE.Mesh(
+        this.brickGeometry,
+        new THREE.MeshBasicMaterial({
+          color: color.clone(),
+        })
+      );
+      mesh.position.set(x, startY, z);
+      mesh.visible = false;
+      this.systemImpactBuildGroup.add(mesh);
+      this.systemImpactBuildBricks.push({
+        mesh,
+        startY,
+        targetY,
+        revealAt: i * 0.06,
+      });
+    }
+
+    this.systemImpactBuiltBrickCount += brickCount;
+  }
+
+  private getSystemImpactBuildTopY(fallbackY: number) {
+    let maxY = fallbackY;
+    this.systemImpactBuildBricks.forEach((brick) => {
+      if (!brick.mesh.visible) return;
+      maxY = Math.max(maxY, brick.mesh.position.y + HALF_H);
+    });
+    return maxY;
+  }
+
+  private clearSystemImpactBuildStack() {
+    this.systemImpactBuildBricks.forEach((brick) => {
+      this.systemImpactBuildGroup.remove(brick.mesh);
+      (brick.mesh.material as THREE.Material).dispose();
+    });
+    this.systemImpactBuildBricks.length = 0;
+    this.systemImpactBuiltBrickCount = 0;
   }
 
   private updateFallingBricks(delta: number) {

@@ -13,7 +13,8 @@ The experience is a semantic zoom story:
 4. `Time Slice` (value log cascade)
 5. `Impact` (photon drop + ripple transition)
 6. `Org Impact` (aura contagion across people in selected organization)
-7. `System Impact` (Community pillar growth that stresses and can collapse the bridge)
+7. Return to `System` with queued org activation (`Empower Community Pillar`)
+8. `System Impact` (Community pillar growth that stresses and can collapse the bridge)
 
 The core message:
 - institutions are made of organizations,
@@ -27,6 +28,7 @@ The core message:
 - `Person` = wellbeing identity layer view
 - `Time Slice` = value log composition / protocol cascade view
 - `Org Impact` = contagion activation of one organization after person impact
+- `Empower Community Pillar` = explicit system-level trigger to consume queued org activation
 - `System Impact` = Community pillar growth + bridge stress/collapse sequence
 
 ## Current implementation map
@@ -76,7 +78,8 @@ Current pass status:
 - Block scene now persists completed org activation state per brick (full glow + aura rings).
 - Time Slice commit wiring regression was fixed (`onValueLogCommit` and draft change handlers restored).
 - Feature flag is currently `true` in `src/game/iov/iovNarrativeConfig.ts`.
-- Escalation route is now `impact -> orgimpact -> systemimpact -> topology`.
+- Escalation route is now `impact -> orgimpact -> block -> topology`; system impact is user-triggered via `Empower Community Pillar`.
+- System impact now includes rapid community build-up visuals before bridge collision and stress evaluation.
 - Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
 
 ## Newly added (this pass)

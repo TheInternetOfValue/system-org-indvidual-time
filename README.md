@@ -38,7 +38,7 @@ The interface includes:
   Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
 
 Semantic level controller:
-- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> systemimpact -> topology`.
+- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology`, with explicit `OPEN_SYSTEM_IMPACT` playback from topology when empowerment is triggered.
 
 Interaction host:
 - `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
@@ -53,8 +53,9 @@ Interaction host:
 4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
 5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
 6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
-7. `System Impact` (`IovTopologyScene`): live topology playback; Community pillar scales up and bridge stress ramps.
-8. Return to `System`: source brick remains radiant; bridge can collapse when stress crosses threshold.
+7. Return to `System`: org activation is queued and panel shows `Empower Community Pillar (N)`.
+8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, Community pillar builds upward, stress ramps, and bridge collapse is evaluated against threshold.
+9. Return to `System`: source brick remains radiant; bridge collapses only when stress crosses threshold.
 
 ---
 

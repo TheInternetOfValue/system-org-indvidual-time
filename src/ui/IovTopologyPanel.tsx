@@ -51,6 +51,9 @@ interface IovTopologyPanelProps {
   onValueLogPrev: () => void;
   onValueLogCommit: () => void;
   onOpenValueLog: () => void; // Added for Person Identity view
+  canEmpowerCommunity: boolean;
+  empowerLabel: string;
+  onEmpowerCommunity: () => void;
 }
 
 const IovTopologyPanel = ({
@@ -84,6 +87,9 @@ const IovTopologyPanel = ({
   onValueLogPrev,
   onValueLogCommit,
   onOpenValueLog,
+  canEmpowerCommunity,
+  empowerLabel,
+  onEmpowerCommunity,
 }: IovTopologyPanelProps) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -173,6 +179,11 @@ const IovTopologyPanel = ({
           >
             Reclaim
           </button>
+          {canEmpowerCommunity && (
+            <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
+              {empowerLabel}
+            </button>
+          )}
         </div>
       )}
       {isMobile && semanticLevel === "valuelog" && (
@@ -346,6 +357,11 @@ const IovTopologyPanel = ({
             >
               Reclaim
             </button>
+            {canEmpowerCommunity && (
+              <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
+                {empowerLabel}
+              </button>
+            )}
           </div>
         </>
       ) : (

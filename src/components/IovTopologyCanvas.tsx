@@ -67,6 +67,11 @@ const buildInitialToggles = (data: IovTopologyData) =>
     {} as Record<ToggleId, boolean>
   );
 
+interface PendingEmpowerState {
+  communityPowerDelta: number;
+  activationCount: number;
+}
+
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<IovTopologyScene | null>(null);
@@ -115,6 +120,8 @@ const IovTopologyCanvas = () => {
   );
   const [lastImpactedPersonId, setLastImpactedPersonId] = useState<string | null>(null);
   const [lastImpactedBrick, setLastImpactedBrick] = useState<SelectedBrickInfo | null>(null);
+  const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
+  const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   const hoveredRegion = useMemo(
@@ -420,6 +427,11 @@ const IovTopologyCanvas = () => {
       ? null
       : `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`;
   const canOpenBrick = semanticLevel === "topology" && selectedBrickInfo !== null;
+  const canEmpowerCommunity =
+    semanticLevel === "topology" && pendingEmpower !== null && !bridgeCollapsed;
+  const empowerLabel = pendingEmpower
+    ? `Empower Community Pillar (${pendingEmpower.activationCount})`
+    : "Empower Community Pillar";
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
 
   const handleToggle = (toggleId: ToggleId) => {
@@ -663,7 +675,10 @@ const IovTopologyCanvas = () => {
     setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
-  const startSystemImpactSequence = (orgImpactResult: OrgImpactResult) => {
+  const startSystemImpactSequence = (
+    orgImpactResult: OrgImpactResult,
+    options?: { empowerSurge?: boolean }
+  ) => {
     const scene = sceneRef.current;
     if (!scene) {
       const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
@@ -682,6 +697,7 @@ const IovTopologyCanvas = () => {
         communityPillarHeightBefore: before.communityPillarHeight,
         bridgeStressBefore: before.bridgeStress,
         bridgeStressThreshold: before.bridgeStressThreshold,
+        empowerSurge: options?.empowerSurge ?? false,
       },
       (systemImpactResult) => {
         impactEscalationRef.current.dispatch({
@@ -691,11 +707,37 @@ const IovTopologyCanvas = () => {
         systemImpactModelRef.current.communityPillarHeight =
           systemImpactResult.communityPillarHeightAfter;
         systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
+        setBridgeCollapsed(systemImpactResult.bridgeCollapsed);
 
         const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
         applySemanticTransition(back.level);
+        setPhaseHeadline(
+          systemImpactResult.bridgeCollapsed
+            ? "Community pillar impact collapsed the crony bridge."
+            : "Community pillar surged, bridge stress increased."
+        );
       }
     );
+  };
+
+  const handleEmpowerCommunity = () => {
+    if (!pendingEmpower || bridgeCollapsed) return;
+
+    const pendingResult: OrgImpactResult = {
+      regionId: "community",
+      brickId: 0,
+      activatedPeopleCount: pendingEmpower.activationCount,
+      populationCount: pendingEmpower.activationCount,
+      contagionComplete: true,
+      orgRadiance: 1,
+      communityPowerDelta: Number(
+        Math.max(0.05, Math.min(1.2, pendingEmpower.communityPowerDelta)).toFixed(3)
+      ),
+    };
+
+    setPendingEmpower(null);
+    setPhaseHeadline("Empowering community pillar...");
+    startSystemImpactSequence(pendingResult, { empowerSurge: true });
   };
 
   const startOrgImpactSequence = (personImpactResult: PersonImpactResult) => {
@@ -740,7 +782,21 @@ const IovTopologyCanvas = () => {
       }
 
       if (IOV_FEATURE_FLAGS.enableImpactEscalation) {
-        startSystemImpactSequence(orgImpactResult);
+        setPendingEmpower((prev) => {
+          const nextDelta =
+            (prev?.communityPowerDelta ?? 0) + orgImpactResult.communityPowerDelta;
+          return {
+            communityPowerDelta: Number(Math.min(1.2, nextDelta).toFixed(3)),
+            activationCount: (prev?.activationCount ?? 0) + 1,
+          };
+        });
+        const backToBlock = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+        applySemanticTransition(backToBlock.level);
+        const backToSystem = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+        applySemanticTransition(backToSystem.level);
+        setPhaseHeadline(
+          "Organization activated. Press Empower Community Pillar to trigger system impact."
+        );
         return;
       }
 
@@ -1002,6 +1058,9 @@ function getRegionMeaning(regionId: RegionId) {
         onValueLogPrev={onValueLogPrev}
         onValueLogCommit={handleValueLogCommit}
         onOpenValueLog={handleOpenValueLog}
+        canEmpowerCommunity={canEmpowerCommunity}
+        empowerLabel={empowerLabel}
+        onEmpowerCommunity={handleEmpowerCommunity}
       />
     </div>
   );

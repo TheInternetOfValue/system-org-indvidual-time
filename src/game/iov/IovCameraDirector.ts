@@ -25,6 +25,7 @@ interface ActiveShot {
   end: CameraPose;
   durationSeconds: number;
   elapsedSeconds: number;
+  fovOvershoot: number;
   resolve: () => void;
 }
 
@@ -72,6 +73,7 @@ export class IovCameraDirector {
     rig: CameraRig;
     endPose: CameraPose;
     durationMs: number;
+    fovOvershoot?: number;
   }) {
     this.cancelShot();
     const start = this.captureCurrentPose(args.rig);
@@ -89,6 +91,7 @@ export class IovCameraDirector {
         end,
         durationSeconds: Math.max(0.12, args.durationMs / 1000),
         elapsedSeconds: 0,
+        fovOvershoot: args.fovOvershoot ?? 0,
         resolve,
       };
     });
@@ -106,7 +109,7 @@ export class IovCameraDirector {
     this.tempTarget.lerpVectors(shot.start.target, shot.end.target, t);
     shot.rig.camera.position.copy(this.tempPosition);
     shot.rig.controls.target.copy(this.tempTarget);
-    shot.rig.camera.fov = THREE.MathUtils.lerp(shot.start.fov, shot.end.fov, t);
+    shot.rig.camera.fov = this.computeShotFov(shot, t);
     shot.rig.camera.updateProjectionMatrix();
     shot.rig.controls.update();
 
@@ -123,6 +126,21 @@ export class IovCameraDirector {
       target: rig.controls.target.clone(),
       fov: rig.camera.fov,
     };
+  }
+
+  private computeShotFov(shot: ActiveShot, t: number) {
+    if (shot.fovOvershoot <= 0) {
+      return THREE.MathUtils.lerp(shot.start.fov, shot.end.fov, t);
+    }
+
+    const pivot = 0.82;
+    const overshootFov = shot.end.fov - shot.fovOvershoot;
+    if (t <= pivot) {
+      const localT = t / pivot;
+      return THREE.MathUtils.lerp(shot.start.fov, overshootFov, localT);
+    }
+    const localT = (t - pivot) / Math.max(0.0001, 1 - pivot);
+    return THREE.MathUtils.lerp(overshootFov, shot.end.fov, localT);
   }
 }
 

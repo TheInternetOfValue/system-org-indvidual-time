@@ -346,6 +346,11 @@ export class IovTopologyScene {
     revealAt: number;
   }> = [];
   private systemImpactBuiltBrickCount = 0;
+  private brickFocusCueActive = false;
+  private brickFocusCueElapsed = 0;
+  private brickFocusCueDuration = 0;
+  private brickFocusCueResolver: (() => void) | null = null;
+  private brickFocusCueBaseOpacity = 0.95;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -424,6 +429,25 @@ export class IovTopologyScene {
     const scale = new THREE.Vector3();
     matrix.decompose(position, rotation, scale);
     return position;
+  }
+
+  playBrickFocusCue(regionId: RegionId, instanceId: number, durationMs = 180) {
+    const runtime = this.regions.get(regionId);
+    if (!runtime || instanceId < 0 || instanceId >= runtime.currentBricks.length) {
+      return Promise.resolve();
+    }
+
+    this.setSelectionMarker(runtime.mesh, instanceId);
+
+    const material = this.selectedOutline.material as THREE.LineBasicMaterial;
+    this.brickFocusCueBaseOpacity = material.opacity;
+    this.brickFocusCueActive = true;
+    this.brickFocusCueElapsed = 0;
+    this.brickFocusCueDuration = Math.max(0.08, durationMs / 1000);
+
+    return new Promise<void>((resolve) => {
+      this.brickFocusCueResolver = resolve;
+    });
   }
 
   setBrickInteractionMode(mode: BrickInteractionMode) {
@@ -725,6 +749,7 @@ export class IovTopologyScene {
     this.updateLandingPulses(deltaSeconds);
     this.updateSlotMarkers();
     this.updateBuildPhases(deltaSeconds);
+    this.updateBrickFocusCue(deltaSeconds);
     this.updateSystemImpact(deltaSeconds);
     this.updateFallingBricks(deltaSeconds);
   }
@@ -954,6 +979,27 @@ export class IovTopologyScene {
     this.setBridgeDecorReveal(this.regionReveal.crony_bridge);
   }
 
+  private updateBrickFocusCue(deltaSeconds: number) {
+    if (!this.brickFocusCueActive) return;
+
+    this.brickFocusCueElapsed += deltaSeconds;
+    const t = Math.min(1, this.brickFocusCueElapsed / this.brickFocusCueDuration);
+    const pulse = 1 + Math.sin(t * Math.PI) * 0.2;
+    this.selectedOutline.scale.setScalar(1.02 * pulse);
+
+    const material = this.selectedOutline.material as THREE.LineBasicMaterial;
+    material.opacity = this.brickFocusCueBaseOpacity + Math.sin(t * Math.PI) * 0.12;
+
+    if (t >= 1) {
+      this.selectedOutline.scale.set(1.02, 1.02, 1.02);
+      material.opacity = this.brickFocusCueBaseOpacity;
+      this.brickFocusCueActive = false;
+      const done = this.brickFocusCueResolver;
+      this.brickFocusCueResolver = null;
+      done?.();
+    }
+  }
+
   private updateSystemImpact(deltaSeconds: number) {
     if (!this.systemImpactActive || !this.systemImpactResult) return;
 
@@ -1141,6 +1187,12 @@ export class IovTopologyScene {
     this.systemImpactStressThresholdCrossed = false;
     this.systemImpactBridgeContactY = 0;
     this.systemImpactBridgeTarget.set(0, 0, 0);
+    if (this.brickFocusCueActive) {
+      this.brickFocusCueActive = false;
+      const done = this.brickFocusCueResolver;
+      this.brickFocusCueResolver = null;
+      done?.();
+    }
   }
 
   private updateFallingBricks(delta: number) {

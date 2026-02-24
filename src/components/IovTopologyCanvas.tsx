@@ -81,6 +81,7 @@ const IovTopologyCanvas = () => {
   const impactSceneRef = useRef<PersonImpactScene | null>(null);
   const valueLogSceneRef = useRef<ValueLogScene | null>(null);
   const cameraDirectorRef = useRef(new IovCameraDirector());
+  const transitionBusyRef = useRef(false);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
   const impactEscalationRef = useRef(
     new IovImpactEscalationController(IOV_FEATURE_FLAGS.enableImpactEscalation)
@@ -283,7 +284,7 @@ const IovTopologyCanvas = () => {
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (cameraDirectorRef.current.isPlaying) return;
+      if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
       const rect = renderer.domElement.getBoundingClientRect();
       const x = event.clientX - rect.left;
       const y = event.clientY - rect.top;
@@ -333,7 +334,7 @@ const IovTopologyCanvas = () => {
     };
 
     const onPointerUp = () => {
-      if (cameraDirectorRef.current.isPlaying) return;
+      if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
       if (dragDistance <= 4) {
         if (semanticLevelRef.current === "topology") {
           // Click selection maps the hovered brick instance back to region id.
@@ -350,7 +351,7 @@ const IovTopologyCanvas = () => {
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (!sceneRef.current) return;
-      if (cameraDirectorRef.current.isPlaying) return;
+      if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
 
       if (event.key === "Escape" && semanticLevelRef.current !== "topology") {
         const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
@@ -392,6 +393,7 @@ const IovTopologyCanvas = () => {
       blockScene.dispose();
       personScene.dispose();
       valueLogScene.dispose();
+      transitionBusyRef.current = false;
       cameraDirectorRef.current.cancelShot();
       composer?.dispose();
       renderer.dispose();
@@ -535,52 +537,69 @@ const IovTopologyCanvas = () => {
     }
   };
 
+  const waitMs = (ms: number) =>
+    new Promise<void>((resolve) => {
+      window.setTimeout(resolve, ms);
+    });
+
   const onOpenBrick = async () => {
     if (!selectedBrickInfo) return;
-    if (cameraDirectorRef.current.isPlaying) return;
+    if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    transitionBusyRef.current = true;
 
     const scene = sceneRef.current;
     const blockScene = blockSceneRef.current;
-    if (scene && blockScene) {
-      const anchor = scene.getBrickAnchor(
-        selectedBrickInfo.regionId,
-        selectedBrickInfo.instanceId
-      );
-      if (anchor) {
-        cameraDirectorRef.current.captureLevelPose("topology", {
-          camera: scene.camera,
-          controls: scene.controls,
-        });
-        const target = anchor.clone();
-        target.y += isMobile ? 1.05 : 0.95;
-        const position = target
-          .clone()
-          .add(new THREE.Vector3(0, isMobile ? 7.2 : 6.5, isMobile ? 12.8 : 11.5));
-        await cameraDirectorRef.current.playShot({
-          id: "SYSTEM_TO_ORGANIZATION",
-          rig: {
+    try {
+      if (scene && blockScene) {
+        const anchor = scene.getBrickAnchor(
+          selectedBrickInfo.regionId,
+          selectedBrickInfo.instanceId
+        );
+        if (anchor) {
+          await scene.playBrickFocusCue(
+            selectedBrickInfo.regionId,
+            selectedBrickInfo.instanceId,
+            isMobile ? 210 : 180
+          );
+          cameraDirectorRef.current.captureLevelPose("topology", {
             camera: scene.camera,
             controls: scene.controls,
-          },
-          endPose: {
-            position,
-            target,
-            fov: isMobile ? 46 : 38,
-          },
-          durationMs: isMobile ? 1200 : 1100,
+          });
+          const target = anchor.clone();
+          target.y += isMobile ? 1.05 : 0.95;
+          const position = target
+            .clone()
+            .add(new THREE.Vector3(0, isMobile ? 7.2 : 6.5, isMobile ? 12.8 : 11.5));
+          await cameraDirectorRef.current.playShot({
+            id: "SYSTEM_TO_ORGANIZATION",
+            rig: {
+              camera: scene.camera,
+              controls: scene.controls,
+            },
+            endPose: {
+              position,
+              target,
+              fov: isMobile ? 46 : 38,
+            },
+            durationMs: isMobile ? 1200 : 1100,
+            fovOvershoot: isMobile ? 0.9 : 1.1,
+          });
+          await waitMs(isMobile ? 150 : 120);
+        }
+      }
+
+      const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
+      applySemanticTransition(next.level);
+      if (blockScene) {
+        blockScene.setSourceBrick(selectedBrickInfo);
+        applyBlockActivationState(selectedBrickInfo);
+        cameraDirectorRef.current.captureLevelPose("block", {
+          camera: blockScene.camera,
+          controls: blockScene.controls,
         });
       }
-    }
-
-    const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
-    applySemanticTransition(next.level);
-    if (blockScene) {
-      blockScene.setSourceBrick(selectedBrickInfo);
-      applyBlockActivationState(selectedBrickInfo);
-      cameraDirectorRef.current.captureLevelPose("block", {
-        camera: blockScene.camera,
-        controls: blockScene.controls,
-      });
+    } finally {
+      transitionBusyRef.current = false;
     }
   };
 
@@ -595,7 +614,7 @@ const IovTopologyCanvas = () => {
   };
 
   const handleBackSemantic = () => {
-    if (cameraDirectorRef.current.isPlaying) return;
+    if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
     const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
     applySemanticTransition(next.level);
     if (next.level === "topology") {
@@ -608,52 +627,60 @@ const IovTopologyCanvas = () => {
 
   const handleOpenPersonStub = async () => {
     if (!selectedPersonId) return;
-    if (cameraDirectorRef.current.isPlaying) return;
+    if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    transitionBusyRef.current = true;
     const blockScene = blockSceneRef.current;
-    if (blockScene) {
-      const anchor = blockScene.getPersonAnchor(selectedPersonId);
-      if (anchor) {
-        cameraDirectorRef.current.captureLevelPose("block", {
-          camera: blockScene.camera,
-          controls: blockScene.controls,
-        });
-        const target = anchor.clone();
-        target.y += isMobile ? 0.26 : 0.2;
-        const position = target
-          .clone()
-          .add(new THREE.Vector3(0, isMobile ? 3.0 : 2.6, isMobile ? 5.6 : 4.8));
-        await cameraDirectorRef.current.playShot({
-          id: "ORGANIZATION_TO_PERSON",
-          rig: {
+    try {
+      if (blockScene) {
+        const anchor = blockScene.getPersonAnchor(selectedPersonId);
+        if (anchor) {
+          await blockScene.playPersonFocusCue(selectedPersonId, isMobile ? 190 : 160);
+          cameraDirectorRef.current.captureLevelPose("block", {
             camera: blockScene.camera,
             controls: blockScene.controls,
-          },
-          endPose: {
-            position,
-            target,
-            fov: isMobile ? 40 : 33,
-          },
-          durationMs: isMobile ? 980 : 900,
+          });
+          const target = anchor.clone();
+          target.y += isMobile ? 0.26 : 0.2;
+          const position = target
+            .clone()
+            .add(new THREE.Vector3(0, isMobile ? 3.0 : 2.6, isMobile ? 5.6 : 4.8));
+          await cameraDirectorRef.current.playShot({
+            id: "ORGANIZATION_TO_PERSON",
+            rig: {
+              camera: blockScene.camera,
+              controls: blockScene.controls,
+            },
+            endPose: {
+              position,
+              target,
+              fov: isMobile ? 40 : 33,
+            },
+            durationMs: isMobile ? 980 : 900,
+            fovOvershoot: isMobile ? 0.7 : 0.9,
+          });
+          await waitMs(isMobile ? 130 : 110);
+        }
+      }
+      const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
+      personSceneRef.current?.setPersonContext(selectedPersonId, sourceRegion);
+      const logs = resolvePersonValuelogs(valueLogData, selectedPersonId, sourceRegion);
+      setActivePersonLogs(logs);
+      personSceneRef.current?.setTimelineLogs(logs);
+      personSceneRef.current?.setDetailMode("identity");
+      setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+      const next = zoomControllerRef.current.dispatch({
+        type: "OPEN_PERSON",
+        personId: selectedPersonId,
+      });
+      applySemanticTransition(next.level);
+      if (personSceneRef.current) {
+        cameraDirectorRef.current.captureLevelPose("person", {
+          camera: personSceneRef.current.camera,
+          controls: personSceneRef.current.controls,
         });
       }
-    }
-    const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
-    personSceneRef.current?.setPersonContext(selectedPersonId, sourceRegion);
-    const logs = resolvePersonValuelogs(valueLogData, selectedPersonId, sourceRegion);
-    setActivePersonLogs(logs);
-    personSceneRef.current?.setTimelineLogs(logs);
-    personSceneRef.current?.setDetailMode("identity");
-    setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-    const next = zoomControllerRef.current.dispatch({
-      type: "OPEN_PERSON",
-      personId: selectedPersonId,
-    });
-    applySemanticTransition(next.level);
-    if (personSceneRef.current) {
-      cameraDirectorRef.current.captureLevelPose("person", {
-        camera: personSceneRef.current.camera,
-        controls: personSceneRef.current.controls,
-      });
+    } finally {
+      transitionBusyRef.current = false;
     }
   };
 
@@ -993,7 +1020,7 @@ function getRegionMeaning(regionId: RegionId) {
             type="button"
             className={item.active ? "is-active" : ""}
             onClick={() => {
-              if (cameraDirectorRef.current.isPlaying) return;
+              if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
               if (item.active) return;
               zoomControllerRef.current.dispatch({ type: "SET_LEVEL", level: item.level });
               applySemanticTransition(item.level);

@@ -117,7 +117,12 @@ Module status update:
     - `Open Organization` (`SYSTEM_TO_ORGANIZATION`)
     - `Open Person` (`ORGANIZATION_TO_PERSON`)
   - interactions are blocked during active shot playback to avoid transition conflicts.
-- next implementation target: `Module 2` (transition polish pass).
+- `Module 2` is complete:
+  - pre-focus cues added before open transitions (`IovTopologyScene.playBrickFocusCue`, `BlockInteriorScene.playPersonFocusCue`)
+  - settle holds added after shot completion before level swap
+  - subtle FOV overshoot/settle emphasis added to `IovCameraDirector.playShot(...)`
+  - transition-busy lock added to prevent concurrent interactions during cue/settle windows.
+- next implementation target: `Module 3` (in-scene controls phase 1).
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

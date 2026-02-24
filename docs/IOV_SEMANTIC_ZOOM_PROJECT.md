@@ -72,6 +72,15 @@ Module 1 status:
   - pointer/key/breadcrumb actions are blocked during active camera shot playback
   - fallback to existing immediate transition path when shot anchors are unavailable
 
+Module 2 status:
+- `completed` on `2026-02-25`
+- transition polish added on top of Module 1 shots:
+  - pre-focus visual cue on selected brick/person before camera travel
+  - short settle hold after shot completion before semantic level swap
+  - subtle FOV overshoot/settle emphasis in `IovCameraDirector` shot playback
+- safety guard:
+  - transition-busy lock to prevent concurrent interaction during pre-focus/settle windows
+
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
 `Person Impact -> Org Impact -> System Impact`.
@@ -612,6 +621,7 @@ After each implementation pass:
 - 2026-02-24: New development track approved: prioritize cinematic camera choreography and in-scene-first interaction migration in modular checkpoints.
 - 2026-02-24: Camera choreography must be implemented from a locked shot contract (durations, framing, interrupt rules, mobile variants) before runtime camera refactors.
 - 2026-02-25: Camera transitions are orchestrated through `IovCameraDirector` with shot-level blocking to prevent concurrent interaction during playback.
+- 2026-02-25: Transition polish must preserve determinism and must not permit concurrent input during cue/settle phases.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -637,8 +647,9 @@ After each implementation pass:
 - 2026-02-24: Started `Aesthetic + Interaction Development` track and documented modular rollout/checkpoint policy.
 - 2026-02-24: Completed Module 0 and added locked shot contract doc `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
 - 2026-02-25: Completed Module 1 camera foundation (`IovCameraDirector`) and wired cinematic `System -> Organization -> Person` transitions.
+- 2026-02-25: Completed Module 2 transition polish (pre-focus cues, settle holds, subtle shot emphasis, transition-busy lock).
 
 ## Next Up
-1. Module 2: add transition polish (pre-focus, settle hold, subtle emphasis) without breaking current flow.
-2. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.
+1. Module 3 (phase 1): move topology/block primary actions into in-scene controls while retaining panel fallback.
+2. Module 4 (phase 2): move person/time-slice primary actions into in-scene controls and make panel secondary.
 3. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.

@@ -72,6 +72,8 @@ Current pass status:
 - Pass 1 and Pass 2 are implemented behind feature flag.
 - Contracts/state live in `src/game/iov/iovImpactEscalation.ts`.
 - Org contagion scene lives in `src/game/iov/OrgImpactScene.ts`.
+- Block scene now persists completed org activation state per brick (full glow + aura rings).
+- Time Slice commit wiring regression was fixed (`onValueLogCommit` and draft change handlers restored).
 - Feature flag is currently `false` in `src/game/iov/iovNarrativeConfig.ts`.
 - Next pass should implement `SystemImpactScene` and bridge-stress model migration.
 

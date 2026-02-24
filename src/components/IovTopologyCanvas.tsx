@@ -79,6 +79,7 @@ const IovTopologyCanvas = () => {
   const impactEscalationRef = useRef(
     new IovImpactEscalationController(IOV_FEATURE_FLAGS.enableImpactEscalation)
   );
+  const orgActivatedBrickKeysRef = useRef<Set<string>>(new Set());
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -109,6 +110,7 @@ const IovTopologyCanvas = () => {
     buildInitialToggles(topologyData)
   );
   const [lastImpactedPersonId, setLastImpactedPersonId] = useState<string | null>(null);
+  const [lastImpactedBrick, setLastImpactedBrick] = useState<SelectedBrickInfo | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   const hoveredRegion = useMemo(
@@ -488,12 +490,36 @@ const IovTopologyCanvas = () => {
     }
   };
 
+  const getBrickActivationKey = (regionId: RegionId, instanceId: number) =>
+    `${regionId}:${instanceId}`;
+
+  const applyBlockActivationState = (selection: SelectedBrickInfo | null) => {
+    const blockScene = blockSceneRef.current;
+    if (!blockScene || !selection) return;
+
+    const key = getBrickActivationKey(selection.regionId, selection.instanceId);
+    if (orgActivatedBrickKeysRef.current.has(key)) {
+      blockScene.activateOrganization(lastImpactedPersonId ?? undefined);
+      return;
+    }
+
+    const sameBrickAsLastImpact =
+      lastImpactedBrick &&
+      lastImpactedBrick.regionId === selection.regionId &&
+      lastImpactedBrick.instanceId === selection.instanceId;
+
+    if (sameBrickAsLastImpact && lastImpactedPersonId) {
+      blockScene.activatePerson(lastImpactedPersonId);
+    }
+  };
+
   const onOpenBrick = () => {
     if (!selectedBrickInfo) return;
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
     applySemanticTransition(next.level);
     if (blockSceneRef.current) {
-        blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+      blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+      applyBlockActivationState(selectedBrickInfo);
     }
   };
 
@@ -516,7 +542,8 @@ const IovTopologyCanvas = () => {
     
     // Set the block scene context
     if (blockSceneRef.current) {
-        blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+      blockSceneRef.current.setSourceBrick(selectedBrickInfo);
+      applyBlockActivationState(selectedBrickInfo);
     }
   };
 
@@ -657,6 +684,11 @@ const IovTopologyCanvas = () => {
         type: "COMPLETE_ORG_IMPACT",
         result: orgImpactResult,
       });
+      if (orgImpactResult.contagionComplete) {
+        const key = getBrickActivationKey(orgImpactResult.regionId, orgImpactResult.brickId);
+        orgActivatedBrickKeysRef.current.add(key);
+        blockSceneRef.current?.activateOrganization(personImpactResult.personId);
+      }
       const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
       applySemanticTransition(back.level);
     });
@@ -677,6 +709,11 @@ const IovTopologyCanvas = () => {
       setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
       setValueLogStep("select_time");
       setLastImpactedPersonId(selectedPersonId);
+      setLastImpactedBrick(
+        selectedBrickInfo
+          ? { ...selectedBrickInfo }
+          : null
+      );
 
       if (IOV_FEATURE_FLAGS.enableImpactEscalation && selectedBrickInfo) {
         const auraDelta = valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
@@ -711,28 +748,27 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  // Propagate activation state when entering block view
+  // Keep block activation visuals consistent when returning from person/org impact flows.
   useEffect(() => {
-    if ( semanticLevelRef.current === "block" && lastImpactedPersonId && blockSceneRef.current) {
-        // @ts-ignore - method added dynamically
-        if (typeof blockSceneRef.current.activatePerson === 'function') {
-            // @ts-ignore
-            blockSceneRef.current.activatePerson(lastImpactedPersonId);
-        }
-    }
-  }, [semanticLevelRef.current, lastImpactedPersonId]);
+    if (semanticLevel !== "block" || !selectedBrickInfo) return;
+    applyBlockActivationState(selectedBrickInfo);
+  }, [semanticLevel, selectedBrickInfo, lastImpactedPersonId, lastImpactedBrick]);
 
-  // Propagate activation to topology when zooming out
+  // Promote last impacted brick to radiant state when zooming back to topology.
   useEffect(() => {
-    if (semanticLevel === "topology" && lastImpactedPersonId && selectedBrickInfo && sceneRef.current) {
-        sceneRef.current.activateBrick(selectedBrickInfo.regionId, selectedBrickInfo.instanceId);
-        // Optional: trigger "community reclaim" logic here if needed
-        // sceneRef.current.reclaimBrick(...)
-        
-        // Clear the impact flag so we don't re-activate on next visit unless there is a new impact
-        setLastImpactedPersonId(null);
+    if (
+      semanticLevel !== "topology" ||
+      !lastImpactedPersonId ||
+      !lastImpactedBrick ||
+      !sceneRef.current
+    ) {
+      return;
     }
-  }, [semanticLevel, lastImpactedPersonId, selectedBrickInfo]);
+
+    sceneRef.current.activateBrick(lastImpactedBrick.regionId, lastImpactedBrick.instanceId);
+    setLastImpactedPersonId(null);
+    setLastImpactedBrick(null);
+  }, [semanticLevel, lastImpactedPersonId, lastImpactedBrick]);
 
   function getRegionLabel(regionId: RegionId) {
     const region = topologyData.regions.find(r => r.id === regionId);

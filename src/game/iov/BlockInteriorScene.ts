@@ -26,6 +26,11 @@ interface PersonToken {
   stance: number;
 }
 
+interface OrgAuraToken {
+  mesh: THREE.Mesh;
+  phase: number;
+}
+
 const PROFILE_BY_REGION: Record<RegionId, string[]> = {
   market: ["Trader", "Engineer", "Analyst", "Worker"],
   state: ["Civil Servant", "Nurse", "Teacher", "Operator"],
@@ -93,6 +98,15 @@ export class BlockInteriorScene {
   private activatedPersonId: string | null = null;
   private activationMesh: THREE.Mesh | null = null;
   private readonly activationLight = new THREE.PointLight("#ffcd3c", 2, 4);
+  private readonly orgActivationLight = new THREE.PointLight("#ffd26a", 0, 8);
+  private readonly orgAuraGeometry = new THREE.TorusGeometry(0.24, 0.02, 8, 24);
+  private readonly orgAuraMaterial = new THREE.MeshBasicMaterial({
+    color: "#ffe291",
+    transparent: true,
+    opacity: 0.72,
+  });
+  private readonly orgAuraTokens: OrgAuraToken[] = [];
+  private orgActivated = false;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -117,6 +131,9 @@ export class BlockInteriorScene {
     this.selectedMarker.rotation.x = -Math.PI / 2;
     this.selectedMarker.visible = false;
     this.root.add(this.hoverMarker, this.selectedMarker);
+    this.orgActivationLight.position.set(0, 1.1, 0);
+    this.orgActivationLight.visible = false;
+    this.root.add(this.orgActivationLight);
 
     this.camera.position.set(0, 2.5, 6.8);
     this.controls.target.set(0, 0.95, 0);
@@ -196,6 +213,14 @@ export class BlockInteriorScene {
   }
 
   activatePerson(personId: string) {
+    this.orgActivated = false;
+    this.orgActivationLight.visible = false;
+    this.orgActivationLight.intensity = 0;
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      mesh.visible = false;
+    });
+    this.applyBodyPalette(false);
+
     if (this.activatedPersonId === personId) return;
     this.activatedPersonId = personId;
 
@@ -225,6 +250,20 @@ export class BlockInteriorScene {
     }
   }
 
+  activateOrganization(seedPersonId?: string) {
+    if (seedPersonId) {
+      this.activatePerson(seedPersonId);
+    }
+    this.orgActivated = true;
+    this.ensureOrgAuraTokens();
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      mesh.visible = true;
+    });
+    this.applyBodyPalette(true);
+    this.orgActivationLight.visible = true;
+    this.orgActivationLight.intensity = 2.6;
+  }
+
   update(deltaSeconds: number) {
     this.controls.update();
     if (this.hasPointer) this.updateHover();
@@ -240,6 +279,16 @@ export class BlockInteriorScene {
       this.activationMesh.scale.set(pulse, pulse, 1);
       this.activationLight.intensity = 2 + Math.sin(time * 5) * 0.5;
     }
+
+    if (this.orgActivated) {
+      const time = performance.now() * 0.001;
+      this.orgAuraTokens.forEach(({ mesh, phase }) => {
+        if (!mesh.visible) return;
+        const pulse = 1 + Math.sin(time * 2.6 + phase) * 0.16;
+        mesh.scale.set(pulse, pulse, 1);
+      });
+      this.orgActivationLight.intensity = 2.4 + Math.sin(time * 3.1) * 0.35;
+    }
   }
 
   render(renderer: THREE.WebGLRenderer) {
@@ -248,6 +297,15 @@ export class BlockInteriorScene {
 
   dispose() {
     this.controls.dispose();
+    if (this.activationMesh) {
+      this.root.remove(this.activationMesh);
+      this.activationMesh.geometry.dispose();
+      (this.activationMesh.material as THREE.Material).dispose();
+      this.activationMesh = null;
+    }
+    this.clearOrgAuraTokens();
+    this.orgAuraGeometry.dispose();
+    this.orgAuraMaterial.dispose();
     this.torsoGeometry.dispose();
     this.pelvisGeometry.dispose();
     this.armGeometry.dispose();
@@ -306,6 +364,15 @@ export class BlockInteriorScene {
     this.personTokens.length = 0;
     this.selectedPersonId = null;
     this.hoveredPersonId = null;
+    this.activatedPersonId = null;
+    this.orgActivated = false;
+    this.orgActivationLight.visible = false;
+    this.orgActivationLight.intensity = 0;
+    if (this.activationMesh) {
+      this.activationMesh.visible = false;
+    }
+    this.activationLight.visible = false;
+    this.clearOrgAuraTokens();
     this.selectedMarker.visible = false;
     this.hoverMarker.visible = false;
     this.selectedBrickLabel = label;
@@ -506,6 +573,70 @@ export class BlockInteriorScene {
       this.rightArmMesh,
       this.headMesh
     );
+  }
+
+  private ensureOrgAuraTokens() {
+    if (this.orgAuraTokens.length === this.personTokens.length) return;
+    this.clearOrgAuraTokens();
+    this.personTokens.forEach((person, index) => {
+      const ring = new THREE.Mesh(this.orgAuraGeometry, this.orgAuraMaterial);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(person.position.x, 0.08, person.position.z);
+      ring.visible = false;
+      this.root.add(ring);
+      this.orgAuraTokens.push({
+        mesh: ring,
+        phase: index * 0.37,
+      });
+    });
+  }
+
+  private clearOrgAuraTokens() {
+    this.orgAuraTokens.forEach(({ mesh }) => {
+      this.root.remove(mesh);
+    });
+    this.orgAuraTokens.length = 0;
+  }
+
+  private applyBodyPalette(orgActivated: boolean) {
+    const highlight = new THREE.Color("#ffd56f");
+    const applyColors = (
+      mesh: THREE.InstancedMesh | null,
+      colorFor: (person: PersonToken) => THREE.Color
+    ) => {
+      if (!mesh) return;
+      this.personTokens.forEach((person, index) => {
+        mesh.setColorAt(index, colorFor(person));
+      });
+      if (mesh.instanceColor) {
+        mesh.instanceColor.needsUpdate = true;
+      }
+    };
+
+    applyColors(this.torsoMesh, (person) => {
+      const base = person.color.clone();
+      return orgActivated ? base.lerp(highlight, 0.7) : base;
+    });
+    applyColors(this.pelvisMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.93);
+      return orgActivated ? base.lerp(highlight, 0.64) : base;
+    });
+    applyColors(this.leftArmMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.88);
+      return orgActivated ? base.lerp(highlight, 0.6) : base;
+    });
+    applyColors(this.rightArmMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.88);
+      return orgActivated ? base.lerp(highlight, 0.6) : base;
+    });
+    applyColors(this.leftLegMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.74);
+      return orgActivated ? base.lerp(highlight, 0.52) : base;
+    });
+    applyColors(this.rightLegMesh, (person) => {
+      const base = person.color.clone().multiplyScalar(0.74);
+      return orgActivated ? base.lerp(highlight, 0.52) : base;
+    });
   }
 
   private disposePeopleMeshes() {

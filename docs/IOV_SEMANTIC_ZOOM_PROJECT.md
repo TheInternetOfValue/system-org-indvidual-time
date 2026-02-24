@@ -548,6 +548,7 @@ After each implementation pass:
 - 2026-02-24: System bridge collapse is tied to Community pillar growth and bridge stress, not raw reclaimed-brick count.
 - 2026-02-24: Pass 1 ships behind `IOV_FEATURE_FLAGS.enableImpactEscalation=false` to preserve existing demo behavior while contracts/controller land.
 - 2026-02-24: Pass 2 org-impact routing and scene logic are also integrated behind the same feature flag; default demo flow remains unchanged while scaffold stabilizes.
+- 2026-02-24: Block interior must persist contagion completion state per brick so revisits show full-org activation (not only single-person seed aura).
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -564,6 +565,8 @@ After each implementation pass:
 - 2026-02-24: Added modular rollout plan (Pass 1-4) and documentation protocol to reduce regression risk during end-scenes implementation.
 - 2026-02-24: Implemented Pass 1 contracts/state slice + default-off feature flag + tests, with no visual runtime changes when flag is off.
 - 2026-02-24: Implemented Pass 2 scaffold: `OrgImpactScene`, semantic routing (`impact -> orgimpact -> block`), contagion animation logic, and controller test coverage.
+- 2026-02-24: Fixed regression in Time Slice commit wiring (`onValueLogCommit` / `onValueLogDraftChange`) to restore end-to-end commit flow.
+- 2026-02-24: Added block-level org activation persistence and visuals so contagion completion resolves to full-organization glow state on return/revisit.
 
 ## Next Up
 1. Pass 3: implement `SystemImpactScene` and `orgimpact -> systemimpact -> topology` routing.

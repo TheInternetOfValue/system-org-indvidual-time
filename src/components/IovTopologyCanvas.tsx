@@ -99,6 +99,7 @@ const DOUBLE_TAP_WINDOW_MS = 340;
 
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const valueLogCommitDockRef = useRef<HTMLDivElement | null>(null);
   const topologyRegionActionRefs = useRef<Record<RegionId, HTMLButtonElement | null>>({
     market: null,
     state: null,
@@ -331,12 +332,14 @@ const IovTopologyCanvas = () => {
 
     const clock = new THREE.Clock();
     const projectedAnchor = new THREE.Vector3();
+    const valueLogTokenAnchor = new THREE.Vector3();
     let frame = 0;
     let personSummaryAccumulator = 0;
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
       cameraDirectorRef.current.update(delta);
       updateTopologyRegionActionAnchors();
+      updateValueLogCommitDockAnchor();
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -474,6 +477,54 @@ const IovTopologyCanvas = () => {
         button.style.opacity = "1";
         button.style.pointerEvents = "auto";
       }
+    }
+
+    function updateValueLogCommitDockAnchor() {
+      const host = containerRef.current;
+      const dock = valueLogCommitDockRef.current;
+      if (!host || !dock || !valueLogScene) return;
+
+      if (semanticLevelRef.current !== "valuelog") {
+        dock.style.opacity = "";
+        dock.style.pointerEvents = "";
+        dock.style.left = "";
+        dock.style.top = "";
+        dock.style.transform = "";
+        return;
+      }
+
+      valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
+      projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
+      if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+        dock.style.opacity = "0";
+        dock.style.pointerEvents = "none";
+        return;
+      }
+
+      const { clientWidth, clientHeight } = host;
+      const buttonWidth = Math.max(220, dock.offsetWidth || 220);
+      const buttonHeight = Math.max(52, dock.offsetHeight || 52);
+      const safeLeft = buttonWidth * 0.5 + 10;
+      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
+      const safeTop = isMobileRef.current ? 84 : 96;
+      const safeBottom = clientHeight - (isMobileRef.current ? 110 : 44);
+
+      const x = THREE.MathUtils.clamp(
+        (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
+        safeLeft,
+        safeRight
+      );
+      const y = THREE.MathUtils.clamp(
+        (-projectedAnchor.y * 0.5 + 0.5) * clientHeight + (isMobileRef.current ? 76 : 64),
+        safeTop,
+        safeBottom
+      );
+
+      dock.style.opacity = "1";
+      dock.style.pointerEvents = "auto";
+      dock.style.left = `${x}px`;
+      dock.style.top = `${y}px`;
+      dock.style.transform = "translate(-50%, -50%)";
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -1463,6 +1514,14 @@ function getRegionMeaning(regionId: RegionId) {
         </div>
       )}
 
+      {semanticLevel === "topology" && canEmpowerCommunity && (
+        <div className="iov-system-empower-fab" aria-label="System empowerment action">
+          <button className="iov-btn-action" type="button" onClick={handleEmpowerCommunity}>
+            {empowerLabel}
+          </button>
+        </div>
+      )}
+
       {semanticLevel === "topology" && selectedBrickInfo && (
         <>
           <div className="iov-scene-chip">
@@ -1602,7 +1661,7 @@ function getRegionMeaning(regionId: RegionId) {
             <span>{valueLogSummary.sceneActionHint}</span>
           </div>
           {canValueLogCommit && (
-            <div className="iov-scene-dock">
+            <div ref={valueLogCommitDockRef} className="iov-scene-dock iov-scene-dock-commit-floating">
               <button className="iov-btn-action iov-btn-inline" onClick={handleValueLogCommit}>
                 Commit Time Slice
               </button>

@@ -449,7 +449,69 @@ Delivered:
   - Updated mobile collapsed label to `Show cue` in presentation mode.
 - Cinematic spacing refinements:
   - Added presenter-specific CSS for scene chips/docks/action anchors to improve framing and reduce occlusion.
-  - Added mobile presenter spacing adjustments for safe-area and button footprint.
+- Added mobile presenter spacing adjustments for safe-area and button footprint.
+
+---
+
+### Phase 16: Mobile Time Slice Commit Visibility (Contextual Photon Anchor)
+Status: `COMPLETED`
+
+Tasks:
+- Fix mobile cases where `Commit Time Slice` is not reliably visible when pinned to bottom overlays.
+- Keep commit CTA contextual to the active Time Slice scene state.
+
+Acceptance:
+- Commit CTA is visible on mobile devices with varying viewport/safe-area/browser chrome behavior.
+- CTA appears near the active photon/token context instead of relying only on bottom docking.
+- Tests/build pass.
+
+Delivered:
+- Added photon-context commit anchoring:
+  - Exposed token world position from `ValueLogScene` (`getTokenWorldPosition`).
+  - Positioned commit dock each frame in `IovTopologyCanvas` by projecting token world position into screen space.
+  - Added safe-area and viewport clamping for robust placement on narrow/short mobile screens.
+- Added styling support for floating commit dock:
+  - New `iov-scene-dock-commit-floating` class with mobile/presentation overrides.
+  - Preserved fallback dock behavior if projection context is unavailable.
+
+---
+
+### Phase 17: Mobile Context-Peek Safe-Area Lift
+Status: `COMPLETED`
+
+Tasks:
+- Prevent the collapsed mobile `Show context` control from being clipped by browser chrome / bottom insets.
+
+Acceptance:
+- Mobile `Show context` control remains fully visible on short viewports and toolbar-heavy browsers.
+- No behavior change to panel expansion/collapse logic.
+- Tests/build pass.
+
+Delivered:
+- Increased mobile collapsed peek offset in CSS:
+  - `bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));`
+- Kept existing left anchor behavior to avoid disrupting scene interaction flow.
+
+---
+
+### Phase 18: System Empower CTA Always Visible In-Scene
+Status: `COMPLETED`
+
+Tasks:
+- Make `Empower Community` directly tappable on System scene without requiring panel expansion.
+
+Acceptance:
+- When empowerment is available, CTA is visible in the scene even if mobile panel is collapsed.
+- CTA remains reachable on mobile safe-area/browser-chrome layouts.
+- Tests/build pass.
+
+Delivered:
+- Added floating System CTA in `IovTopologyCanvas`:
+  - Renders when `semanticLevel === "topology"` and `canEmpowerCommunity === true`.
+  - Calls existing `handleEmpowerCommunity` flow.
+- Added `iov-system-empower-fab` styling in `index.css`:
+  - Bottom-right anchored, safe-area aware, full-width action button on mobile.
+  - Non-overlapping with left-anchored `Show context` control.
 
 ---
 
@@ -499,6 +561,15 @@ Delivered:
 - Phase 15:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 16:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 17:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 18:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -516,3 +587,6 @@ Delivered:
 - Phase 13: `fix: phase 13 end-to-end flow hardening for time-slice entry and commit readiness`
 - Phase 14: `perf: phase 14 deferred scene loading and idle preload`
 - Phase 15: `style: phase 15 presenter-mode single-action polish and cinematic spacing`
+- Phase 16: `fix: phase 16 anchor commit CTA near photon on mobile`
+- Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`
+- Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`

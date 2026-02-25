@@ -1514,6 +1514,14 @@ function getRegionMeaning(regionId: RegionId) {
         </div>
       )}
 
+      {semanticLevel === "topology" && canEmpowerCommunity && (
+        <div className="iov-system-empower-fab" aria-label="System empowerment action">
+          <button className="iov-btn-action" type="button" onClick={handleEmpowerCommunity}>
+            {empowerLabel}
+          </button>
+        </div>
+      )}
+
       {semanticLevel === "topology" && selectedBrickInfo && (
         <>
           <div className="iov-scene-chip">

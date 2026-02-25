@@ -158,6 +158,21 @@ body {
   color: rgba(190, 212, 243, 0.85);
 }
 
+.iov-system-empower-fab {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 16;
+  width: min(320px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.iov-system-empower-fab .iov-btn-action {
+  width: 100%;
+  min-height: 48px;
+  pointer-events: auto;
+}
+
 .iov-semantic-overlay {
   position: absolute;
   inset: 0;
@@ -950,6 +965,12 @@ body {
 
   .iov-topology-scene-action-cue {
     display: none;
+  }
+
+  .iov-system-empower-fab {
+    right: 10px;
+    width: min(320px, calc(100vw - 20px));
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));
   }
 
   .iov-semantic-card {

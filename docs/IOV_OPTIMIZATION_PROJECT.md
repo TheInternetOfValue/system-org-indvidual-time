@@ -494,6 +494,27 @@ Delivered:
 
 ---
 
+### Phase 18: System Empower CTA Always Visible In-Scene
+Status: `COMPLETED`
+
+Tasks:
+- Make `Empower Community` directly tappable on System scene without requiring panel expansion.
+
+Acceptance:
+- When empowerment is available, CTA is visible in the scene even if mobile panel is collapsed.
+- CTA remains reachable on mobile safe-area/browser-chrome layouts.
+- Tests/build pass.
+
+Delivered:
+- Added floating System CTA in `IovTopologyCanvas`:
+  - Renders when `semanticLevel === "topology"` and `canEmpowerCommunity === true`.
+  - Calls existing `handleEmpowerCommunity` flow.
+- Added `iov-system-empower-fab` styling in `index.css`:
+  - Bottom-right anchored, safe-area aware, full-width action button on mobile.
+  - Non-overlapping with left-anchored `Show context` control.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -546,6 +567,9 @@ Delivered:
 - Phase 17:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 18:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -565,3 +589,4 @@ Delivered:
 - Phase 15: `style: phase 15 presenter-mode single-action polish and cinematic spacing`
 - Phase 16: `fix: phase 16 anchor commit CTA near photon on mobile`
 - Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`
+- Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`

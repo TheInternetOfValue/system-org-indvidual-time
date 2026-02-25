@@ -32,7 +32,7 @@ Delivered:
 ---
 
 ### Phase 2: Load-Time and Data Fetch Efficiency
-Status: `IN_PROGRESS`
+Status: `COMPLETED`
 
 Tasks:
 - Enable cache-friendly fetch behavior for static value/timelog JSON payloads.
@@ -42,10 +42,17 @@ Acceptance:
 - Same data shape and fallback behavior.
 - Tests/build pass.
 
+Delivered:
+- Switched static JSON fetches from `no-store` to `force-cache` in:
+  - `src/game/iov/iovValues.ts`
+  - `src/game/iov/iovTimelogs.ts`
+- Added in-memory memoization (`pending promise` + `resolved snapshot`) for both loaders to avoid repeated fetch/parse work within a session.
+- Preserved existing fallback behavior and schema normalization.
+
 ---
 
 ### Phase 3: Time Slice + Impact Demo Quality (Targeted)
-Status: `PENDING`
+Status: `IN_PROGRESS`
 
 Tasks:
 - Streamline Time Slice control surface to reduce duplicated UI/control paths.
@@ -62,6 +69,10 @@ Acceptance:
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 2:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
-- Phase 1: pending local commit.
+- Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
+- Phase 2: pending local commit.

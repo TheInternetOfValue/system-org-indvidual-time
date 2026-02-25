@@ -120,27 +120,44 @@ export const DEFAULT_IOV_VALUELOGS: IovValuelogDataset = {
 
 export const DEFAULT_IOV_TIMELOGS = DEFAULT_IOV_VALUELOGS;
 
+let cachedIovValuelogs: IovValuelogDataset | null = null;
+let pendingIovValuelogsLoad: Promise<IovValuelogDataset> | null = null;
+
 export const loadIovValuelogs = async (): Promise<IovValuelogDataset> => {
-  try {
-    let response = await fetch("/data/iov_valuelogs.json", { cache: "no-store" });
-    if (!response.ok) {
-      response = await fetch("/data/iov_timelogs.json", { cache: "no-store" });
+  if (cachedIovValuelogs) return cachedIovValuelogs;
+  if (pendingIovValuelogsLoad) return pendingIovValuelogsLoad;
+
+  pendingIovValuelogsLoad = (async () => {
+    try {
+      let response = await fetch("/data/iov_valuelogs.json", { cache: "force-cache" });
+      if (!response.ok) {
+        response = await fetch("/data/iov_timelogs.json", { cache: "force-cache" });
+      }
+      if (!response.ok) {
+        cachedIovValuelogs = DEFAULT_IOV_VALUELOGS;
+        return cachedIovValuelogs;
+      }
+      const raw = (await response.json()) as Partial<IovValuelogDataset>;
+      cachedIovValuelogs = {
+        version: raw.version ?? DEFAULT_IOV_VALUELOGS.version,
+        units: raw.units ?? DEFAULT_IOV_VALUELOGS.units,
+        notes: {
+          sources: Array.isArray(raw.notes?.sources) ? raw.notes.sources : [],
+          last_updated: raw.notes?.last_updated ?? null,
+        },
+        profiles: raw.profiles ?? {},
+        overrides: raw.overrides ?? {},
+      };
+      return cachedIovValuelogs;
+    } catch {
+      cachedIovValuelogs = DEFAULT_IOV_VALUELOGS;
+      return cachedIovValuelogs;
+    } finally {
+      pendingIovValuelogsLoad = null;
     }
-    if (!response.ok) return DEFAULT_IOV_VALUELOGS;
-    const raw = (await response.json()) as Partial<IovValuelogDataset>;
-    return {
-      version: raw.version ?? DEFAULT_IOV_VALUELOGS.version,
-      units: raw.units ?? DEFAULT_IOV_VALUELOGS.units,
-      notes: {
-        sources: Array.isArray(raw.notes?.sources) ? raw.notes.sources : [],
-        last_updated: raw.notes?.last_updated ?? null,
-      },
-      profiles: raw.profiles ?? {},
-      overrides: raw.overrides ?? {},
-    };
-  } catch {
-    return DEFAULT_IOV_VALUELOGS;
-  }
+  })();
+
+  return pendingIovValuelogsLoad;
 };
 
 export const loadIovTimelogs = loadIovValuelogs;

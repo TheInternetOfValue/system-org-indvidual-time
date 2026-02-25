@@ -1730,6 +1730,10 @@ const IovTopologyCanvas = () => {
   const handleValueLogCommit = async () => {
     if (!selectedPersonId) return;
     if (transitionBusyRef.current) return;
+    if (valueLogActionStage !== "ready_capture") {
+      setPhaseHeadline("Complete the in-scene Time Slice flow before capturing value.");
+      return;
+    }
     const valueLogScene = valueLogSceneRef.current;
     if (!valueLogScene) return;
     const entry = valueLogScene.commit(selectedPersonId);

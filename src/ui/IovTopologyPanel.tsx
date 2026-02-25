@@ -111,10 +111,10 @@ const IovTopologyPanel = ({
       ? marketCash + values.market.derivatives_notional
       : null;
   const legendItems = [
-    { id: "market", label: "Market", color: "#1f7a34" },
-    { id: "state", label: "State", color: "#c43a2f" },
-    { id: "community", label: "Community", color: "#d9b114" },
-    { id: "bridge", label: "Bridge", color: "#5f6670" },
+    { id: "market", label: "Market", color: "#1f4c8f" },
+    { id: "state", label: "State", color: "#8c4e2f" },
+    { id: "community", label: "Community", color: "#5f8d63" },
+    { id: "bridge", label: "Bridge", color: "#4a4f57" },
   ] as const;
 
   return (
@@ -485,19 +485,25 @@ const IovTopologyPanel = ({
                 Step: {valueLogSummary.stepLabel}
               </div>
               <div className="iov-panel-value-subline">
-                Tip: click scene elements directly. Next/Prev are optional.
+                {formatValueLogNarrative(valueLogStep)}
               </div>
-              <div className="iov-panel-mode-toggle iov-panel-mode-toggle-compact">
-                <button type="button" onClick={onValueLogPrev}>
-                  Prev
-                </button>
-                <button type="button" onClick={onValueLogNext}>
-                  Next
-                </button>
-                <button type="button" onClick={onValueLogCommit}>
-                  Commit Time Slice
-                </button>
-              </div>
+              {isMobile ? (
+                <div className="iov-panel-mode-toggle iov-panel-mode-toggle-compact">
+                  <button type="button" onClick={onValueLogPrev}>
+                    Prev
+                  </button>
+                  <button type="button" onClick={onValueLogNext}>
+                    Next
+                  </button>
+                  <button type="button" onClick={onValueLogCommit}>
+                    Commit Time Slice
+                  </button>
+                </div>
+              ) : (
+                <div className="iov-panel-value-subline">
+                  Use the center Time Slice composer controls for navigation and commit.
+                </div>
+              )}
               <div className="iov-panel-log-chain">
                 {valueLogStep === "select_time" && (
                   <div className="iov-panel-log-card">
@@ -700,6 +706,21 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
       return "System Impact";
     default:
       return level;
+  }
+};
+
+const formatValueLogNarrative = (step: WizardStep) => {
+  switch (step) {
+    case "select_time":
+      return "Define where your time/energy was spent.";
+    case "select_wellbeing":
+      return "Select the primary wellbeing layer this action touched.";
+    case "select_performance":
+      return "Map performance work into Learning / Earning / Org Building.";
+    case "show_outcome":
+      return "Review personal outcome before committing the time slice.";
+    default:
+      return "Build the action-to-impact chain.";
   }
 };
 

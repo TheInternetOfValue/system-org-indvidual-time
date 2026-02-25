@@ -35,6 +35,7 @@ Current semantic zoom chain:
 - State change feedback uses pulse/outline effects instead of recoloring brick identity.
 - Value commit flow uses explicit transition FX:
   - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
+- Time Slice interaction is centered on in-scene composer controls for desktop capture flow; panel controls are secondary/mobile-first.
 - Post-impact propagation:
   - impacted person activation ring in `BlockInteriorScene`.
   - org-level contagion in `BlockInteriorScene` (all people remain visible while aura spreads).
@@ -57,3 +58,8 @@ Current semantic zoom chain:
 
 ## Color Rendering
 - Detailed rendering diagnosis and target semantics are in `docs/IOV_COLOR_RENDERING.md`.
+- Active region identity palette:
+  - Market: deep blue (`#1f4c8f`)
+  - State: burnt brown (`#8c4e2f`)
+  - Community: muted green (`#5f8d63`)
+  - Bridge: graphite (`#4a4f57`)

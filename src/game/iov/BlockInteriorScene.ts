@@ -1024,10 +1024,10 @@ export class BlockInteriorScene {
 }
 
 const getRegionPeopleColor = (regionId: RegionId) => {
-  if (regionId === "market") return new THREE.Color("#2e9f4d");
-  if (regionId === "state") return new THREE.Color("#cc5649");
-  if (regionId === "community") return new THREE.Color("#d8bb3b");
-  return new THREE.Color("#7b8593");
+  if (regionId === "market") return new THREE.Color("#2d63ad");
+  if (regionId === "state") return new THREE.Color("#a15e39");
+  if (regionId === "community") return new THREE.Color("#709978");
+  return new THREE.Color("#626872");
 };
 
 const toRegionLabel = (regionId: RegionId) => {

@@ -16,9 +16,12 @@ export class PersonImpactScene {
   private time = 0;
   private readonly impactDuration = 0.6; // Seconds for drop
   private readonly rippleSpeed = 6.0;    // Units per second
+  private impactStrength = 1;
   private onComplete?: () => void;
   private draft: ValueLogDraft | null = null;
   private readonly startY = 12.0;
+  private readonly neutralEmissive = new THREE.Color(0x000000);
+  private readonly unitScale = new THREE.Vector3(1, 1, 1);
 
   constructor() {
     this.scene.add(this.root);
@@ -89,9 +92,23 @@ export class PersonImpactScene {
     
     // Determine Color based on Value Domain
     const color = new THREE.Color("#ffd700"); // Default Gold
-    if (draft.learningTag) color.set("#4cc9f0");      // Blue
-    else if (draft.earningTag) color.set("#f72585");  // Pink
-    else if (draft.orgBuildingTag) color.set("#4361ee"); // Deep Blue
+    if (draft.impactDirection === "decrease") {
+      color.set("#ff6f7f");
+    } else if (draft.impactDirection === "neutral") {
+      color.set("#9ab7d9");
+    } else if (draft.learningTag) {
+      color.set("#4cc9f0");
+    } else if (draft.earningTag) {
+      color.set("#f72585");
+    } else if (draft.orgBuildingTag) {
+      color.set("#4361ee");
+    }
+
+    const baseStrength = 0.55 + draft.signalScore;
+    this.impactStrength =
+      draft.impactDirection === "neutral"
+        ? Math.max(0.35, Math.min(0.85, baseStrength * 0.65))
+        : Math.max(0.45, Math.min(1.35, baseStrength));
 
     (this.photon.material as THREE.MeshBasicMaterial).color.copy(color);
     this.photonLight.color.copy(color);
@@ -140,7 +157,7 @@ export class PersonImpactScene {
             // Logic: Inner rings are hit first (smaller radius)
             if (diff > -0.5 && diff < 1.5) {
                 // Peak intensity at diff = 0
-                const intensity = Math.max(0, 1.0 - Math.abs(diff - 0.5));
+                const intensity = Math.max(0, 1.0 - Math.abs(diff - 0.5)) * this.impactStrength;
                 
                 const mat = ring.material as THREE.MeshStandardMaterial;
                 const baseColor = ring.userData.baseColor as THREE.Color;
@@ -157,10 +174,10 @@ export class PersonImpactScene {
             } else {
                 // Decay back to rest
                 const mat = ring.material as THREE.MeshStandardMaterial;
-                mat.emissive.lerp(new THREE.Color(0x000000), delta * 3);
+                mat.emissive.lerp(this.neutralEmissive, delta * 3);
                 mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0, delta * 3);
                 mat.opacity = THREE.MathUtils.lerp(mat.opacity, 0.2, delta * 2);
-                ring.scale.lerp(new THREE.Vector3(1, 1, 1), delta * 4);
+                ring.scale.lerp(this.unitScale, delta * 4);
             }
         });
 

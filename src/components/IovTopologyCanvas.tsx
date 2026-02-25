@@ -68,6 +68,13 @@ const buildInitialToggles = (data: IovTopologyData) =>
     {} as Record<ToggleId, boolean>
   );
 
+const VALUELOG_STEP_STORY: Record<WizardStep, string> = {
+  select_time: "Define where your attention and energy were spent.",
+  select_wellbeing: "Choose the primary human layer affected by this action.",
+  select_performance: "If performance is primary, declare Learning / Earning / Org Building domains.",
+  show_outcome: "Review the modeled personal outcome before committing the signal.",
+};
+
 interface PendingEmpowerState {
   communityPowerDelta: number;
   activationCount: number;
@@ -535,7 +542,7 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("System impact: Community grows and applies pressure into the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
-        "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
+        "Time Slice mode: define time, choose wellbeing context, then commit the causal signal."
       );
       personSceneRef.current?.setDetailMode("valuelog");
       valueLogSceneRef.current?.setDraft(valueLogDraft);
@@ -1024,7 +1031,12 @@ const IovTopologyCanvas = () => {
 
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
     applySemanticTransition(next.level);
-    setPhaseHeadline("Committing time slice: Impact visualization...");
+    const nodeLabel = finalDraft.wellbeingNode.replace("~~", "");
+    setPhaseHeadline(
+      `Photon drop: ${finalDraft.signalLabel} (${finalDraft.signalScore.toFixed(
+        2
+      )}) lands in ${nodeLabel}.`
+    );
 
     if (impactSceneRef.current) {
       impactSceneRef.current.playImpact(finalDraft, finalizeAfterPersonImpact);
@@ -1266,7 +1278,29 @@ function getRegionMeaning(regionId: RegionId) {
                 lineHeight: 1.45,
               }}
             >
-              Scene clicks are primary. Use these controls only when needed.
+              {VALUELOG_STEP_STORY[valueLogSummary.step]}
+            </div>
+            <div className="iov-scene-card-stat">
+              Active node: {valueLogDraft.wellbeingNode.replace("~~", "")} | Signal score:{" "}
+              {valueLogDraft.signalScore.toFixed(2)}
+            </div>
+            {valueLogSummary.step === "show_outcome" && (
+              <div className="iov-scene-card-stat">
+                Outcome: WB {valueLogSummary.outcome.wellbeingDelta >= 0 ? "+" : ""}
+                {valueLogSummary.outcome.wellbeingDelta.toFixed(3)} | Aura{" "}
+                {valueLogSummary.outcome.auraDelta >= 0 ? "+" : ""}
+                {valueLogSummary.outcome.auraDelta.toFixed(3)}
+              </div>
+            )}
+            <div
+              style={{
+                fontSize: "12px",
+                color: "#cbd5e1",
+                marginBottom: "12px",
+                lineHeight: 1.45,
+              }}
+            >
+              Scene clicks are primary. Use the controls below only when needed.
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
               <button

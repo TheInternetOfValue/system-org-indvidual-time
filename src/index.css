@@ -24,6 +24,19 @@ body {
   overflow: hidden;
 }
 
+.iov-app-loading {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  color: rgba(232, 241, 255, 0.94);
+  background:
+    radial-gradient(48% 34% at 50% 28%, rgba(91, 123, 176, 0.24), transparent 74%),
+    linear-gradient(180deg, #071221 0%, #0a1728 64%, #0d1d30 100%);
+}
+
 .iov-stage {
   width: 100%;
   height: 100%;

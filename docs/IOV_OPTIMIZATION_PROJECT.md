@@ -52,7 +52,7 @@ Delivered:
 ---
 
 ### Phase 3: Time Slice + Impact Demo Quality (Targeted)
-Status: `IN_PROGRESS`
+Status: `COMPLETED`
 
 Tasks:
 - Streamline Time Slice control surface to reduce duplicated UI/control paths.
@@ -63,6 +63,21 @@ Acceptance:
 - Flow remains deterministic and demo-friendly on desktop/mobile.
 - Tests/build pass.
 
+Delivered:
+- Time Slice storytelling refinements:
+  - Added explicit per-step narrative messaging in center composer card.
+  - Added active node/signal context and outcome deltas in center composer.
+  - Reduced duplicated desktop control surface in side panel (center composer is now primary control path).
+- Impact scene refinements:
+  - Added impact-intensity scaling from `signalScore` and direction-sensitive photon color.
+  - Removed avoidable per-frame allocations in `PersonImpactScene` hot path (reused `Color`/`Vector3` instances).
+- Visual consistency:
+  - Aligned region identity palette to project visual rules (market/state/community/bridge).
+  - Synced panel legend and block-interior people palette with the same direction.
+- Loading architecture:
+  - Lazy-loaded `IovTopologyCanvas` from `App` with a lightweight loading fallback.
+  - Build now emits a smaller entry chunk plus deferred scene chunk for better initial load behavior.
+
 ---
 
 ## Validation Log
@@ -72,7 +87,11 @@ Acceptance:
 - Phase 2:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 3:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated, now split entry + lazy topology chunk).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
-- Phase 2: pending local commit.
+- Phase 2: `perf: phase 2 cache static data loaders`
+- Phase 3: `perf: phase 3 time-slice storytelling and impact polish`

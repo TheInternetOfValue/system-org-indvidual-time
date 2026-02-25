@@ -100,6 +100,7 @@ const DOUBLE_TAP_WINDOW_MS = 340;
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const valueLogCommitDockRef = useRef<HTMLDivElement | null>(null);
+  const systemEmpowerDockRef = useRef<HTMLDivElement | null>(null);
   const topologyRegionActionRefs = useRef<Record<RegionId, HTMLButtonElement | null>>({
     market: null,
     state: null,
@@ -340,6 +341,7 @@ const IovTopologyCanvas = () => {
       cameraDirectorRef.current.update(delta);
       updateTopologyRegionActionAnchors();
       updateValueLogCommitDockAnchor();
+      updateSystemEmpowerDockAnchor();
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -516,6 +518,62 @@ const IovTopologyCanvas = () => {
       );
       const y = THREE.MathUtils.clamp(
         (-projectedAnchor.y * 0.5 + 0.5) * clientHeight + (isMobileRef.current ? 76 : 64),
+        safeTop,
+        safeBottom
+      );
+
+      dock.style.opacity = "1";
+      dock.style.pointerEvents = "auto";
+      dock.style.left = `${x}px`;
+      dock.style.top = `${y}px`;
+      dock.style.transform = "translate(-50%, -50%)";
+    }
+
+    function updateSystemEmpowerDockAnchor() {
+      const host = containerRef.current;
+      const dock = systemEmpowerDockRef.current;
+      const sceneRuntime = sceneRef.current;
+      if (!host || !dock || !sceneRuntime) return;
+
+      if (semanticLevelRef.current !== "topology") {
+        dock.style.opacity = "";
+        dock.style.pointerEvents = "";
+        dock.style.left = "";
+        dock.style.top = "";
+        dock.style.transform = "";
+        return;
+      }
+
+      const anchor =
+        sceneRuntime.getCommunityEmpowerAnchor() ?? sceneRuntime.getRegionAnchor("community");
+      if (!anchor) {
+        dock.style.opacity = "0";
+        dock.style.pointerEvents = "none";
+        return;
+      }
+
+      projectedAnchor.copy(anchor).project(sceneRuntime.camera);
+      if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+        dock.style.opacity = "0";
+        dock.style.pointerEvents = "none";
+        return;
+      }
+
+      const { clientWidth, clientHeight } = host;
+      const buttonWidth = Math.max(220, dock.offsetWidth || 220);
+      const buttonHeight = Math.max(50, dock.offsetHeight || 50);
+      const safeLeft = buttonWidth * 0.5 + 10;
+      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
+      const safeTop = isMobileRef.current ? 92 : 76;
+      const safeBottom = clientHeight - (isMobileRef.current ? 102 : 38);
+
+      const x = THREE.MathUtils.clamp(
+        (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
+        safeLeft,
+        safeRight
+      );
+      const y = THREE.MathUtils.clamp(
+        (-projectedAnchor.y * 0.5 + 0.5) * clientHeight + (isMobileRef.current ? 64 : 54),
         safeTop,
         safeBottom
       );
@@ -1515,7 +1573,11 @@ function getRegionMeaning(regionId: RegionId) {
       )}
 
       {semanticLevel === "topology" && canEmpowerCommunity && (
-        <div className="iov-system-empower-fab" aria-label="System empowerment action">
+        <div
+          ref={systemEmpowerDockRef}
+          className="iov-system-empower-fab"
+          aria-label="System empowerment action"
+        >
           <button className="iov-btn-action" type="button" onClick={handleEmpowerCommunity}>
             {empowerLabel}
           </button>

@@ -160,11 +160,14 @@ body {
 
 .iov-system-empower-fab {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   z-index: 16;
   width: min(320px, calc(100vw - 36px));
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 140ms ease;
 }
 
 .iov-system-empower-fab .iov-btn-action {
@@ -968,9 +971,7 @@ body {
   }
 
   .iov-system-empower-fab {
-    right: 10px;
     width: min(320px, calc(100vw - 20px));
-    bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));
   }
 
   .iov-semantic-card {

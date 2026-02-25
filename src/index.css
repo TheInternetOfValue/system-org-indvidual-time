@@ -984,7 +984,7 @@ body {
   .iov-panel-peek {
     left: 10px;
     right: auto;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));
     padding: 6px;
   }
 

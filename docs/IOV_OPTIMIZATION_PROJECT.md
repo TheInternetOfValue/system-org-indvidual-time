@@ -476,6 +476,24 @@ Delivered:
 
 ---
 
+### Phase 17: Mobile Context-Peek Safe-Area Lift
+Status: `COMPLETED`
+
+Tasks:
+- Prevent the collapsed mobile `Show context` control from being clipped by browser chrome / bottom insets.
+
+Acceptance:
+- Mobile `Show context` control remains fully visible on short viewports and toolbar-heavy browsers.
+- No behavior change to panel expansion/collapse logic.
+- Tests/build pass.
+
+Delivered:
+- Increased mobile collapsed peek offset in CSS:
+  - `bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));`
+- Kept existing left anchor behavior to avoid disrupting scene interaction flow.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -525,6 +543,9 @@ Delivered:
 - Phase 16:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 17:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -543,3 +564,4 @@ Delivered:
 - Phase 14: `perf: phase 14 deferred scene loading and idle preload`
 - Phase 15: `style: phase 15 presenter-mode single-action polish and cinematic spacing`
 - Phase 16: `fix: phase 16 anchor commit CTA near photon on mobile`
+- Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`

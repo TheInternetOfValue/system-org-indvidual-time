@@ -459,6 +459,17 @@ export class IovTopologyScene {
     return anchor;
   }
 
+  getCommunityEmpowerAnchor() {
+    const runtime = this.regions.get("community");
+    if (!runtime) return null;
+
+    const halfDepth =
+      ((IOV_TOPOLOGY_CONFIG.community.depth - 1) * STEP_XZ) * 0.5 + BRICK_D * 0.5;
+    const anchorY = STRUCTURE_LAYER0_Y + BRICK_H * 0.65;
+    const anchorZ = runtime.center.z + halfDepth + BRICK_D * 0.24;
+    return new THREE.Vector3(runtime.center.x, anchorY, anchorZ);
+  }
+
   getSelectedBrickInfo() {
     return this.selectedBrickInfo;
   }

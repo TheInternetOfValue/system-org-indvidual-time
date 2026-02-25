@@ -515,6 +515,28 @@ Delivered:
 
 ---
 
+### Phase 19: System Empower CTA Contextual Community Anchor
+Status: `COMPLETED`
+
+Tasks:
+- Move `Empower Community` from bottom-edge docking to contextual in-scene placement near the Community base.
+- Keep CTA visible/reachable on mobile without opening `Show context`.
+
+Acceptance:
+- CTA appears at Community base context in System scene when empowerment is available.
+- Placement remains stable across mobile/desktop viewport sizes and browser chrome safe areas.
+- Tests/build pass.
+
+Delivered:
+- Added `getCommunityEmpowerAnchor()` in `IovTopologyScene` to expose a stable world-space anchor at Community base/front.
+- Added per-frame anchor projection for `Empower Community` CTA in `IovTopologyCanvas`:
+  - Projects world anchor to screen.
+  - Applies viewport + mobile-safe clamping.
+  - Falls back to Community region anchor if base anchor is unavailable.
+- Updated `iov-system-empower-fab` styling from fixed bottom-right to projected floating placement defaults.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -570,6 +592,9 @@ Delivered:
 - Phase 18:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 19:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -590,3 +615,4 @@ Delivered:
 - Phase 16: `fix: phase 16 anchor commit CTA near photon on mobile`
 - Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`
 - Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`
+- Phase 19: `fix: phase 19 anchor empower community CTA near community base`

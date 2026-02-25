@@ -279,6 +279,45 @@ Delivered:
 
 ---
 
+### Phase 11: Time Slice Scene-First Capture Flow + Person Double-Click Entry
+Status: `COMPLETED`
+
+Tasks:
+- Enable double-click person-core shortcut to open Time Slice directly from person scene.
+- Make Time Slice clock hands directly movable for StartTime/EndTime capture.
+- Expand Value Capture input with Activity/Proof templates and editable entries.
+- Add contextual intensity step for selected wellbeing node; keep Performance-specific SAOcommons domain intensity flow.
+- Ensure commit shows a quick honey/value drop before immediate impact transition.
+
+Acceptance:
+- Person scene supports double-click on core avatar to open Time Slice (without breaking layer reveal).
+- Time selection can be set by dragging clock hands.
+- Value Capture includes StartTime/EndTime + Activity + Proof with template-assisted defaults.
+- Non-Performance contexts ask contextual intensity; Performance path exposes SAOcommons with domain intensity.
+- Commit path remains deterministic and transitions to impact after drop cue.
+- Tests/build pass.
+
+Delivered:
+- Person scene entry contract:
+  - Added core-body raycast in `PersonIdentityScene` and exposed `core` selection kind.
+  - Wired `IovTopologyCanvas` person pointer flow so double-clicking person core opens Time Slice when identity build is complete.
+- Time Slice interaction upgrades:
+  - Added pointer-driven clock-hand dragging (`start`/`end`) in `ValueLogScene` with minute snapping and minimum span guard.
+  - Added explicit pointer interaction lifecycle (`beginPointerInteraction` / `endPointerInteraction`) and connected it in `IovTopologyCanvas` pointer handlers.
+- Guided capture-step expansion:
+  - Added new wizard step `select_intensity` between wellbeing selection and SAOcommons/performance branching.
+  - Added contextual intensity prompts per wellbeing node.
+  - Added SAOcommons domain intensity prompts/sliders for selected Learning/Earning/OrgBuilding domains.
+  - Updated outcome computation to use context/domain intensity model.
+- Capture templates and copy:
+  - Added activity/proof template catalogs and surfaced them in panel controls.
+  - Added panel controls for editable activity/proof text and contextual intensity.
+  - Updated scene/panel narrative copy for the new step contract.
+- Commit drop cue:
+  - Added short commit-drop animation gate (`playCommitDrop`) so honey/value drop is visible immediately before impact scene transition.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -310,6 +349,9 @@ Delivered:
 - Phase 10:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 11:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -322,3 +364,4 @@ Delivered:
 - Phase 8: `fix: restore community yellow identity and sync design rules`
 - Phase 9: `feat: scene-first double-click navigation and non-blocking overlays`
 - Phase 10: `feat: phase 10 person focus fade and contextual identity reveal`
+- Phase 11: `feat: phase 11 time-slice clock interaction and contextual intensity flow`

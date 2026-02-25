@@ -13,7 +13,7 @@ import {
 } from "./wellbeingIdentityProtocol";
 
 export type PersonDetailMode = "identity" | "valuelog";
-export type PersonSelectionKind = "facet" | "layer" | null;
+export type PersonSelectionKind = "facet" | "layer" | "core" | null;
 
 export interface PersonIdentitySummary {
   personId: string;
@@ -105,6 +105,7 @@ export class PersonIdentityScene {
 
   private readonly facetNodes: FacetNode[] = [];
   private readonly layerRings: LayerRingNode[] = [];
+  private readonly coreMeshes: THREE.Mesh[] = [];
   private readonly photonPulses: PhotonPulse[] = [];
   private readonly stateEngine = new PersonStateEngine();
   private personViewMode: PersonDetailMode = "identity";
@@ -412,6 +413,10 @@ export class PersonIdentityScene {
       return "layer";
     }
 
+    if (this.pickCore()) {
+      return "core";
+    }
+
     return null;
   }
 
@@ -498,6 +503,7 @@ export class PersonIdentityScene {
 
     coreGroup.add(torso, head, footBase);
     this.root.add(coreGroup);
+    this.coreMeshes.push(torso, head, footBase);
   }
 
   private buildLayerRings() {
@@ -980,6 +986,12 @@ export class PersonIdentityScene {
     if (!first) return null;
     const idx = this.layerRings.findIndex((node) => node.mesh === first.object);
     return idx >= 0 ? idx : null;
+  }
+
+  private pickCore() {
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hits = this.raycaster.intersectObjects(this.coreMeshes, false);
+    return hits.some((hit) => hit.object.visible);
   }
 
   private createTextSprite(text: string) {

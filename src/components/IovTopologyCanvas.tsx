@@ -68,9 +68,10 @@ const buildInitialToggles = (data: IovTopologyData) =>
   );
 
 const VALUELOG_STEP_STORY: Record<WizardStep, string> = {
-  select_time: "Define where your attention and energy were spent.",
+  select_time: "Set StartTime/EndTime with the clock hands, then capture Activity + Proof.",
   select_wellbeing: "Choose the primary human layer affected by this action.",
-  select_performance: "If performance is primary, declare Learning / Earning / Org Building domains.",
+  select_intensity: "Answer the contextual intensity question for the selected wellbeing layer.",
+  select_performance: "If Performance is selected, choose SAOcommons domains and set domain intensity.",
   show_outcome: "Review the modeled personal outcome before committing the signal.",
 };
 
@@ -302,7 +303,10 @@ const IovTopologyCanvas = () => {
         personSummaryAccumulator += delta;
         if (personSummaryAccumulator >= 0.2) {
           personSummaryAccumulator = 0;
-          setValueLogSummary(valueLogScene.getSummary());
+          const summary = valueLogScene.getSummary();
+          setValueLogSummary(summary);
+          setValueLogStep(summary.step);
+          setValueLogDraft(summary.draft);
         }
       }
       frame = window.requestAnimationFrame(tick);
@@ -319,6 +323,16 @@ const IovTopologyCanvas = () => {
       dragStartX = event.clientX;
       dragStartY = event.clientY;
       dragDistance = 0;
+      if (semanticLevelRef.current === "valuelog") {
+        const rect = renderer.domElement.getBoundingClientRect();
+        valueLogScene.setPointerFromCanvas(
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+          rect.width,
+          rect.height
+        );
+        valueLogScene.beginPointerInteraction();
+      }
     };
 
     function updateTopologyRegionActionAnchors() {
@@ -424,6 +438,9 @@ const IovTopologyCanvas = () => {
     };
 
     const onPointerUp = () => {
+      if (semanticLevelRef.current === "valuelog") {
+        valueLogScene.endPointerInteraction();
+      }
       if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
       if (dragDistance <= 4) {
         if (semanticLevelRef.current === "topology") {
@@ -461,7 +478,10 @@ const IovTopologyCanvas = () => {
           const summaryBefore = personScene.getSummary();
           const selectionKind = personScene.selectFromPointer();
           const summary = personScene.getSummary();
-          const focusKey = summary.selectedFacet ?? summary.selectedLayer ?? "__person__";
+          const focusKey =
+            selectionKind === "core"
+              ? "__person_core__"
+              : summary.selectedFacet ?? summary.selectedLayer ?? "__person__";
           const now = window.performance.now();
           const lastTap = lastSceneTapRef.current;
           const isDoubleTap =
@@ -475,6 +495,11 @@ const IovTopologyCanvas = () => {
             selectionKind !== null &&
             summaryBefore.selectedFacet === summary.selectedFacet &&
             summaryBefore.selectedLayer === summary.selectedLayer;
+
+          if (selectionKind === "core" && isDoubleTap && summary.identityBuildComplete) {
+            handleOpenValueLog();
+            return;
+          }
 
           if (
             (selectionKind === null || isDoubleTap || reselectedFocus) &&
@@ -970,10 +995,8 @@ const IovTopologyCanvas = () => {
 
   const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
     setValueLogDraft((prev) => ({ ...prev, ...patch }));
-    if (valueLogStep === "select_wellbeing" && patch.wellbeingNode) {
-      setValueLogStep(
-        patch.wellbeingNode === "~~Performance" ? "select_performance" : "show_outcome"
-      );
+    if (patch.wellbeingNode) {
+      setValueLogStep("select_intensity");
     }
   };
 
@@ -1154,12 +1177,19 @@ const IovTopologyCanvas = () => {
     });
   };
 
-  const handleValueLogCommit = () => {
+  const handleValueLogCommit = async () => {
     if (!selectedPersonId) return;
+    if (transitionBusyRef.current) return;
     const entry = valueLogSceneRef.current?.commit(selectedPersonId);
     // Grab the draft before resetting or moving on
     const finalDraft = valueLogSceneRef.current?.getDraft();
     if (!entry || !finalDraft) return;
+    transitionBusyRef.current = true;
+    try {
+      await (valueLogSceneRef.current?.playCommitDrop(320) ?? Promise.resolve());
+    } finally {
+      transitionBusyRef.current = false;
+    }
 
     const finalizeAfterPersonImpact = () => {
       const nextLogs = [...activePersonLogs, entry];
@@ -1362,7 +1392,7 @@ function getRegionMeaning(regionId: RegionId) {
                 ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
                 : " Identity stack ready. Reveal layers to begin."}
               {" "}
-              Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer.
+              Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person to open Time Slice.
             </span>
           </div>
           {personSummary.selectedContextTitle && personSummary.selectedContextBody && (
@@ -1433,7 +1463,7 @@ function getRegionMeaning(regionId: RegionId) {
             </div>
             <div className="iov-scene-card-stat">
               Active node: {valueLogDraft.wellbeingNode.replace("~~", "")} | Signal score:{" "}
-              {valueLogDraft.signalScore.toFixed(2)}
+              {(valueLogSummary?.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)}
             </div>
             {valueLogSummary.step === "show_outcome" && (
               <div className="iov-scene-card-stat">

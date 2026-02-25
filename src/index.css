@@ -629,6 +629,60 @@ body {
   line-height: 1.4;
 }
 
+.iov-scene-chip {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  transform: translateX(-50%);
+  z-index: 16;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(540px, calc(100vw - 24px));
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(156, 188, 232, 0.46);
+  background: rgba(11, 24, 42, 0.88);
+  color: rgba(235, 244, 255, 0.98);
+  box-shadow: 0 10px 24px rgba(8, 20, 37, 0.3);
+  pointer-events: none;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.iov-scene-chip strong {
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.iov-scene-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 16;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  max-width: min(680px, calc(100vw - 24px));
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(140, 173, 219, 0.34);
+  background: rgba(10, 21, 37, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.iov-scene-dock-person {
+  max-width: min(820px, calc(100vw - 24px));
+}
+
+.iov-btn-inline {
+  width: auto;
+  min-width: 148px;
+  margin-top: 0;
+}
+
 .iov-concept {
   position: absolute;
   top: 16px;
@@ -997,6 +1051,25 @@ body {
 
   .iov-panel.is-mobile .iov-panel-focus-buttons {
     display: none;
+  }
+
+  .iov-scene-chip {
+    top: 58px;
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .iov-scene-dock {
+    left: 10px;
+    right: 10px;
+    transform: none;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    justify-content: stretch;
+  }
+
+  .iov-btn-inline {
+    flex: 1 1 140px;
+    min-width: 126px;
   }
 
   .iov-panel-title {

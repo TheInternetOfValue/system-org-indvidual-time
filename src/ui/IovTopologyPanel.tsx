@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import type {
-  BrickInteractionMode,
   IovTopologyData,
   RegionId,
   ToggleId,
@@ -41,13 +40,11 @@ interface IovTopologyPanelProps {
   valueLogDraft: ValueLogDraft;
   valueLogSummary: ValueLogSummary | null;
   valueLogStep: WizardStep;
-  interactionMode: BrickInteractionMode;
   onToggle: (toggleId: ToggleId) => void;
   onBuild: (regionId: RegionId) => void;
   onOpenBrick: () => void;
   onOpenPerson: () => void;
   onBackSemantic: () => void;
-  onInteractionModeChange: (mode: BrickInteractionMode) => void;
   onTogglePresentationMode: () => void;
   onValueLogDraftChange: (patch: Partial<ValueLogDraft>) => void;
   onValueLogNext: () => void;
@@ -81,13 +78,11 @@ const IovTopologyPanel = ({
   valueLogDraft,
   valueLogSummary,
   valueLogStep,
-  interactionMode,
   onToggle,
   onBuild,
   onOpenBrick,
   onOpenPerson,
   onBackSemantic,
-  onInteractionModeChange,
   onTogglePresentationMode,
   onValueLogDraftChange,
   onValueLogNext,
@@ -273,7 +268,7 @@ const IovTopologyPanel = ({
       {isMobile && isTopologyContext && (
         <div className="iov-mobile-summary">
           <strong>{topologyActivated ? selected?.label ?? "System" : "System"}</strong>
-          <span>Reclaimed bricks: {transferredCount}</span>
+          <span>Community uplift: {transferredCount}</span>
         </div>
       )}
       {showTopologyDetails && <div className="iov-mobile-build-row">
@@ -310,20 +305,6 @@ const IovTopologyPanel = ({
         <div className="iov-mobile-semantic-row">
           <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
             Open Organization
-          </button>
-          <button
-            type="button"
-            className={interactionMode === "inspect" ? "is-active" : ""}
-            onClick={() => onInteractionModeChange("inspect")}
-          >
-            Inspect
-          </button>
-          <button
-            type="button"
-            className={interactionMode === "reclaim" ? "is-active" : ""}
-            onClick={() => onInteractionModeChange("reclaim")}
-          >
-            Reclaim
           </button>
           {canEmpowerCommunity && (
             <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
@@ -376,16 +357,16 @@ const IovTopologyPanel = ({
             Scene-first mode: click the in-scene labels (Market, Community, State, Bridge) to
             start the story. Detailed context appears after your first interaction.
           </div>
-          <div className="iov-panel-transfer-count">Reclaimed bricks: {transferredCount}</div>
+          <div className="iov-panel-transfer-count">Community uplift: {transferredCount}</div>
         </>
       )}
       {showTopologyDetails && (
         <>
           <div className="iov-panel-meaning">{meaningText}</div>
           <div className="iov-panel-transfer-tip">
-            Tip: click upper bricks on Market, State, or Bridge to reclaim them into Community.
+            Tip: click once to select a brick, double-click to open its organization.
           </div>
-          <div className="iov-panel-transfer-count">Reclaimed bricks: {transferredCount}</div>
+          <div className="iov-panel-transfer-count">Community uplift: {transferredCount}</div>
           {nextTopologyBuildRegion && (
             <div className="iov-panel-value-subline">
               Guided build next: <strong>{formatRegionShortLabel(nextTopologyBuildRegion)}</strong>
@@ -476,11 +457,6 @@ const IovTopologyPanel = ({
       <div className="iov-panel-value-subline">
         Level: <strong>{formatSemanticLevel(semanticLevel)}</strong>
       </div>
-      {semanticLevel === "topology" && showTopologyDetails && (
-        <div className="iov-panel-value-subline">
-          Organization mode: <strong>{interactionMode}</strong>
-        </div>
-      )}
       {semanticLevel === "topology" ? (
         <>
           {showTopologyDetails ? (
@@ -488,23 +464,12 @@ const IovTopologyPanel = ({
               <div className="iov-panel-value-subline">
                 Selected organization unit: {selectedBrickLabel ?? "None"}
               </div>
+              <div className="iov-panel-value-subline">
+                Interaction: double-click selected brick to open organization.
+              </div>
               <div className="iov-panel-buttons">
                 <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
                   Open Organization
-                </button>
-                <button
-                  type="button"
-                  className={interactionMode === "inspect" ? "is-active" : ""}
-                  onClick={() => onInteractionModeChange("inspect")}
-                >
-                  Inspect
-                </button>
-                <button
-                  type="button"
-                  className={interactionMode === "reclaim" ? "is-active" : ""}
-                  onClick={() => onInteractionModeChange("reclaim")}
-                >
-                  Reclaim
                 </button>
                 {canEmpowerCommunity && (
                   <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
@@ -887,7 +852,7 @@ const formatSemanticContext = (level: SemanticZoomLevel) => {
     case "systemimpact":
       return "System impact: organization radiance strengthens community pressure against extractive bridge structures.";
     case "topology":
-      return "System layer: compare Market, State, Community, and Bridge structures and reclaim value pathways.";
+      return "System layer: compare Market, State, Community, and Bridge structures, then open organizations by double-clicking a selected brick.";
     default:
       return "Scene context is active.";
   }

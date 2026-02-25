@@ -217,6 +217,37 @@ Delivered:
 
 ---
 
+### Phase 9: Scene-First Interaction Refactor (Double-Click Open + Non-Blocking UI)
+Status: `COMPLETED`
+
+Tasks:
+- Remove reclaim-mode controls from system-scene interaction flow.
+- Make organization/person entry gesture-native via double-click.
+- Replace center-blocking interaction cards with lightweight non-blocking chips/docks.
+
+Acceptance:
+- Topology: single click selects, double-click opens organization.
+- Block: single click selects person, double-click opens person scene.
+- Scene controls no longer obscure the core 3D subject in topology/block/person scenes.
+- Tests/build pass.
+
+Delivered:
+- Topology and block gesture flow:
+  - Added double-tap/double-click detection in `IovTopologyCanvas` pointer handling.
+  - Topology selection now opens organization on double-click for the same selected brick.
+  - Block selection now opens person on double-click for the same selected person.
+- Removed reclaim-mode from active UI flow:
+  - Removed inspect/reclaim controls from topology panel and in-scene topology card path.
+  - Kept scene internals stable by leaving scene interaction mode in inspect.
+- Non-blocking interaction overlays:
+  - Replaced large center cards in topology/block/person with compact top chips and bottom action docks.
+  - Preserved key actions (open org/person, identity build controls, open time slice, back navigation) without central occlusion.
+- UX copy alignment:
+  - Updated panel hints for click/double-click interaction contract.
+  - Renamed topology metric labels from reclaim wording to neutral community uplift wording.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -242,6 +273,9 @@ Delivered:
 - Phase 8:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 9:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -252,3 +286,4 @@ Delivered:
 - Phase 6: `perf: phase 6 scene-first topology actions and progressive context`
 - Phase 7: `perf: phase 7 guided topology build order and bridge gating`
 - Phase 8: `fix: restore community yellow identity and sync design rules`
+- Phase 9: `feat: scene-first double-click navigation and non-blocking overlays`

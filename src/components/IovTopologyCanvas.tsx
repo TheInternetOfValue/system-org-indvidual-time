@@ -428,7 +428,7 @@ const IovTopologyCanvas = () => {
       setHoveredFacet(null);
     };
 
-    const onPointerUp = () => {
+  const onPointerUp = () => {
       if (semanticLevelRef.current === "valuelog") {
         valueLogScene.endPointerInteraction();
       }
@@ -513,6 +513,10 @@ const IovTopologyCanvas = () => {
           if (isDoubleTap) {
             valueLogScene.selectFromPointer(true);
           }
+          const summary = valueLogScene.getSummary();
+          setValueLogSummary(summary);
+          setValueLogStep(summary.step);
+          setValueLogDraft(summary.draft);
         }
       }
     };
@@ -583,6 +587,10 @@ const IovTopologyCanvas = () => {
   useEffect(() => {
     topologyBuildStepRef.current = topologyBuildStep;
   }, [topologyBuildStep]);
+
+  useEffect(() => {
+    lastSceneTapRef.current = null;
+  }, [semanticLevel]);
 
   useEffect(() => {
     if (semanticLevel !== "topology") return;
@@ -915,6 +923,11 @@ const IovTopologyCanvas = () => {
   };
 
   const handleOpenValueLog = () => {
+    const summary = personSceneRef.current?.getSummary() ?? personSummary;
+    if (summary && !summary.identityBuildComplete) {
+      setPhaseHeadline("Complete identity layers before opening Time Slice.");
+      return;
+    }
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
     valueLogSceneRef.current?.setDraft(valueLogDraft);
     valueLogSceneRef.current?.setStep(valueLogStep);
@@ -1403,8 +1416,14 @@ function getRegionMeaning(regionId: RegionId) {
                 </button>
               </>
             )}
-            <button className="iov-btn-action iov-btn-inline" onClick={handleOpenValueLog}>
-              Open Time Slice
+            <button
+              className="iov-btn-action iov-btn-inline"
+              onClick={handleOpenValueLog}
+              disabled={!personSummary.identityBuildComplete}
+            >
+              {personSummary.identityBuildComplete
+                ? "Open Time Slice"
+                : "Complete Layers to Open Time Slice"}
             </button>
             <button
               className="iov-btn-secondary iov-btn-inline"

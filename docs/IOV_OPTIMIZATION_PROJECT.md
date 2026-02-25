@@ -352,7 +352,36 @@ Delivered:
 - Side panel cleanup:
   - Removed Time Slice `Prev/Next` controls and center-composer references.
   - Kept detailed capture/intensity/domain inputs in side panel, with commit gated by summary `canCommit`.
-  - Retained concise mobile quick actions (`Back to Person`, `Commit`) without step-navigation clutter.
+- Retained concise mobile quick actions (`Back to Person`, `Commit`) without step-navigation clutter.
+
+---
+
+### Phase 13: End-to-End Flow QA Hardening (Desktop + Mobile)
+Status: `COMPLETED`
+
+Tasks:
+- Verify and harden critical scene-loop transitions under click/tap and double-click/double-tap input.
+- Remove pre-emptive entry points that bypass person-layer progression.
+- Stabilize Time Slice interaction feedback and readiness gating for predictable commit behavior.
+
+Acceptance:
+- Time Slice cannot be opened before person identity layers are complete.
+- Double-tap behavior does not leak across semantic levels.
+- Time Slice commit readiness is not "true on arrival"; it requires valid capture state.
+- Tests/build pass.
+
+Delivered:
+- Person -> Time Slice gating:
+  - Added hard guard in `handleOpenValueLog` to block entry until `identityBuildComplete`.
+  - Disabled person-scene and person-panel Time Slice buttons until layers are complete.
+- Interaction stability:
+  - Reset double-tap memory (`lastSceneTapRef`) on semantic-level transitions to avoid accidental cross-scene double-tap triggers.
+  - Added immediate valuelog summary/state sync after pointer selection handling to reduce UI lag after taps/double-taps.
+- Commit readiness hardening:
+  - Updated initial Time Slice draft defaults to require real capture before commit:
+    - initial end time equals start time (invalid span until adjusted)
+    - performance domains start unselected
+  - Added/updated tests for `isValueLogCommitReady` contract and updated SAOcommons outcome test expectations.
 
 ---
 
@@ -393,6 +422,9 @@ Delivered:
 - Phase 12:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 13:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -407,3 +439,4 @@ Delivered:
 - Phase 10: `feat: phase 10 person focus fade and contextual identity reveal`
 - Phase 11: `feat: phase 11 time-slice clock interaction and contextual intensity flow`
 - Phase 12: `feat: phase 12 time-slice single-action contract and commit gating`
+- Phase 13: `fix: phase 13 end-to-end flow hardening for time-slice entry and commit readiness`

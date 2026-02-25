@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   computeValueLogOutcome,
   createInitialValueLogDraft,
+  isValueLogCommitReady,
 } from "../ValueLogScene";
 
 describe("computeValueLogOutcome", () => {
   it("enables SAOcommons only for Performance context", () => {
-    const performanceDraft = createInitialValueLogDraft();
+    const performanceDraft = {
+      ...createInitialValueLogDraft(),
+      learningTag: true,
+      earningTag: true,
+    };
     const performanceOutcome = computeValueLogOutcome(performanceDraft);
     expect(performanceOutcome.saocommonsEnabled).toBe(true);
     expect(performanceOutcome.saocommonsDomains).toEqual([
@@ -41,5 +46,27 @@ describe("computeValueLogOutcome", () => {
     expect(outcome.wellbeingDelta).toBeLessThan(0);
     expect(outcome.auraDelta).toBeLessThan(0);
     expect(outcome.identityStateDelta).toBeLessThan(0);
+  });
+
+  it("requires valid capture + domain selection before commit", () => {
+    const initial = createInitialValueLogDraft();
+    expect(isValueLogCommitReady(initial)).toBe(false);
+
+    const readyPerformance = {
+      ...initial,
+      endTime: new Date(Date.now() + 45 * 60 * 1000).toISOString().slice(0, 16),
+      learningTag: true,
+    };
+    expect(isValueLogCommitReady(readyPerformance)).toBe(true);
+
+    const readyNonPerformance = {
+      ...readyPerformance,
+      wellbeingNode: "~~Emotion" as const,
+      learningTag: false,
+      earningTag: false,
+      orgBuildingTag: false,
+      contextIntensity: 0.5,
+    };
+    expect(isValueLogCommitReady(readyNonPerformance)).toBe(true);
   });
 });

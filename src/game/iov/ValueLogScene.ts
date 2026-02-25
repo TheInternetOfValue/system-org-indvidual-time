@@ -195,7 +195,7 @@ export interface ValueLogSelection {
 
 export const createInitialValueLogDraft = (): ValueLogDraft => {
   const now = new Date();
-  const end = new Date(now.getTime() + 90 * 60000);
+  const end = new Date(now.getTime());
   const activityTemplate = VALUE_CAPTURE_ACTIVITY_TEMPLATES[0];
   const proofTemplate = VALUE_CAPTURE_PROOF_TEMPLATES[0];
   return {
@@ -222,8 +222,8 @@ export const createInitialValueLogDraft = (): ValueLogDraft => {
     impactDirection: "increase",
     skillApplication: "Business Growth",
     communityContext: "GrowthFlow Engineering",
-    learningTag: true,
-    earningTag: true,
+    learningTag: false,
+    earningTag: false,
     orgBuildingTag: false,
     learningIntensity: 0.64,
     earningIntensity: 0.62,

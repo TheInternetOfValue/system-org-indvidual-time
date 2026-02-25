@@ -533,11 +533,19 @@ const IovTopologyPanel = ({
                    <button
                    className="iov-btn-action"
                     onClick={onOpenValueLog}
+                    disabled={!personSummary.identityBuildComplete}
                     type="button"
                     >
-                        Create Value Log (Action)
+                        {personSummary.identityBuildComplete
+                          ? "Create Value Log (Action)"
+                          : "Complete Layers to Unlock Value Log"}
                     </button>
               </div>
+              {!personSummary.identityBuildComplete && (
+                <div className="iov-panel-value-subline">
+                  Finish identity layer reveals, then open Time Slice.
+                </div>
+              )}
               <div className="iov-panel-layer-rail">
                 {personSummary.layerLabels.map((layer) => {
                   const isActive =

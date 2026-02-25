@@ -16,7 +16,7 @@ import {
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
-} from "@/game/iov/ValueLogScene";
+} from "@/game/iov/ValueLogModel";
 import type { SemanticZoomLevel } from "@/game/iov/IovSemanticZoomController";
 import {
   type IovValues,

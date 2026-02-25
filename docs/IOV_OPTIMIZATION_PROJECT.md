@@ -381,7 +381,42 @@ Delivered:
   - Updated initial Time Slice draft defaults to require real capture before commit:
     - initial end time equals start time (invalid span until adjusted)
     - performance domains start unselected
-  - Added/updated tests for `isValueLogCommitReady` contract and updated SAOcommons outcome test expectations.
+- Added/updated tests for `isValueLogCommitReady` contract and updated SAOcommons outcome test expectations.
+
+---
+
+### Phase 14: Scene-Level Deferred Loading + Idle Preload
+Status: `COMPLETED`
+
+Tasks:
+- Code-split non-topology scene runtimes so initial topology boot path carries less JS.
+- Keep existing loop behavior unchanged while loading deferred scenes on demand.
+- Add a safe preload strategy to warm deferred scene modules after first paint.
+
+Acceptance:
+- Topology scene initializes immediately without constructing every downstream scene.
+- Block/Person/ValueLog/Impact scenes are loaded when needed, with no interaction regressions.
+- Deferred scene modules are preloaded during idle time to reduce first-transition latency.
+- Tests/build pass.
+
+Delivered:
+- Deferred scene module loader:
+  - Added `src/game/iov/sceneModules.ts` with cached dynamic imports for:
+    - `BlockInteriorScene`
+    - `PersonIdentityScene`
+    - `PersonImpactScene`
+    - `ValueLogScene`
+  - Added `preloadDeferredIovSceneModules()` for low-priority warm-up.
+- Runtime initialization strategy:
+  - `IovTopologyCanvas` now boots with `IovTopologyScene` only.
+  - Secondary scenes are instantiated lazily via `ensureSecondaryScenes()` when flow requires them.
+  - Added idle preload scheduling (`requestIdleCallback` fallback to timeout) to fetch deferred scene modules after initial render.
+- Safety and no-regression guards:
+  - Pointer/update/render paths now gracefully handle deferred scene availability.
+  - Existing System -> Org -> Person -> Time Slice -> Impact loop remains intact.
+- Shared lightweight Value Log model:
+  - Added `src/game/iov/ValueLogModel.ts` to hold wizard/types/prompts/templates and draft/outcome helpers used by UI.
+  - Updated panel and canvas imports to depend on the lightweight model (avoids static scene-runtime coupling for these symbols).
 
 ---
 
@@ -425,6 +460,9 @@ Delivered:
 - Phase 13:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 14:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated with deferred scene chunks).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -440,3 +478,4 @@ Delivered:
 - Phase 11: `feat: phase 11 time-slice clock interaction and contextual intensity flow`
 - Phase 12: `feat: phase 12 time-slice single-action contract and commit gating`
 - Phase 13: `fix: phase 13 end-to-end flow hardening for time-slice entry and commit readiness`
+- Phase 14: `perf: phase 14 deferred scene loading and idle preload`

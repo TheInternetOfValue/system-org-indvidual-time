@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { WELLBEING_IDENTITY_LAYERS } from "./wellbeingIdentityProtocol";
-import type { ValueLogDraft } from "./ValueLogScene";
+import type { ValueLogDraft } from "./ValueLogModel";
 
 export class PersonImpactScene {
   readonly scene = new THREE.Scene();

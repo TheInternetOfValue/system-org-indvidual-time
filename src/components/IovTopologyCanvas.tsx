@@ -15,22 +15,22 @@ import {
   type SelectedBrickInfo,
   type ToggleId,
 } from "@/game/iov/IovTopologyScene";
-import {
-  BlockInteriorScene,
-  type BlockPeopleSummary,
+import type {
+  BlockInteriorScene as BlockInteriorSceneRuntime,
+  BlockPeopleSummary,
 } from "@/game/iov/BlockInteriorScene";
-import {
-  PersonIdentityScene,
-  type PersonIdentitySummary,
+import type {
+  PersonIdentityScene as PersonIdentitySceneRuntime,
+  PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
-import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
+import type { PersonImpactScene as PersonImpactSceneRuntime } from "@/game/iov/PersonImpactScene";
+import type { ValueLogScene as ValueLogSceneRuntime } from "@/game/iov/ValueLogScene";
 import {
-  ValueLogScene,
   createInitialValueLogDraft,
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
-} from "@/game/iov/ValueLogScene";
+} from "@/game/iov/ValueLogModel";
 import {
   IovSemanticZoomController,
   getSemanticBreadcrumb,
@@ -54,6 +54,13 @@ import {
   type OrgImpactResult,
   type PersonImpactResult,
 } from "@/game/iov/iovImpactEscalation";
+import {
+  loadBlockInteriorSceneModule,
+  loadPersonIdentitySceneModule,
+  loadPersonImpactSceneModule,
+  loadValueLogSceneModule,
+  preloadDeferredIovSceneModules,
+} from "@/game/iov/sceneModules";
 
 const topologyData = topologyRaw as IovTopologyData;
 
@@ -99,10 +106,11 @@ const IovTopologyCanvas = () => {
     crony_bridge: null,
   });
   const sceneRef = useRef<IovTopologyScene | null>(null);
-  const blockSceneRef = useRef<BlockInteriorScene | null>(null);
-  const personSceneRef = useRef<PersonIdentityScene | null>(null);
-  const impactSceneRef = useRef<PersonImpactScene | null>(null);
-  const valueLogSceneRef = useRef<ValueLogScene | null>(null);
+  const blockSceneRef = useRef<BlockInteriorSceneRuntime | null>(null);
+  const personSceneRef = useRef<PersonIdentitySceneRuntime | null>(null);
+  const impactSceneRef = useRef<PersonImpactSceneRuntime | null>(null);
+  const valueLogSceneRef = useRef<ValueLogSceneRuntime | null>(null);
+  const ensureSecondaryScenesRef = useRef<(() => Promise<void>) | null>(null);
   const cameraDirectorRef = useRef(new IovCameraDirector());
   const transitionBusyRef = useRef(false);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
@@ -180,25 +188,77 @@ const IovTopologyCanvas = () => {
     setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
     scene.setValues(values);
     scene.setBrickInteractionMode("inspect");
-    const blockScene = new BlockInteriorScene(renderer.domElement, {
-      onHoverPersonChange: (personId) => setHoveredPersonId(personId),
-      onSelectPersonChange: (personId) => setSelectedPersonId(personId),
-    });
-    blockSceneRef.current = blockScene;
-    const personScene = new PersonIdentityScene(renderer.domElement, {
-      onHoverFacetChange: (facet) => setHoveredFacet(facet),
-      onSelectFacetChange: () => {
-        setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-      },
-    });
-    personSceneRef.current = personScene;
-    
-    // Impact Scene - Visualization only, no interaction
-    const impactScene = new PersonImpactScene();
-    impactSceneRef.current = impactScene;
+    let blockScene: BlockInteriorSceneRuntime | null = null;
+    let personScene: PersonIdentitySceneRuntime | null = null;
+    let impactScene: PersonImpactSceneRuntime | null = null;
+    let valueLogScene: ValueLogSceneRuntime | null = null;
+    let secondaryScenesInitPromise: Promise<void> | null = null;
 
-    const valueLogScene = new ValueLogScene(renderer.domElement);
-    valueLogSceneRef.current = valueLogScene;
+    const ensureSecondaryScenes = async () => {
+      if (blockScene && personScene && impactScene && valueLogScene) return;
+      if (secondaryScenesInitPromise) {
+        await secondaryScenesInitPromise;
+        return;
+      }
+
+      secondaryScenesInitPromise = (async () => {
+        const [blockModule, personModule, impactModule, valueLogModule] = await Promise.all([
+          loadBlockInteriorSceneModule(),
+          loadPersonIdentitySceneModule(),
+          loadPersonImpactSceneModule(),
+          loadValueLogSceneModule(),
+        ]);
+
+        if (!blockScene) {
+          blockScene = new blockModule.BlockInteriorScene(renderer.domElement, {
+            onHoverPersonChange: (personId) => setHoveredPersonId(personId),
+            onSelectPersonChange: (personId) => setSelectedPersonId(personId),
+          });
+          blockSceneRef.current = blockScene;
+        }
+
+        if (!personScene) {
+          personScene = new personModule.PersonIdentityScene(renderer.domElement, {
+            onHoverFacetChange: (facet) => setHoveredFacet(facet),
+            onSelectFacetChange: () => {
+              setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+            },
+          });
+          personSceneRef.current = personScene;
+        }
+
+        if (!impactScene) {
+          impactScene = new impactModule.PersonImpactScene();
+          impactSceneRef.current = impactScene;
+        }
+
+        if (!valueLogScene) {
+          valueLogScene = new valueLogModule.ValueLogScene(renderer.domElement);
+          valueLogSceneRef.current = valueLogScene;
+        }
+
+        const { clientWidth, clientHeight } = container;
+        const nextIsMobile = clientWidth <= 900;
+        blockScene.setViewportProfile(nextIsMobile);
+        personScene.setViewportProfile(nextIsMobile);
+        impactScene.resize(clientWidth, clientHeight);
+        valueLogScene.setViewportProfile(nextIsMobile);
+        blockScene.resize(clientWidth, clientHeight);
+        personScene.resize(clientWidth, clientHeight);
+        valueLogScene.resize(clientWidth, clientHeight);
+
+        setBlockSummary(blockScene.getSummary());
+        setPersonSummary(personScene.getSummary());
+        setValueLogSummary(valueLogScene.getSummary());
+      })();
+
+      try {
+        await secondaryScenesInitPromise;
+      } finally {
+        secondaryScenesInitPromise = null;
+      }
+    };
+    ensureSecondaryScenesRef.current = ensureSecondaryScenes;
 
     let composer: EffectComposer | null = null;
     let ssaoPass: SSAOPass | null = null;
@@ -228,14 +288,14 @@ const IovTopologyCanvas = () => {
       isMobileRef.current = nextIsMobile;
       renderer.setSize(clientWidth, clientHeight);
       scene.setViewportProfile(nextIsMobile);
-      blockScene.setViewportProfile(nextIsMobile);
-      personScene.setViewportProfile(nextIsMobile);
-      impactScene.resize(clientWidth, clientHeight);
-      valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
-      blockScene.resize(clientWidth, clientHeight);
-      personScene.resize(clientWidth, clientHeight);
-      valueLogScene.resize(clientWidth, clientHeight);
+      blockScene?.setViewportProfile(nextIsMobile);
+      personScene?.setViewportProfile(nextIsMobile);
+      impactScene?.resize(clientWidth, clientHeight);
+      valueLogScene?.setViewportProfile(nextIsMobile);
+      blockScene?.resize(clientWidth, clientHeight);
+      personScene?.resize(clientWidth, clientHeight);
+      valueLogScene?.resize(clientWidth, clientHeight);
       composer?.setSize(clientWidth, clientHeight);
       if (ssaoPass) {
         ssaoPass.setSize(clientWidth, clientHeight);
@@ -252,6 +312,22 @@ const IovTopologyCanvas = () => {
       }
     };
     resize();
+
+    type IdleWindow = Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const idleWindow = window as IdleWindow;
+    const preloadModules = () => {
+      void preloadDeferredIovSceneModules();
+    };
+    const idleHandle =
+      idleWindow.requestIdleCallback?.(() => preloadModules(), { timeout: 1600 }) ?? null;
+    const timeoutHandle =
+      idleHandle === null ? window.setTimeout(() => preloadModules(), 700) : null;
 
     const clock = new THREE.Clock();
     const projectedAnchor = new THREE.Vector3();
@@ -275,29 +351,49 @@ const IovTopologyCanvas = () => {
         semanticLevelRef.current === "block" ||
         semanticLevelRef.current === "orgimpact"
       ) {
-        blockScene.update(delta);
-        blockScene.render(renderer);
+        if (blockScene) {
+          blockScene.update(delta);
+          blockScene.render(renderer);
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
+        }
       } else if (semanticLevelRef.current === "person") {
-        personScene.update(delta);
-        personScene.render(renderer);
-        personSummaryAccumulator += delta;
-        if (personSummaryAccumulator >= 0.2) {
-          personSummaryAccumulator = 0;
-          setPersonSummary(personScene.getSummary());
+        if (personScene) {
+          personScene.update(delta);
+          personScene.render(renderer);
+          personSummaryAccumulator += delta;
+          if (personSummaryAccumulator >= 0.2) {
+            personSummaryAccumulator = 0;
+            setPersonSummary(personScene.getSummary());
+          }
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
         }
       } else if (semanticLevelRef.current === "impact") {
-        impactSceneRef.current?.update(delta);
-        renderer.render(impactSceneRef.current!.scene, impactSceneRef.current!.camera);
+        if (impactScene) {
+          impactScene.update(delta);
+          renderer.render(impactScene.scene, impactScene.camera);
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
+        }
       } else {
-        valueLogScene.update(delta);
-        valueLogScene.render(renderer);
-        personSummaryAccumulator += delta;
-        if (personSummaryAccumulator >= 0.2) {
-          personSummaryAccumulator = 0;
-          const summary = valueLogScene.getSummary();
-          setValueLogSummary(summary);
-          setValueLogStep(summary.step);
-          setValueLogDraft(summary.draft);
+        if (valueLogScene) {
+          valueLogScene.update(delta);
+          valueLogScene.render(renderer);
+          personSummaryAccumulator += delta;
+          if (personSummaryAccumulator >= 0.2) {
+            personSummaryAccumulator = 0;
+            const summary = valueLogScene.getSummary();
+            setValueLogSummary(summary);
+            setValueLogStep(summary.step);
+            setValueLogDraft(summary.draft);
+          }
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
         }
       }
       frame = window.requestAnimationFrame(tick);
@@ -314,7 +410,7 @@ const IovTopologyCanvas = () => {
       dragStartX = event.clientX;
       dragStartY = event.clientY;
       dragDistance = 0;
-      if (semanticLevelRef.current === "valuelog") {
+      if (semanticLevelRef.current === "valuelog" && valueLogScene) {
         const rect = renderer.domElement.getBoundingClientRect();
         valueLogScene.setPointerFromCanvas(
           event.clientX - rect.left,
@@ -393,43 +489,43 @@ const IovTopologyCanvas = () => {
 
       if (semanticLevelRef.current === "topology") {
         scene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        blockScene.clearPointer();
-        personScene.clearPointer();
-        valueLogScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "block") {
-        blockScene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        personScene.clearPointer();
+        blockScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
+        personScene?.clearPointer();
         scene.clearPointer();
-        valueLogScene.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "person") {
-        personScene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        blockScene.clearPointer();
+        personScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
+        blockScene?.clearPointer();
         scene.clearPointer();
-        valueLogScene.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "valuelog") {
-        valueLogScene.setPointerFromCanvas(x, y, rect.width, rect.height);
+        valueLogScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
         scene.clearPointer();
-        blockScene.clearPointer();
-        personScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
       } else {
         scene.clearPointer();
-        blockScene.clearPointer();
-        personScene.clearPointer();
-        valueLogScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
+        valueLogScene?.clearPointer();
       }
     };
 
     const onPointerLeave = () => {
       scene.clearPointer();
-      blockScene.clearPointer();
-      personScene.clearPointer();
-      valueLogScene.clearPointer();
+      blockScene?.clearPointer();
+      personScene?.clearPointer();
+      valueLogScene?.clearPointer();
       setHoveredPersonId(null);
       setHoveredFacet(null);
     };
 
   const onPointerUp = () => {
-      if (semanticLevelRef.current === "valuelog") {
+      if (semanticLevelRef.current === "valuelog" && valueLogScene) {
         valueLogScene.endPointerInteraction();
       }
       if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
@@ -451,6 +547,7 @@ const IovTopologyCanvas = () => {
             onOpenBrick(selected);
           }
         } else if (semanticLevelRef.current === "block") {
+          if (!blockScene) return;
           blockScene.selectFromPointer();
           const selected = blockScene.getSummary().selectedPersonId;
           if (!selected) return;
@@ -466,6 +563,7 @@ const IovTopologyCanvas = () => {
             handleOpenPersonStub(selected);
           }
         } else if (semanticLevelRef.current === "person") {
+          if (!personScene) return;
           const summaryBefore = personScene.getSummary();
           const selectionKind = personScene.selectFromPointer();
           const summary = personScene.getSummary();
@@ -500,6 +598,7 @@ const IovTopologyCanvas = () => {
             handleNextIdentityLayer();
           }
         } else if (semanticLevelRef.current === "valuelog") {
+          if (!valueLogScene) return;
           const selection = valueLogScene.selectFromPointer(false);
           const key = selection.key ?? "__empty__";
           const now = window.performance.now();
@@ -555,17 +654,24 @@ const IovTopologyCanvas = () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onKeyDown);
+      if (idleHandle !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
 
       scene.dispose();
-      blockScene.dispose();
-      personScene.dispose();
-      valueLogScene.dispose();
+      blockScene?.dispose();
+      personScene?.dispose();
+      valueLogScene?.dispose();
       transitionBusyRef.current = false;
       cameraDirectorRef.current.cancelShot();
+      ensureSecondaryScenesRef.current = null;
       composer?.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
@@ -730,9 +836,20 @@ const IovTopologyCanvas = () => {
         "Time Slice mode: define time, choose wellbeing context, then commit the causal signal."
       );
       personSceneRef.current?.setDetailMode("valuelog");
-      valueLogSceneRef.current?.setDraft(valueLogDraft);
-      valueLogSceneRef.current?.setStep(valueLogStep);
-      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+      const valueLogScene = valueLogSceneRef.current;
+      if (!valueLogScene) {
+        void (ensureSecondaryScenesRef.current?.() ?? Promise.resolve()).then(() => {
+          const loadedScene = valueLogSceneRef.current;
+          if (!loadedScene) return;
+          loadedScene.setDraft(valueLogDraft);
+          loadedScene.setStep(valueLogStep);
+          setValueLogSummary(loadedScene.getSummary());
+        });
+        return;
+      }
+      valueLogScene.setDraft(valueLogDraft);
+      valueLogScene.setStep(valueLogStep);
+      setValueLogSummary(valueLogScene.getSummary());
     } else {
       setPhaseHeadline("Transitioning...");
     }
@@ -794,9 +911,10 @@ const IovTopologyCanvas = () => {
     transitionBusyRef.current = true;
 
     const scene = sceneRef.current;
-    const blockScene = blockSceneRef.current;
+    const ensureSecondaryScenes = ensureSecondaryScenesRef.current;
+    const secondaryScenesReadyPromise = ensureSecondaryScenes?.() ?? Promise.resolve();
     try {
-      if (scene && blockScene) {
+      if (scene) {
         const anchor = scene.getBrickAnchor(
           targetSelection.regionId,
           targetSelection.instanceId
@@ -834,6 +952,8 @@ const IovTopologyCanvas = () => {
         }
       }
 
+      await secondaryScenesReadyPromise;
+      const blockScene = blockSceneRef.current;
       const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
       applySemanticTransition(next.level);
       if (blockScene) {
@@ -865,9 +985,15 @@ const IovTopologyCanvas = () => {
     const targetPersonId = personIdOverride ?? selectedPersonIdRef.current ?? selectedPersonId;
     if (!targetPersonId) return;
     if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    await (ensureSecondaryScenesRef.current?.() ?? Promise.resolve());
     const mobile = isMobileRef.current;
     transitionBusyRef.current = true;
     const blockScene = blockSceneRef.current;
+    const personScene = personSceneRef.current;
+    if (!personScene) {
+      transitionBusyRef.current = false;
+      return;
+    }
     try {
       if (blockScene) {
         const anchor = blockScene.getPersonAnchor(targetPersonId);
@@ -900,38 +1026,39 @@ const IovTopologyCanvas = () => {
         }
       }
       const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
-      personSceneRef.current?.setPersonContext(targetPersonId, sourceRegion);
+      personScene.setPersonContext(targetPersonId, sourceRegion);
       const logs = resolvePersonValuelogs(valueLogData, targetPersonId, sourceRegion);
       setActivePersonLogs(logs);
-      personSceneRef.current?.setTimelineLogs(logs);
-      personSceneRef.current?.setDetailMode("identity");
-      setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+      personScene.setTimelineLogs(logs);
+      personScene.setDetailMode("identity");
+      setPersonSummary(personScene.getSummary());
       const next = zoomControllerRef.current.dispatch({
         type: "OPEN_PERSON",
         personId: targetPersonId,
       });
       applySemanticTransition(next.level);
-      if (personSceneRef.current) {
-        cameraDirectorRef.current.captureLevelPose("person", {
-          camera: personSceneRef.current.camera,
-          controls: personSceneRef.current.controls,
-        });
-      }
+      cameraDirectorRef.current.captureLevelPose("person", {
+        camera: personScene.camera,
+        controls: personScene.controls,
+      });
     } finally {
       transitionBusyRef.current = false;
     }
   };
 
-  const handleOpenValueLog = () => {
+  const handleOpenValueLog = async () => {
+    await (ensureSecondaryScenesRef.current?.() ?? Promise.resolve());
+    const valueLogScene = valueLogSceneRef.current;
+    if (!valueLogScene) return;
     const summary = personSceneRef.current?.getSummary() ?? personSummary;
     if (summary && !summary.identityBuildComplete) {
       setPhaseHeadline("Complete identity layers before opening Time Slice.");
       return;
     }
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
-    valueLogSceneRef.current?.setDraft(valueLogDraft);
-    valueLogSceneRef.current?.setStep(valueLogStep);
-    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+    valueLogScene.setDraft(valueLogDraft);
+    valueLogScene.setStep(valueLogStep);
+    setValueLogSummary(valueLogScene.getSummary());
     applySemanticTransition(next.level);
   };
 
@@ -1173,13 +1300,15 @@ const IovTopologyCanvas = () => {
   const handleValueLogCommit = async () => {
     if (!selectedPersonId) return;
     if (transitionBusyRef.current) return;
-    const entry = valueLogSceneRef.current?.commit(selectedPersonId);
+    const valueLogScene = valueLogSceneRef.current;
+    if (!valueLogScene) return;
+    const entry = valueLogScene.commit(selectedPersonId);
     // Grab the draft before resetting or moving on
-    const finalDraft = valueLogSceneRef.current?.getDraft();
+    const finalDraft = valueLogScene.getDraft();
     if (!entry || !finalDraft) return;
     transitionBusyRef.current = true;
     try {
-      await (valueLogSceneRef.current?.playCommitDrop(320) ?? Promise.resolve());
+      await valueLogScene.playCommitDrop(320);
     } finally {
       transitionBusyRef.current = false;
     }
@@ -1189,7 +1318,7 @@ const IovTopologyCanvas = () => {
       setActivePersonLogs(nextLogs);
       personSceneRef.current?.setTimelineLogs(nextLogs);
       setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+      setValueLogSummary(valueLogScene.getSummary());
       setValueLogStep("select_time");
       setLastImpactedPersonId(selectedPersonId);
       setLastImpactedBrick(
@@ -1199,7 +1328,7 @@ const IovTopologyCanvas = () => {
       );
 
       if (IOV_FEATURE_FLAGS.enableImpactEscalation && selectedBrickInfo) {
-        const auraDelta = valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
+        const auraDelta = valueLogScene.getSummary().outcome.auraDelta;
         const personImpactResult: PersonImpactResult = {
           personId: selectedPersonId,
           sourceRegionId: selectedBrickInfo.regionId,

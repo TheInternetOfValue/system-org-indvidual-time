@@ -537,6 +537,35 @@ Delivered:
 
 ---
 
+### Phase 20: Unified Mobile Safe-Viewport Overlay Clamping
+Status: `COMPLETED`
+
+Tasks:
+- Replace per-element bottom/top hacks with a shared mobile-safe viewport model.
+- Keep all scene overlays and panel affordances inside a consistent visible interaction zone.
+- Preserve contextual anchors (photon/community) while preventing clipping under mobile browser chrome.
+
+Acceptance:
+- `Show context`, scene chips/docks, `Commit Time Slice`, and `Empower Community` remain visible across mobile viewport/chrome changes.
+- Anchored CTA projection clamps against shared safe bounds.
+- Tests/build pass.
+
+Delivered:
+- Added shared safe viewport plumbing in `IovTopologyCanvas`:
+  - Computes safe top/right/bottom/left using `window.visualViewport` + layout viewport deltas.
+  - Stores values in CSS vars on the stage (`--iov-safe-*`) and updates on resize + visual viewport scroll/resize.
+  - Updates `--iov-app-height` to dynamic visible height for mobile browser chrome changes.
+- Reworked anchor clamping in scene projection loops to use shared safe insets:
+  - Topology action anchors.
+  - Time Slice commit floating dock.
+  - System empower floating dock.
+- Updated global CSS to consume safe vars for layout-critical overlays:
+  - Root/app height uses `--iov-app-height` fallback to `100dvh`.
+  - Breadcrumb, panel, mobile peek, scene chips, and scene docks use shared safe offsets.
+  - Presentation and mobile variants now inherit safe-zone positioning instead of raw fixed offsets.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -595,6 +624,9 @@ Delivered:
 - Phase 19:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 20:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -616,3 +648,4 @@ Delivered:
 - Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`
 - Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`
 - Phase 19: `fix: phase 19 anchor empower community CTA near community base`
+- Phase 20: `fix: phase 20 unify mobile safe viewport overlay clamping`

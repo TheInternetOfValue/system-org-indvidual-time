@@ -134,6 +134,12 @@ const IovTopologyCanvas = () => {
     key: string;
     at: number;
   } | null>(null);
+  const viewportSafeInsetsRef = useRef({
+    top: 12,
+    right: 12,
+    bottom: 12,
+    left: 12,
+  });
   const isMobileRef = useRef(window.innerWidth <= 900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -283,6 +289,45 @@ const IovTopologyCanvas = () => {
       scene.setToggle(toggleId as ToggleId, enabled);
     }
 
+    const applyViewportSafeLayout = () => {
+      const host = containerRef.current;
+      if (!host) return;
+
+      const visualViewport = window.visualViewport;
+      const layoutWidth = window.innerWidth;
+      const layoutHeight = window.innerHeight;
+      const visibleWidth = visualViewport?.width ?? layoutWidth;
+      const visibleHeight = visualViewport?.height ?? layoutHeight;
+      const visibleOffsetLeft = visualViewport?.offsetLeft ?? 0;
+      const visibleOffsetTop = visualViewport?.offsetTop ?? 0;
+      const hiddenRight = Math.max(0, layoutWidth - (visibleOffsetLeft + visibleWidth));
+      const hiddenBottom = Math.max(0, layoutHeight - (visibleOffsetTop + visibleHeight));
+
+      const widthScale = host.clientWidth / Math.max(layoutWidth, 1);
+      const heightScale = host.clientHeight / Math.max(layoutHeight, 1);
+      const padding = isMobileRef.current ? 10 : 12;
+      const safeTop = Math.max(8, visibleOffsetTop * heightScale + padding);
+      const safeRight = Math.max(8, hiddenRight * widthScale + padding);
+      const safeBottom = Math.max(8, hiddenBottom * heightScale + padding);
+      const safeLeft = Math.max(8, visibleOffsetLeft * widthScale + padding);
+
+      viewportSafeInsetsRef.current = {
+        top: safeTop,
+        right: safeRight,
+        bottom: safeBottom,
+        left: safeLeft,
+      };
+
+      host.style.setProperty("--iov-safe-top", `${Math.round(safeTop)}px`);
+      host.style.setProperty("--iov-safe-right", `${Math.round(safeRight)}px`);
+      host.style.setProperty("--iov-safe-bottom", `${Math.round(safeBottom)}px`);
+      host.style.setProperty("--iov-safe-left", `${Math.round(safeLeft)}px`);
+      document.documentElement.style.setProperty(
+        "--iov-app-height",
+        `${Math.max(320, Math.round(visibleHeight))}px`
+      );
+    };
+
     const resize = () => {
       const { clientWidth, clientHeight } = container;
       const nextIsMobile = clientWidth <= 900;
@@ -312,6 +357,7 @@ const IovTopologyCanvas = () => {
           );
         }
       }
+      applyViewportSafeLayout();
     };
     resize();
 
@@ -406,6 +452,8 @@ const IovTopologyCanvas = () => {
 
     tick();
     window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", applyViewportSafeLayout);
+    window.visualViewport?.addEventListener("scroll", applyViewportSafeLayout);
 
     let dragStartX = 0;
     let dragStartY = 0;
@@ -433,9 +481,10 @@ const IovTopologyCanvas = () => {
       if (!host || !sceneRuntime) return;
 
       const isTopologyLevel = semanticLevelRef.current === "topology";
+      const viewportSafe = viewportSafeInsetsRef.current;
       const { clientWidth, clientHeight } = host;
-      const safeTop = isMobileRef.current ? 58 : 72;
-      const safeBottom = clientHeight - (isMobileRef.current ? 86 : 24);
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 46 : 54);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 80 : 20);
 
       for (const action of TOPOLOGY_REGION_ACTIONS) {
         const button = topologyRegionActionRefs.current[action.regionId];
@@ -463,8 +512,8 @@ const IovTopologyCanvas = () => {
 
         const buttonWidth = Math.max(108, button.offsetWidth || 108);
         const buttonHeight = Math.max(48, button.offsetHeight || 48);
-        const safeLeft = isMobileRef.current ? buttonWidth * 0.5 + 12 : buttonWidth * 0.5 + 16;
-        const safeRight = clientWidth - buttonWidth * 0.5 - 16;
+        const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+        const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
 
         let x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
         let y = (-projectedAnchor.y * 0.5 + 0.5) * clientHeight;
@@ -504,12 +553,13 @@ const IovTopologyCanvas = () => {
       }
 
       const { clientWidth, clientHeight } = host;
+      const viewportSafe = viewportSafeInsetsRef.current;
       const buttonWidth = Math.max(220, dock.offsetWidth || 220);
       const buttonHeight = Math.max(52, dock.offsetHeight || 52);
-      const safeLeft = buttonWidth * 0.5 + 10;
-      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
-      const safeTop = isMobileRef.current ? 84 : 96;
-      const safeBottom = clientHeight - (isMobileRef.current ? 110 : 44);
+      const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+      const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 72 : 86);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 84 : 36);
 
       const x = THREE.MathUtils.clamp(
         (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
@@ -560,12 +610,13 @@ const IovTopologyCanvas = () => {
       }
 
       const { clientWidth, clientHeight } = host;
+      const viewportSafe = viewportSafeInsetsRef.current;
       const buttonWidth = Math.max(220, dock.offsetWidth || 220);
       const buttonHeight = Math.max(50, dock.offsetHeight || 50);
-      const safeLeft = buttonWidth * 0.5 + 10;
-      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
-      const safeTop = isMobileRef.current ? 92 : 76;
-      const safeBottom = clientHeight - (isMobileRef.current ? 102 : 38);
+      const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+      const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 86 : 70);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 90 : 30);
 
       const x = THREE.MathUtils.clamp(
         (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
@@ -762,6 +813,8 @@ const IovTopologyCanvas = () => {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", applyViewportSafeLayout);
+      window.visualViewport?.removeEventListener("scroll", applyViewportSafeLayout);
       window.removeEventListener("keydown", onKeyDown);
       if (idleHandle !== null && idleWindow.cancelIdleCallback) {
         idleWindow.cancelIdleCallback(idleHandle);

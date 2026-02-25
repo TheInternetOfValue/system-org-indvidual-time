@@ -1,6 +1,11 @@
 :root {
   color-scheme: dark;
   font-family: "Avenir Next", "Avenir", "Segoe UI", sans-serif;
+  --iov-app-height: 100dvh;
+  --iov-safe-top: 12px;
+  --iov-safe-right: 12px;
+  --iov-safe-bottom: 12px;
+  --iov-safe-left: 12px;
 }
 
 * {
@@ -16,7 +21,8 @@ body {
 #root,
 .app {
   width: 100vw;
-  height: 100vh;
+  height: var(--iov-app-height, 100dvh);
+  min-height: 100svh;
 }
 
 .app {
@@ -62,8 +68,8 @@ body {
 
 .iov-breadcrumb {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: max(12px, var(--iov-safe-top, 12px));
+  right: max(12px, var(--iov-safe-right, 12px));
   z-index: 16;
   display: flex;
   flex-wrap: wrap;
@@ -240,8 +246,8 @@ body {
 
 .iov-panel {
   position: absolute;
-  left: 16px;
-  bottom: 16px;
+  left: max(16px, var(--iov-safe-left, 16px));
+  bottom: max(16px, var(--iov-safe-bottom, 16px));
   width: min(390px, calc(100vw - 32px));
   padding: 16px;
   border-radius: 14px;
@@ -664,7 +670,7 @@ body {
 .iov-scene-chip {
   position: absolute;
   left: 50%;
-  top: 72px;
+  top: calc(var(--iov-safe-top, 12px) + 60px);
   transform: translateX(-50%);
   z-index: 16;
   display: inline-flex;
@@ -688,7 +694,7 @@ body {
 }
 
 .iov-scene-chip-context {
-  top: 116px;
+  top: calc(var(--iov-safe-top, 12px) + 104px);
   border-radius: 12px;
   max-width: min(640px, calc(100vw - 24px));
   align-items: flex-start;
@@ -709,7 +715,7 @@ body {
 .iov-scene-dock {
   position: absolute;
   left: 50%;
-  bottom: 18px;
+  bottom: max(18px, var(--iov-safe-bottom, 18px));
   transform: translateX(-50%);
   z-index: 16;
   display: flex;
@@ -747,7 +753,7 @@ body {
 }
 
 .iov-stage.is-presentation .iov-scene-chip {
-  top: 84px;
+  top: calc(var(--iov-safe-top, 12px) + 72px);
   max-width: min(700px, calc(100vw - 24px));
   padding: 10px 14px;
   font-size: 13px;
@@ -758,7 +764,7 @@ body {
 }
 
 .iov-stage.is-presentation .iov-scene-dock {
-  bottom: 24px;
+  bottom: max(24px, var(--iov-safe-bottom, 24px));
   padding: 6px;
   border-color: rgba(152, 184, 230, 0.2);
   background: rgba(10, 21, 37, 0.5);
@@ -797,7 +803,7 @@ body {
 .iov-selection-indicator {
   position: absolute;
   right: 16px;
-  bottom: 16px;
+  bottom: max(16px, var(--iov-safe-bottom, 16px));
   z-index: 10;
   font-size: 12px;
   color: rgba(34, 53, 86, 0.78);
@@ -939,9 +945,9 @@ body {
 
 @media (max-width: 900px) {
   .iov-breadcrumb {
-    top: 8px;
-    left: 8px;
-    right: 8px;
+    top: max(8px, var(--iov-safe-top, 8px));
+    left: max(8px, var(--iov-safe-left, 8px));
+    right: max(8px, var(--iov-safe-right, 8px));
     flex-wrap: nowrap;
     overflow-x: auto;
     max-width: calc(100vw - 16px);
@@ -981,9 +987,9 @@ body {
 
   .iov-panel {
     width: auto;
-    left: 10px;
-    right: 10px;
-    bottom: max(10px, env(safe-area-inset-bottom));
+    left: max(10px, var(--iov-safe-left, 10px));
+    right: max(10px, var(--iov-safe-right, 10px));
+    bottom: max(var(--iov-safe-bottom, 10px), calc(env(safe-area-inset-bottom) + 10px));
     max-height: min(65svh, 620px);
     gap: 10px;
     padding: 12px;
@@ -1004,9 +1010,9 @@ body {
   }
 
   .iov-panel-peek {
-    left: 10px;
+    left: max(10px, var(--iov-safe-left, 10px));
     right: auto;
-    bottom: max(14px, calc(env(safe-area-inset-bottom) + 3svh));
+    bottom: max(var(--iov-safe-bottom, 14px), calc(env(safe-area-inset-bottom) + 14px));
     padding: 6px;
   }
 
@@ -1157,13 +1163,13 @@ body {
   }
 
   .iov-scene-chip {
-    top: 58px;
+    top: calc(var(--iov-safe-top, 8px) + 44px);
     font-size: 11px;
     padding: 7px 10px;
   }
 
   .iov-scene-chip-context {
-    top: 94px;
+    top: calc(var(--iov-safe-top, 8px) + 80px);
     max-width: calc(100vw - 18px);
     font-size: 10px;
     padding: 8px 10px;
@@ -1173,7 +1179,7 @@ body {
     left: 10px;
     right: 10px;
     transform: none;
-    bottom: calc(10px + env(safe-area-inset-bottom));
+    bottom: max(var(--iov-safe-bottom, 10px), calc(env(safe-area-inset-bottom) + 10px));
     justify-content: stretch;
   }
 
@@ -1200,13 +1206,13 @@ body {
   }
 
   .iov-stage.is-presentation .iov-scene-chip {
-    top: 54px;
+    top: calc(var(--iov-safe-top, 8px) + 42px);
     padding: 8px 11px;
     font-size: 11px;
   }
 
   .iov-stage.is-presentation .iov-scene-dock {
-    bottom: calc(14px + env(safe-area-inset-bottom));
+    bottom: max(var(--iov-safe-bottom, 14px), calc(env(safe-area-inset-bottom) + 14px));
   }
 
   .iov-stage.is-presentation .iov-scene-dock-commit-floating {

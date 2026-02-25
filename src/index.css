@@ -710,6 +710,13 @@ body {
   max-width: min(820px, calc(100vw - 24px));
 }
 
+.iov-scene-dock-commit-floating {
+  bottom: auto;
+  max-width: min(360px, calc(100vw - 20px));
+  width: min(360px, calc(100vw - 20px));
+  padding: 6px;
+}
+
 .iov-stage.is-presentation .iov-topology-scene-action {
   min-width: 136px;
   min-height: 54px;
@@ -737,6 +744,10 @@ body {
   padding: 6px;
   border-color: rgba(152, 184, 230, 0.2);
   background: rgba(10, 21, 37, 0.5);
+}
+
+.iov-stage.is-presentation .iov-scene-dock-commit-floating {
+  bottom: auto;
 }
 
 .iov-stage.is-presentation .iov-scene-dock-person {
@@ -1144,6 +1155,14 @@ body {
     justify-content: stretch;
   }
 
+  .iov-scene-dock-commit-floating {
+    left: 50%;
+    right: auto;
+    width: min(360px, calc(100vw - 20px));
+    bottom: auto;
+    transform: translate(-50%, -50%);
+  }
+
   .iov-btn-inline {
     flex: 1 1 140px;
     min-width: 126px;
@@ -1166,6 +1185,10 @@ body {
 
   .iov-stage.is-presentation .iov-scene-dock {
     bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .iov-stage.is-presentation .iov-scene-dock-commit-floating {
+    bottom: auto;
   }
 
   .iov-stage.is-presentation .iov-btn-inline {

@@ -1322,6 +1322,10 @@ export class ValueLogScene {
     return this.draft;
   }
 
+  getTokenWorldPosition(target: THREE.Vector3) {
+    return this.root.localToWorld(target.copy(this.token.position));
+  }
+
   // --- Restored Original Methods ---
 
   private updatePointerHover() {

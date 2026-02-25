@@ -194,6 +194,29 @@ Delivered:
 
 ---
 
+### Phase 8: Community Identity Revert (Yellow) + Design Rule Sync
+Status: `COMPLETED`
+
+Tasks:
+- Restore Community base identity color to yellow in system visuals.
+- Align supporting UI accents and legend swatches with the restored identity.
+- Update design-rule documentation to reflect yellow as canonical Community base color.
+
+Acceptance:
+- Topology Community region renders as yellow identity color again.
+- Legend and Community-related UI accents no longer suggest green identity.
+- Design rule docs are consistent with implementation.
+- Tests/build pass.
+
+Delivered:
+- Restored canonical Community identity token to yellow in `IOV_IDENTITY_COLORS`.
+- Updated topology panel legend Community swatch to yellow.
+- Updated Community scene-action accent border color from green to yellow.
+- Updated Block interior Community people tint to a yellow-family hue for consistency.
+- Updated design rule docs (`AGENTS.md`, `docs/IOV_DESIGN.md`) and color rendering note text (`docs/IOV_COLOR_RENDERING.md`).
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -216,6 +239,9 @@ Delivered:
 - Phase 7:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 8:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -225,3 +251,4 @@ Delivered:
 - Phase 5: `perf: phase 5 contextual panel and mobile scene-first mode`
 - Phase 6: `perf: phase 6 scene-first topology actions and progressive context`
 - Phase 7: `perf: phase 7 guided topology build order and bridge gating`
+- Phase 8: `fix: restore community yellow identity and sync design rules`

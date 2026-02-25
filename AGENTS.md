@@ -52,7 +52,7 @@ Our architecture is split into zoom levels that handle specific parts of the nar
 - Region base colors:
   - Market: deep blue
   - State: burnt brown
-  - Community: muted green
+  - Community: yellow
   - Bridge: graphite
 - Top-layer/capture cues can use gold accents.
 - State transitions should be indicated by glow/outline/pulse before any recolor logic.

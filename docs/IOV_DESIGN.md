@@ -61,7 +61,7 @@ Current semantic zoom chain:
 - Active region identity palette:
   - Market: deep blue (`#1f4c8f`)
   - State: burnt brown (`#8c4e2f`)
-  - Community: muted green (`#5f8d63`)
+  - Community: yellow (`#d9b114`)
   - Bridge: graphite (`#4a4f57`)
 
 ## Mobile Interaction

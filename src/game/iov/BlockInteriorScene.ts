@@ -1026,7 +1026,7 @@ export class BlockInteriorScene {
 const getRegionPeopleColor = (regionId: RegionId) => {
   if (regionId === "market") return new THREE.Color("#2d63ad");
   if (regionId === "state") return new THREE.Color("#a15e39");
-  if (regionId === "community") return new THREE.Color("#709978");
+  if (regionId === "community") return new THREE.Color("#b89a33");
   return new THREE.Color("#626872");
 };
 

@@ -118,7 +118,7 @@ const IovTopologyPanel = ({
   const legendItems = [
     { id: "market", label: "Market", color: "#1f4c8f" },
     { id: "state", label: "State", color: "#8c4e2f" },
-    { id: "community", label: "Community", color: "#5f8d63" },
+    { id: "community", label: "Community", color: "#d9b114" },
     { id: "bridge", label: "Bridge", color: "#4a4f57" },
   ] as const;
   const valueLogStepIndex = valueLogSummary

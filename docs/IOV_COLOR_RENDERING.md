@@ -37,8 +37,8 @@ This is a perception failure, not only a "hex code" failure.
 ## Why It Still Looks Dark (Honest Diagnosis)
 
 1. Palette mismatch with intended semantics
-- Current identity palette is blue/brown/green/graphite.
-- Requested palette is:
+- Current identity palette is blue/brown/yellow/graphite.
+- Canonical palette is:
   - Market: dark green + lighter green derivatives
   - State: red
   - Community: yellow
@@ -173,4 +173,3 @@ This doc is intentionally focused on first principles:
 - perception at distance
 - category semantics
 - deterministic mapping from data category -> visible color identity
-

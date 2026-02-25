@@ -44,7 +44,7 @@ export const IOV_PHASE_DURATIONS: Record<IovBuildPhase, number> = {
 export const IOV_IDENTITY_COLORS = {
   market: "#1f4c8f",
   state: "#8c4e2f",
-  community: "#5f8d63",
+  community: "#d9b114",
   bridge: "#4a4f57",
 } as const;
 

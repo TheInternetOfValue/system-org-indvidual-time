@@ -252,6 +252,12 @@ Pass 3 progress (implemented):
   - community pillar scale increases from `communityPowerDelta`
   - bridge color/stress ramps during impact
   - bridge collapse triggers only when stress threshold crosses and contact gate is reached
+- System-impact choreography now uses donor-brick transfer instead of abstract pillar jumps:
+  - donor bricks are consumed from Market/State and source holes remain visible
+  - donor bricks fly into a stacked Community uplift column with edge outlines
+  - contact phase is staged (`pre-shake -> bang -> wobble/crack -> collapse`)
+- Added topology replay support for system impact:
+  - `Replay Impact` action can replay the last staged sequence without mutating source towers again.
 - `IovTopologyCanvas` now queues org outcomes and requires explicit topology action:
   - `impact -> orgimpact -> block -> topology`
   - press `Empower Community Pillar` -> `systemimpact -> topology`
@@ -274,6 +280,7 @@ For every pass above, update in the same commit:
 2. `docs/LLM_HANDOFF_CONTEXT.md`
 3. `README.md` (scene inventory/flow if changed)
 4. Change Log + Decision Log entries with date and rationale
+5. Append new entries; do not delete or rewrite earlier historical entries.
 
 ## Scope
 - In scope:
@@ -646,6 +653,10 @@ After each implementation pass:
 - 2026-02-25: In-scene-first migration must land with panel fallback retained until full interaction parity is reached.
 - 2026-02-25: Time Slice progression must be completable through in-scene controls to reduce panel dependence in presentation mode.
 - 2026-02-25: In-scene overlays should spatially align to selected world objects where practical to strengthen semantic zoom continuity.
+- 2026-02-25: Returning from person impact into org impact must reset to full-organization framing before contagion playback.
+- 2026-02-25: Returning to topology after org/system impact must reset to full-system framing and clear selected-brick lock.
+- 2026-02-25: System-impact storytelling prioritizes staged readability over raw speed (slower donor transfer, delayed collapse lead-in, explicit hit moment).
+- 2026-02-25: Replayability is required for demo capture; latest system-impact sequence must be replayable from topology without consuming additional donor bricks.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -675,6 +686,11 @@ After each implementation pass:
 - 2026-02-25: Completed Module 3 phase 1 by moving topology primary actions into in-scene controls while retaining panel fallback.
 - 2026-02-25: Completed Module 4 phase 2 with in-scene Time Slice progression/commit controls and step visibility.
 - 2026-02-25: Completed Module 5 consistency sweep with selected-brick-anchored topology action card and integrated camera/interaction polish.
+- 2026-02-25: Added org-impact camera reset to organization overview so contagion is seen at group level (not zoom-locked to one person).
+- 2026-02-25: Added topology camera reset to system overview after org impact return and after system impact completion/replay.
+- 2026-02-25: Reworked system-impact build to donor-brick transfer from Market/State with visible source holes and outlined community stack bricks.
+- 2026-02-25: Added staged bridge failure timeline (`pre-shake`, `bang`, `wobble/crack`, `collapse`) and tuned collapse physics for slower cinematic readability.
+- 2026-02-25: Added `Replay Impact` controls in topology panel and in-scene card to rerun latest system-impact sequence for presentation/video capture.
 
 ## Next Up
 1. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.

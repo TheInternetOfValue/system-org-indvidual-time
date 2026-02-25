@@ -128,6 +128,7 @@ const IovTopologyCanvas = () => {
   const [lastImpactedBrick, setLastImpactedBrick] = useState<SelectedBrickInfo | null>(null);
   const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
+  const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
 
   const hoveredRegion = useMemo(
@@ -154,6 +155,7 @@ const IovTopologyCanvas = () => {
       onBrickSelectionChange: (selection) => setSelectedBrickInfo(selection),
     });
     sceneRef.current = scene;
+    setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
     scene.setValues(values);
     scene.setBrickInteractionMode(interactionMode);
     const blockScene = new BlockInteriorScene(renderer.domElement, {
@@ -481,6 +483,7 @@ const IovTopologyCanvas = () => {
   const canOpenBrick = semanticLevel === "topology" && selectedBrickInfo !== null;
   const canEmpowerCommunity =
     semanticLevel === "topology" && pendingEmpower !== null && !bridgeCollapsed;
+  const canReplayImpact = semanticLevel === "topology" && canReplaySystemImpact;
   const empowerLabel = pendingEmpower
     ? `Empower Community Pillar (${pendingEmpower.activationCount})`
     : "Empower Community Pillar";
@@ -852,9 +855,12 @@ const IovTopologyCanvas = () => {
           systemImpactResult.communityPillarHeightAfter;
         systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
         setBridgeCollapsed(systemImpactResult.bridgeCollapsed);
+        setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
 
         const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
         applySemanticTransition(back.level);
+        scene.clearSelectedBrick();
+        scene.frameSystemOverview();
         setPhaseHeadline(
           systemImpactResult.bridgeCollapsed
             ? "Community pillar impact collapsed the crony bridge."
@@ -884,6 +890,37 @@ const IovTopologyCanvas = () => {
     startSystemImpactSequence(pendingResult, { empowerSurge: true });
   };
 
+  const handleReplaySystemImpact = () => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    transitionBusyRef.current = true;
+    scene.clearSelectedBrick();
+    scene.frameSystemOverview();
+    setPhaseHeadline("Replaying system impact cinematic.");
+
+    const started = scene.replayLastSystemImpact((systemImpactResult) => {
+      systemImpactModelRef.current.communityPillarHeight =
+        systemImpactResult.communityPillarHeightAfter;
+      systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
+      setBridgeCollapsed(systemImpactResult.bridgeCollapsed);
+      setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
+      scene.clearSelectedBrick();
+      scene.frameSystemOverview();
+      setPhaseHeadline(
+        systemImpactResult.bridgeCollapsed
+          ? "Community pillar impact collapsed the crony bridge."
+          : "Community pillar surged, bridge stress increased."
+      );
+      transitionBusyRef.current = false;
+    });
+
+    if (!started) {
+      setPhaseHeadline("No system impact sequence available to replay yet.");
+      transitionBusyRef.current = false;
+    }
+  };
+
   const startOrgImpactSequence = (personImpactResult: PersonImpactResult) => {
     const blockScene = blockSceneRef.current;
     if (!blockScene || !selectedBrickInfo) {
@@ -892,6 +929,7 @@ const IovTopologyCanvas = () => {
       return;
     }
 
+    blockScene.frameOrganizationOverview();
     blockScene.setSourceBrick(selectedBrickInfo);
     const openOrgImpact = zoomControllerRef.current.dispatch({ type: "OPEN_ORG_IMPACT" });
     applySemanticTransition(openOrgImpact.level);
@@ -938,6 +976,8 @@ const IovTopologyCanvas = () => {
         applySemanticTransition(backToBlock.level);
         const backToSystem = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
         applySemanticTransition(backToSystem.level);
+        sceneRef.current?.clearSelectedBrick();
+        sceneRef.current?.frameSystemOverview();
         setPhaseHeadline(
           "Organization activated. Press Empower Community Pillar to trigger system impact."
         );
@@ -1125,6 +1165,11 @@ function getRegionMeaning(regionId: RegionId) {
             <button className="iov-btn-action" onClick={onOpenBrick}>
               Open Organization
             </button>
+            {canReplayImpact && (
+              <button className="iov-btn-secondary" style={{ marginTop: "8px" }} onClick={handleReplaySystemImpact}>
+                Replay System Impact
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1305,6 +1350,8 @@ function getRegionMeaning(regionId: RegionId) {
         canEmpowerCommunity={canEmpowerCommunity}
         empowerLabel={empowerLabel}
         onEmpowerCommunity={handleEmpowerCommunity}
+        canReplaySystemImpact={canReplayImpact}
+        onReplaySystemImpact={handleReplaySystemImpact}
       />
     </div>
   );

@@ -243,6 +243,25 @@ export class BlockInteriorScene {
     this.controls.update();
   }
 
+  frameOrganizationOverview() {
+    if (this.isMobileViewport) {
+      this.camera.fov = 52;
+      this.camera.position.set(0, 2.7, 7.8);
+      this.controls.target.set(0, 1.05, 0);
+      this.controls.minDistance = 4.2;
+      this.controls.maxDistance = 11;
+    } else {
+      this.camera.fov = 48;
+      this.camera.position.set(0, 2.5, 6.8);
+      this.controls.target.set(0, 0.95, 0);
+      this.controls.minDistance = 3.4;
+      this.controls.maxDistance = 10;
+    }
+
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
   setPointerFromCanvas(x: number, y: number, width: number, height: number) {
     this.pointerNdc.x = (x / width) * 2 - 1;
     this.pointerNdc.y = -(y / height) * 2 + 1;

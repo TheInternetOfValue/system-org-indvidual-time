@@ -84,7 +84,12 @@ Current pass status:
 - Escalation route is now `impact -> orgimpact -> block -> topology`; system impact is user-triggered via `Empower Community Pillar`.
 - System impact now includes rapid community build-up visuals before bridge collision and stress evaluation.
 - Bridge collapse now requires both threshold and contact gate, using bridge geometry bounds for impact targeting.
-- Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
+- Latest tuning checkpoint (`2026-02-25`) added:
+  - org impact now forces organization-overview framing before contagion playback
+  - returning to topology after org/system impact forces full-system framing and clears brick lock
+  - donor bricks are consumed from Market/State during system impact and source holes remain visible
+  - staged bridge failure timing is active (`pre-shake -> bang -> wobble/crack -> collapse`)
+  - topology now exposes `Replay Impact` for rerunning the latest system-impact cinematic.
 
 ## New Approved Track: Aesthetic + Interaction Development
 Branch context:
@@ -134,6 +139,14 @@ Module status update:
   - safe-area clamping keeps card readable away from panel and viewport edges
   - integrated camera + interaction polish from Modules 1-4 remains stable.
 - current module track (`Module 0` to `Module 5`) is complete.
+- post-module cinematic timing pass is in progress:
+  - slower donor-brick travel for readability
+  - heavier contact emphasis on bridge impact
+  - explicit replay support for capture workflows.
+
+## Documentation continuity rule
+- Treat `docs/IOV_SEMANTIC_ZOOM_PROJECT.md` and this file as append-only journals.
+- Add new dated checkpoint entries; do not remove prior entries even if superseded.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

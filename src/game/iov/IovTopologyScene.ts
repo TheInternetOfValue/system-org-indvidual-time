@@ -117,6 +117,9 @@ interface LandingPulse {
   mesh: THREE.LineSegments;
   elapsed: number;
   duration: number;
+  startScale: number;
+  endScale: number;
+  maxOpacity: number;
 }
 
 export const IOV_TOPOLOGY_CONFIG = {
@@ -209,6 +212,20 @@ interface SystemImpactPlayback {
   bridgeStressBefore: number;
   bridgeStressThreshold: number;
   empowerSurge?: boolean;
+  donorBricks?: SystemImpactDonorBrick[];
+  replay?: boolean;
+}
+
+interface SystemImpactDonorBrick {
+  regionId: "market" | "state";
+  sourceIndex: number;
+  position: THREE.Vector3;
+  color: THREE.Color;
+}
+
+interface SystemImpactReplayState {
+  context: SystemImpactPlayback;
+  donorBricks: SystemImpactDonorBrick[];
 }
 
 export class IovTopologyScene {
@@ -336,14 +353,23 @@ export class IovTopologyScene {
   private systemImpactStressThresholdCrossed = false;
   private readonly systemImpactBridgeTarget = new THREE.Vector3();
   private systemImpactBridgeContactY = 0;
+  private systemImpactContactReached = false;
+  private systemImpactHitPulse = 0;
+  private systemImpactCollapseLeadInActive = false;
+  private systemImpactCollapseLeadInElapsed = 0;
   private systemImpactOnComplete: ((result: SystemImpactResult) => void) | null = null;
   private systemImpactResult: SystemImpactResult | null = null;
+  private lastSystemImpactReplayState: SystemImpactReplayState | null = null;
   private readonly systemImpactBuildGroup = new THREE.Group();
   private readonly systemImpactBuildBricks: Array<{
     mesh: THREE.Mesh;
-    startY: number;
-    targetY: number;
+    startPosition: THREE.Vector3;
+    targetPosition: THREE.Vector3;
     revealAt: number;
+    flightDuration: number;
+    arcHeight: number;
+    donorColor: THREE.Color;
+    settledColor: THREE.Color;
   }> = [];
   private systemImpactBuiltBrickCount = 0;
   private brickFocusCueActive = false;
@@ -396,9 +422,7 @@ export class IovTopologyScene {
     this.systemImpactPhotonLight.position.set(0, 0.5, 0);
     this.fxGroup.add(this.systemImpactPhoton);
 
-    this.camera.position.set(0, 15, 35);
-    this.controls.target.set(0, 6, 0);
-    this.controls.update();
+    this.applyOverviewCameraPose(this.isMobileViewport);
 
     this.applySelection(this.selectedRegionId);
     this.callbacks.onSelectChange?.(this.selectedRegionId);
@@ -460,10 +484,12 @@ export class IovTopologyScene {
 
     // Change color to Radiant Gold
     const color = new THREE.Color("#ffcd3c");
-    const matrix = new THREE.Matrix4();
-    runtime.mesh.getMatrixAt(instanceId, matrix);
     runtime.mesh.setColorAt(instanceId, color);
     runtime.mesh.instanceColor.needsUpdate = true;
+    const brick = runtime.currentBricks[instanceId];
+    if (brick) {
+      brick.color.copy(color);
+    }
   }
 
   playSystemImpact(
@@ -498,12 +524,22 @@ export class IovTopologyScene {
     const currentTopY = this.getSystemImpactBuildTopY(baseTopSurfaceY);
     const baseBrickCount = Math.max(6, Math.round(growthDelta * 16));
     let buildBrickCount = baseBrickCount;
-    if (context.empowerSurge) {
+    if (context.empowerSurge || this.systemImpactStressThresholdCrossed) {
       const contactGap = this.systemImpactBridgeContactY - currentTopY;
       if (contactGap > 0) {
-        const requiredBricks = Math.ceil(contactGap / STEP_Y) + 1;
+        const requiredBricks = Math.ceil(contactGap / STEP_Y) + 3;
         buildBrickCount = Math.max(buildBrickCount, requiredBricks);
       }
+    }
+    const donorBricks =
+      context.donorBricks?.map((donor) => ({
+        regionId: donor.regionId,
+        sourceIndex: donor.sourceIndex,
+        position: donor.position.clone(),
+        color: donor.color.clone(),
+      })) ?? this.resolveSystemImpactDonorBricks(buildBrickCount);
+    if (!context.replay) {
+      this.consumeSystemImpactDonorBricks(donorBricks);
     }
 
     this.systemImpactResult = {
@@ -518,15 +554,34 @@ export class IovTopologyScene {
     this.systemImpactActive = true;
     this.systemImpactCollapseTriggered = false;
     this.systemImpactElapsed = 0;
+    this.systemImpactContactReached = false;
+    this.systemImpactHitPulse = 0;
+    this.systemImpactCollapseLeadInActive = false;
+    this.systemImpactCollapseLeadInElapsed = 0;
     this.systemImpactCommunityScaleStart = this.systemImpactCommunityScale;
     this.systemImpactCommunityScaleEnd = baseScaleEnd;
     this.systemImpactBridgeStressStart = context.bridgeStressBefore;
     this.systemImpactBridgeStressEnd = bridgeStressAfter;
     this.systemImpactBridgeStressThreshold = Math.max(0.25, context.bridgeStressThreshold);
-    this.queueSystemImpactBuildStack(buildBrickCount, baseTopSurfaceY);
-
-    this.systemImpactPhoton.visible = true;
-    this.systemImpactPhotonLight.visible = true;
+    this.lastSystemImpactReplayState = {
+      context: {
+        orgImpact: { ...context.orgImpact },
+        communityPillarHeightBefore: context.communityPillarHeightBefore,
+        bridgeStressBefore: context.bridgeStressBefore,
+        bridgeStressThreshold: context.bridgeStressThreshold,
+        empowerSurge: context.empowerSurge,
+      },
+      donorBricks: donorBricks.map((donor) => ({
+        regionId: donor.regionId,
+        sourceIndex: donor.sourceIndex,
+        position: donor.position.clone(),
+        color: donor.color.clone(),
+      })),
+    };
+    this.queueSystemImpactBuildStack(buildBrickCount, baseTopSurfaceY, donorBricks);
+    this.resetBridgeFailureForeshadow();
+    this.systemImpactPhoton.visible = false;
+    this.systemImpactPhotonLight.visible = false;
   }
 
   resize(width: number, height: number) {
@@ -537,26 +592,40 @@ export class IovTopologyScene {
   setViewportProfile(isMobile: boolean) {
     if (this.isMobileViewport === isMobile) return;
     this.isMobileViewport = isMobile;
+    this.applyOverviewCameraPose(this.isMobileViewport);
+  }
 
-    if (isMobile) {
-      // On phones, keep the model higher in frame so the bottom sheet does not hide it.
-      this.camera.fov = 50;
-      this.camera.position.set(0, 17, 40);
-      this.controls.target.set(0, 8, 0);
-      this.controls.minDistance = 16;
-      this.controls.maxDistance = 52;
-      this.controls.maxPolarAngle = 1.36;
-    } else {
-      this.camera.fov = 42;
-      this.camera.position.set(0, 15, 35);
-      this.controls.target.set(0, 6, 0);
-      this.controls.minDistance = 12;
-      this.controls.maxDistance = 48;
-      this.controls.maxPolarAngle = 1.32;
-    }
+  frameSystemOverview() {
+    this.applyOverviewCameraPose(this.isMobileViewport);
+  }
 
-    this.camera.updateProjectionMatrix();
-    this.controls.update();
+  hasReplayableSystemImpact() {
+    return this.lastSystemImpactReplayState !== null;
+  }
+
+  replayLastSystemImpact(onComplete: (result: SystemImpactResult) => void) {
+    const replay = this.lastSystemImpactReplayState;
+    if (!replay) return false;
+    this.restoreBridgeForReplay();
+    this.clearSystemImpactBuildStack();
+    this.systemImpactCommunityScale = this.mapCommunityHeightToScale(
+      replay.context.communityPillarHeightBefore
+    );
+    this.setRegionReveal("community", this.regionReveal.community);
+    this.playSystemImpact(
+      {
+        ...replay.context,
+        donorBricks: replay.donorBricks.map((donor) => ({
+          regionId: donor.regionId,
+          sourceIndex: donor.sourceIndex,
+          position: donor.position.clone(),
+          color: donor.color.clone(),
+        })),
+        replay: true,
+      },
+      onComplete
+    );
+    return true;
   }
 
   setPointerFromCanvas(x: number, y: number, width: number, height: number) {
@@ -690,8 +759,8 @@ export class IovTopologyScene {
       }
       
       const t = pulse.elapsed / pulse.duration;
-      const scale = 1 + t * 0.5;
-      const opacity = Math.max(0, 1 - t);
+      const scale = lerp(pulse.startScale, pulse.endScale, easeOutCubic(t));
+      const opacity = Math.max(0, pulse.maxOpacity * (1 - t));
       
       pulse.mesh.scale.set(scale, scale, scale);
       const mat = pulse.mesh.material as THREE.LineBasicMaterial;
@@ -900,6 +969,7 @@ export class IovTopologyScene {
   shatterBridge() {
     if (this.isBridgeCollapsed) return;
     this.isBridgeCollapsed = true;
+    this.resetBridgeFailureForeshadow();
 
     // Support both instanced and mesh group approaches
     const regionId: RegionId = "crony_bridge";
@@ -913,12 +983,13 @@ export class IovTopologyScene {
          const mesh = child as THREE.Mesh;
          const offsetX = (random() - 0.5) * 0.5;
          const offsetZ = (random() - 0.5) * 0.5;
+         const burstY = 0.55 + random() * 0.75;
          
          this.fallingBricks.push({
              instanceId: -1,
              regionId: "crony_bridge",
              position: mesh.position.clone(),
-             velocity: new THREE.Vector3(offsetX, 0, offsetZ),
+             velocity: new THREE.Vector3(offsetX, burstY, offsetZ),
              rotation: new THREE.Vector3(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z),
              rotationSpeed: new THREE.Vector3(
                 (random() - 0.5) * 2,
@@ -941,12 +1012,13 @@ export class IovTopologyScene {
           
           const offsetX = (random() - 0.5) * 0.5;
           const offsetZ = (random() - 0.5) * 0.5;
+          const burstY = 0.55 + random() * 0.75;
 
           this.fallingBricks.push({
               instanceId: i,
               regionId: regionId,
               position: dummy.position.clone(),
-              velocity: new THREE.Vector3(offsetX, 0, offsetZ), // Small horizontal drift
+              velocity: new THREE.Vector3(offsetX, burstY, offsetZ),
               rotation: new THREE.Vector3(
                   dummy.rotation.x, 
                   dummy.rotation.y, 
@@ -1005,11 +1077,24 @@ export class IovTopologyScene {
 
     this.systemImpactElapsed += deltaSeconds;
 
-    const growDuration = 1.15;
-    const photonDelay = 0.24;
-    const photonDuration = 0.95;
-    const settleDuration = this.systemImpactStressThresholdCrossed ? 1.1 : 0.75;
-    const totalDuration = growDuration + photonDelay + photonDuration + settleDuration;
+    const growDuration = 1.25;
+    const stressDuration = 2.3;
+    const hitHoldDuration = 0.32;
+    const wobbleDuration = 0.95;
+    const crackDuration = 0.9;
+    const collapseLeadInDuration = hitHoldDuration + wobbleDuration + crackDuration;
+    const postCollapseDuration = 1.1;
+    const settleDuration = this.systemImpactStressThresholdCrossed ? 0.95 : 0.82;
+    const buildCompletionTime = this.systemImpactBuildBricks.reduce(
+      (maxTime, brick) => Math.max(maxTime, brick.revealAt + brick.flightDuration),
+      growDuration
+    );
+    const totalDuration =
+      buildCompletionTime +
+      settleDuration +
+      (this.systemImpactStressThresholdCrossed
+        ? collapseLeadInDuration + postCollapseDuration
+        : 0);
 
     const growT = Math.min(1, this.systemImpactElapsed / growDuration);
     this.systemImpactCommunityScale = lerp(
@@ -1021,54 +1106,109 @@ export class IovTopologyScene {
     this.systemImpactBuildBricks.forEach((brick) => {
       if (this.systemImpactElapsed < brick.revealAt) return;
       brick.mesh.visible = true;
-      const t = Math.min(1, (this.systemImpactElapsed - brick.revealAt) / 0.2);
-      brick.mesh.position.y = lerp(brick.startY, brick.targetY, easeOutCubic(t));
+      const t = Math.min(1, (this.systemImpactElapsed - brick.revealAt) / brick.flightDuration);
+      const eased = easeInOutCubic(t);
+      brick.mesh.position.lerpVectors(brick.startPosition, brick.targetPosition, eased);
+      brick.mesh.position.y += Math.sin(eased * Math.PI) * brick.arcHeight;
+      brick.mesh.rotation.y = eased * Math.PI * 2.1;
+      const material = brick.mesh.material as THREE.MeshBasicMaterial;
+      material.color.copy(brick.donorColor).lerp(brick.settledColor, eased);
     });
 
-    const stressT = Math.min(1, this.systemImpactElapsed / (growDuration + photonDuration));
+    const stressT = Math.min(1, this.systemImpactElapsed / stressDuration);
     const bridgeStressNow = lerp(
       this.systemImpactBridgeStressStart,
       this.systemImpactBridgeStressEnd,
       stressT
     );
     this.applyBridgeStressVisual(bridgeStressNow);
+    if (!this.systemImpactContactReached && this.systemImpactStressThresholdCrossed) {
+      const warmup = Math.max(0, (stressT - 0.38) / 0.62);
+      this.applyBridgePreImpactShake(warmup);
+    }
 
-    const community = this.regions.get("community");
-    const bridge = this.regions.get("crony_bridge");
-    if (community && bridge && this.systemImpactElapsed >= photonDelay) {
-      const photonT = Math.min(1, (this.systemImpactElapsed - photonDelay) / photonDuration);
-      const start = community.topCapCenter.clone();
-      const topBuildY = this.getSystemImpactBuildTopY(
-        this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)
+    const topBuildY = this.getSystemImpactBuildTopY(
+      this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)
+    );
+    const contactReached = topBuildY >= this.systemImpactBridgeContactY + HALF_H * 0.12;
+    if (contactReached && !this.systemImpactContactReached) {
+      this.systemImpactContactReached = true;
+      this.systemImpactHitPulse = 1.18;
+      this.systemImpactCollapseLeadInActive = true;
+      this.systemImpactCollapseLeadInElapsed = 0;
+      this.spawnLandingPulse(
+        new THREE.Vector3(
+          this.systemImpactBridgeTarget.x,
+          this.systemImpactBridgeContactY + HALF_H * 0.3,
+          this.systemImpactBridgeTarget.z
+        ),
+        {
+          color: "#ffe4a6",
+          duration: 0.95,
+          startScale: 1.2,
+          endScale: 2.45,
+          maxOpacity: 0.96,
+        }
       );
-      start.y = topBuildY + 0.3;
-      const end = this.systemImpactBridgeTarget.clone();
+      this.spawnLandingPulse(
+        new THREE.Vector3(COMMUNITY_X, topBuildY, TOPOLOGY_Z),
+        {
+          color: "#ffd089",
+          duration: 0.72,
+          startScale: 1.05,
+          endScale: 1.95,
+          maxOpacity: 0.88,
+        }
+      );
+    }
 
-      this.systemImpactPhoton.visible = true;
-      this.systemImpactPhoton.position.lerpVectors(start, end, easeOutCubic(photonT));
-      this.systemImpactPhoton.position.y += Math.sin(photonT * Math.PI) * 0.9;
-      const pulse = 1 + Math.sin(this.elapsed * 15) * 0.18;
-      this.systemImpactPhoton.scale.setScalar(pulse);
-      this.systemImpactPhotonLight.intensity = 1.7 + Math.sin(this.elapsed * 18) * 0.35;
+    if (this.systemImpactHitPulse > 0) {
+      this.systemImpactHitPulse = Math.max(0, this.systemImpactHitPulse - deltaSeconds * 1.9);
+      const progress = 1 - this.systemImpactHitPulse;
+      const bounce = Math.sin(progress * Math.PI * 3) * this.systemImpactHitPulse;
+      this.systemImpactBuildGroup.position.y = bounce * 0.14;
+    } else {
+      this.systemImpactBuildGroup.position.y = 0;
+    }
 
-      const contactReached = topBuildY >= this.systemImpactBridgeContactY - 0.04;
+    if (
+      this.systemImpactStressThresholdCrossed &&
+      this.systemImpactContactReached &&
+      !this.systemImpactCollapseTriggered
+    ) {
+      if (this.systemImpactCollapseLeadInActive) {
+        this.systemImpactCollapseLeadInElapsed += deltaSeconds;
+        if (this.systemImpactCollapseLeadInElapsed <= hitHoldDuration) {
+          const bangT = this.systemImpactCollapseLeadInElapsed / hitHoldDuration;
+          this.applyBridgeImpactBang(bangT);
+        } else {
+          const postHitElapsed = this.systemImpactCollapseLeadInElapsed - hitHoldDuration;
+          const wobbleT = Math.min(1, postHitElapsed / wobbleDuration);
+          const crackT =
+            postHitElapsed <= wobbleDuration
+              ? 0
+              : Math.min(1, (postHitElapsed - wobbleDuration) / crackDuration);
+          this.applyBridgeFailureForeshadow(wobbleT, crackT);
+        }
 
-      if (
-        this.systemImpactStressThresholdCrossed &&
-        contactReached &&
-        !this.systemImpactCollapseTriggered &&
-        photonT >= 0.86
-      ) {
-        this.systemImpactCollapseTriggered = true;
-        this.systemImpactResult.bridgeCollapsed = true;
-        this.shatterBridge();
+        if (this.systemImpactCollapseLeadInElapsed >= collapseLeadInDuration) {
+          this.systemImpactCollapseLeadInActive = false;
+          this.resetBridgeFailureForeshadow();
+          this.systemImpactCollapseTriggered = true;
+          this.systemImpactResult.bridgeCollapsed = true;
+          this.shatterBridge();
+        }
       }
+    } else if (!this.systemImpactContactReached) {
+      this.resetBridgeFailureForeshadow();
     }
 
     if (this.systemImpactElapsed >= totalDuration) {
       this.systemImpactActive = false;
+      this.systemImpactBuildGroup.position.y = 0;
       this.systemImpactPhoton.visible = false;
       this.systemImpactPhotonLight.visible = false;
+      this.resetBridgeFailureForeshadow();
       const done = this.systemImpactOnComplete;
       const result = this.systemImpactResult;
       this.systemImpactOnComplete = null;
@@ -1099,6 +1239,73 @@ export class IovTopologyScene {
       const material = mesh.material as THREE.MeshBasicMaterial;
       material.color.copy(color.clone().multiplyScalar(0.9));
     });
+  }
+
+  private applyBridgePreImpactShake(intensity: number) {
+    const clamped = THREE.MathUtils.clamp(intensity, 0, 1);
+    if (clamped <= 0.001) {
+      this.bridgeBricks.rotation.z = 0;
+      this.bridgeSupports.rotation.z = 0;
+      this.bridgeBricks.position.y = 0;
+      this.bridgeSupports.position.y = 0;
+      return;
+    }
+    this.bridgeBricks.rotation.z = Math.sin(this.elapsed * 4.4) * 0.014 * clamped;
+    this.bridgeSupports.rotation.z = Math.sin(this.elapsed * 4.4 + 0.6) * 0.01 * clamped;
+    this.bridgeBricks.position.y = Math.sin(this.elapsed * 5.4) * 0.02 * clamped;
+    this.bridgeSupports.position.y = Math.sin(this.elapsed * 5.4 + 0.7) * 0.012 * clamped;
+  }
+
+  private applyBridgeImpactBang(progress: number) {
+    const t = THREE.MathUtils.clamp(progress, 0, 1);
+    const impulse = Math.sin(t * Math.PI);
+    const decay = 1 - t;
+    this.bridgeBricks.rotation.z = Math.sin(t * Math.PI * 6) * 0.045 * decay;
+    this.bridgeSupports.rotation.z = Math.sin(t * Math.PI * 6 + 0.6) * 0.026 * decay;
+    this.bridgeBricks.position.y = impulse * 0.18;
+    this.bridgeSupports.position.y = impulse * 0.09;
+
+    const bangColor = new THREE.Color("#ffd9a4");
+    this.bridgeBricks.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      if ((i + 1) % 3 === 0 || (i + 1) % 5 === 0) {
+        material.color.lerp(bangColor, 0.22 * decay);
+      }
+    });
+  }
+
+  private applyBridgeFailureForeshadow(wobbleT: number, crackT: number) {
+    const wobble =
+      Math.sin(this.elapsed * 25) * 0.06 * wobbleT +
+      Math.sin(this.elapsed * 11 + 0.7) * 0.024 * wobbleT;
+    const verticalShake = Math.sin(this.elapsed * 34) * 0.05 * wobbleT;
+    this.bridgeBricks.rotation.z = wobble;
+    this.bridgeSupports.rotation.z = wobble * 0.68;
+    this.bridgeBricks.position.y = verticalShake;
+    this.bridgeSupports.position.y = verticalShake * 0.45;
+
+    if (crackT <= 0) return;
+
+    const crackDark = new THREE.Color("#2a1e16");
+    const crackHot = new THREE.Color("#ff9e7a");
+    this.bridgeBricks.children.forEach((child, i) => {
+      const mesh = child as THREE.Mesh;
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      const pulse = 0.5 + 0.5 * Math.sin(this.elapsed * 46 + i * 0.67);
+      if (i % 4 === 0) {
+        material.color.lerp(crackDark, crackT * (0.55 + 0.35 * pulse));
+      } else if (i % 7 === 0) {
+        material.color.lerp(crackHot, crackT * (0.2 + 0.2 * pulse));
+      }
+    });
+  }
+
+  private resetBridgeFailureForeshadow() {
+    this.bridgeBricks.rotation.set(0, 0, 0);
+    this.bridgeSupports.rotation.set(0, 0, 0);
+    this.bridgeBricks.position.y = 0;
+    this.bridgeSupports.position.y = 0;
   }
 
   private mapCommunityHeightToScale(heightScore: number) {
@@ -1136,32 +1343,183 @@ export class IovTopologyScene {
     };
   }
 
-  private queueSystemImpactBuildStack(brickCount: number, baseTopSurfaceY: number) {
+  private resolveSystemImpactDonorBricks(brickCount: number) {
+    const marketRuntime = this.regions.get("market");
+    const stateRuntime = this.regions.get("state");
+    if (!marketRuntime && !stateRuntime) return [];
+
+    const marketCandidates = marketRuntime
+      ? this.getSystemImpactDonorCandidateIndexes(marketRuntime)
+      : [];
+    const stateCandidates = stateRuntime
+      ? this.getSystemImpactDonorCandidateIndexes(stateRuntime)
+      : [];
+    const donors: SystemImpactDonorBrick[] = [];
+    const random = createSeededRandom(
+      hashString(`system-impact-${this.systemImpactBuiltBrickCount}-${brickCount}`)
+    );
+
+    const pickFrom = (
+      runtime: RegionRuntime | undefined,
+      regionId: "market" | "state",
+      candidateIndexes: number[]
+    ) => {
+      if (!runtime || candidateIndexes.length === 0) return null;
+      const choice = Math.floor(random() * candidateIndexes.length);
+      const sourceIndex = candidateIndexes.splice(choice, 1)[0];
+      if (sourceIndex === undefined) return null;
+      const source = runtime.currentBricks[sourceIndex];
+      if (!source) return null;
+      return {
+        regionId,
+        sourceIndex,
+        position: source.position.clone(),
+        color: source.color.clone(),
+      } satisfies SystemImpactDonorBrick;
+    };
+
+    for (let i = 0; i < brickCount; i += 1) {
+      const preferMarket = i % 2 === 0;
+      const primary = preferMarket
+        ? pickFrom(marketRuntime, "market", marketCandidates)
+        : pickFrom(stateRuntime, "state", stateCandidates);
+      const fallback = preferMarket
+        ? pickFrom(stateRuntime, "state", stateCandidates)
+        : pickFrom(marketRuntime, "market", marketCandidates);
+      const donor = primary ?? fallback;
+      if (!donor) break;
+      donors.push(donor);
+    }
+
+    return donors;
+  }
+
+  private getSystemImpactDonorCandidateIndexes(runtime: RegionRuntime) {
+    const upperCutoff = runtime.topY - STEP_Y * 4;
+    const shellX = STEP_XZ * 1.05;
+    const shellZ = STEP_XZ * 0.75;
+    const cameraFacingZ = runtime.center.z + STEP_XZ * 0.45;
+    const radiant = new THREE.Color("#ffcd3c");
+    const visiblePreferred: number[] = [];
+    const preferred: number[] = [];
+    const fallback: number[] = [];
+
+    runtime.currentBricks.forEach((brick, index) => {
+      const colorDelta = Math.hypot(
+        brick.color.r - radiant.r,
+        brick.color.g - radiant.g,
+        brick.color.b - radiant.b
+      );
+      if (colorDelta < 0.04) return;
+      const isUpper = brick.position.y >= upperCutoff;
+      const isShell =
+        Math.abs(brick.position.x - runtime.center.x) >= shellX ||
+        Math.abs(brick.position.z - runtime.center.z) >= shellZ;
+      const isCameraFacing = brick.position.z >= cameraFacingZ;
+      if (isUpper && isShell && isCameraFacing) {
+        visiblePreferred.push(index);
+      } else if (isUpper && isShell) {
+        preferred.push(index);
+      } else {
+        fallback.push(index);
+      }
+    });
+
+    if (visiblePreferred.length > 0) return visiblePreferred;
+    if (preferred.length > 0) return preferred;
+    return fallback;
+  }
+
+  private consumeSystemImpactDonorBricks(donors: SystemImpactDonorBrick[]) {
+    const powBudget = Math.min(16, donors.length);
+    for (let i = 0; i < powBudget; i += 1) {
+      const donor = donors[i];
+      if (!donor) continue;
+      this.spawnLandingPulse(donor.position.clone(), {
+        color: "#ffd89e",
+        duration: 0.72,
+        startScale: 0.95,
+        endScale: 1.92,
+        maxOpacity: 0.9,
+      });
+    }
+
+    const byRegion = new Map<"market" | "state", Set<number>>([
+      ["market", new Set<number>()],
+      ["state", new Set<number>()],
+    ]);
+
+    donors.forEach((donor) => {
+      byRegion.get(donor.regionId)?.add(donor.sourceIndex);
+    });
+
+    byRegion.forEach((indexes, regionId) => {
+      if (indexes.size === 0) return;
+      const runtime = this.regions.get(regionId);
+      if (!runtime) return;
+      const nextBricks = runtime.currentBricks.filter((_brick, index) => !indexes.has(index));
+      this.rebuildRegionWithBricks(runtime, nextBricks);
+    });
+  }
+
+  private queueSystemImpactBuildStack(
+    brickCount: number,
+    baseTopSurfaceY: number,
+    donors: SystemImpactDonorBrick[]
+  ) {
     const community = this.regions.get("community");
     if (!community) return;
 
-    const center = community.topCapCenter;
-    const color = new THREE.Color("#d9b114");
+    const settledColor = new THREE.Color("#d9b114");
+    const anchorX = COMMUNITY_X;
+    const anchorZ = TOPOLOGY_Z;
+    const laneOffsets: Array<[number, number]> = [
+      [0, 0],
+      [STEP_XZ * 0.26, 0],
+      [-STEP_XZ * 0.26, 0],
+      [0, STEP_XZ * 0.2],
+      [0, -STEP_XZ * 0.2],
+    ];
 
     for (let i = 0; i < brickCount; i += 1) {
       const logicalIndex = this.systemImpactBuiltBrickCount + i;
+      const lane = laneOffsets[logicalIndex % laneOffsets.length] ?? [0, 0];
       const targetY = baseTopSurfaceY + HALF_H + logicalIndex * STEP_Y;
-      const startY = targetY - 1.1;
+      const targetPosition = new THREE.Vector3(anchorX + lane[0], targetY, anchorZ + lane[1]);
+      const donor = donors[i];
+      const donorPosition = donor?.position ?? targetPosition.clone();
+      const startPosition = donorPosition.clone().add(new THREE.Vector3(0, HALF_H, 0));
+      const donorColor = donor?.color ?? settledColor;
+      const travelDistance = startPosition.distanceTo(targetPosition);
 
       const mesh = new THREE.Mesh(
         this.brickGeometry,
         new THREE.MeshBasicMaterial({
-          color: color.clone(),
+          color: donorColor.clone(),
         })
       );
-      mesh.position.set(center.x, startY, center.z);
+      const edge = new THREE.LineSegments(
+        this.edgeGeometry,
+        new THREE.LineBasicMaterial({
+          color: "#665228",
+          transparent: true,
+          opacity: 0.66,
+        })
+      );
+      edge.renderOrder = 14;
+      mesh.add(edge);
+      mesh.position.copy(startPosition);
       mesh.visible = false;
       this.systemImpactBuildGroup.add(mesh);
       this.systemImpactBuildBricks.push({
         mesh,
-        startY,
-        targetY,
-        revealAt: i * 0.06,
+        startPosition,
+        targetPosition,
+        revealAt: i * 0.1,
+        flightDuration: THREE.MathUtils.clamp(0.8 + travelDistance * 0.026, 0.8, 1.6),
+        arcHeight: THREE.MathUtils.clamp(0.65 + travelDistance * 0.085, 0.65, 2.1),
+        donorColor,
+        settledColor,
       });
     }
 
@@ -1180,13 +1538,28 @@ export class IovTopologyScene {
   private clearSystemImpactBuildStack() {
     this.systemImpactBuildBricks.forEach((brick) => {
       this.systemImpactBuildGroup.remove(brick.mesh);
+      brick.mesh.children.forEach((child) => {
+        const line = child as THREE.LineSegments;
+        const material = line.material;
+        if (Array.isArray(material)) {
+          material.forEach((mat) => mat.dispose());
+        } else if (material) {
+          material.dispose();
+        }
+      });
       (brick.mesh.material as THREE.Material).dispose();
     });
     this.systemImpactBuildBricks.length = 0;
     this.systemImpactBuiltBrickCount = 0;
     this.systemImpactStressThresholdCrossed = false;
+    this.systemImpactContactReached = false;
+    this.systemImpactHitPulse = 0;
+    this.systemImpactCollapseLeadInActive = false;
+    this.systemImpactCollapseLeadInElapsed = 0;
+    this.systemImpactBuildGroup.position.y = 0;
     this.systemImpactBridgeContactY = 0;
     this.systemImpactBridgeTarget.set(0, 0, 0);
+    this.resetBridgeFailureForeshadow();
     if (this.brickFocusCueActive) {
       this.brickFocusCueActive = false;
       const done = this.brickFocusCueResolver;
@@ -1207,7 +1580,7 @@ export class IovTopologyScene {
 
       this.fallingBricks.forEach(brick => {
           // Gravity
-          brick.velocity.y -= 9.8 * delta * 2; // Exaggerated gravity
+          brick.velocity.y -= 9.8 * delta * 1.15;
           
           // Position integration
           brick.position.addScaledVector(brick.velocity, delta);
@@ -1215,10 +1588,10 @@ export class IovTopologyScene {
           // Floor collision
           if (brick.position.y < groundY + BRICK_H/2) {
               brick.position.y = groundY + BRICK_H/2;
-              brick.velocity.y *= -0.3; // Dampened bounce
-              brick.velocity.x *= 0.8;  // Friction
-              brick.velocity.z *= 0.8;
-              brick.rotationSpeed.multiplyScalar(0.5); // Slow rotation on floor
+              brick.velocity.y *= -0.22;
+              brick.velocity.x *= 0.85;
+              brick.velocity.z *= 0.85;
+              brick.rotationSpeed.multiplyScalar(0.58);
           }
 
           // Rotation
@@ -1290,6 +1663,55 @@ export class IovTopologyScene {
     const yScale = Math.max(0.001, reveal);
     this.bridgeSupports.scale.y = yScale;
     this.bridgeBricks.scale.y = yScale;
+  }
+
+  private applyOverviewCameraPose(isMobile: boolean) {
+    if (isMobile) {
+      // On phones, keep the model higher in frame so the bottom sheet does not hide it.
+      this.camera.fov = 50;
+      this.camera.position.set(0, 17, 40);
+      this.controls.target.set(0, 8, 0);
+      this.controls.minDistance = 16;
+      this.controls.maxDistance = 52;
+      this.controls.maxPolarAngle = 1.36;
+    } else {
+      this.camera.fov = 42;
+      this.camera.position.set(0, 15, 35);
+      this.controls.target.set(0, 6, 0);
+      this.controls.minDistance = 12;
+      this.controls.maxDistance = 48;
+      this.controls.maxPolarAngle = 1.32;
+    }
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  private restoreBridgeForReplay() {
+    this.fallingBricks = [];
+    this.isBridgeCollapsed = false;
+    this.resetBridgeFailureForeshadow();
+    const visible = this.regionReveal.crony_bridge > 0.01;
+    this.bridgeSupports.visible = visible;
+    this.bridgeBricks.visible = visible;
+    this.cronyMarkers.visible = visible;
+    this.bridgeBricks.children.forEach((child) => {
+      const mesh = child as THREE.Mesh;
+      const restPosition = mesh.userData.restPosition as THREE.Vector3 | undefined;
+      const restRotation = mesh.userData.restRotation as THREE.Euler | undefined;
+      const baseColor = mesh.userData.baseColor as THREE.Color | undefined;
+      if (restPosition) {
+        mesh.position.copy(restPosition);
+      }
+      if (restRotation) {
+        mesh.rotation.copy(restRotation);
+      } else {
+        mesh.rotation.set(0, 0, 0);
+      }
+      const material = mesh.material as THREE.MeshBasicMaterial;
+      if (baseColor && material) {
+        material.color.copy(baseColor);
+      }
+    });
   }
 
   private setupSceneLook() {
@@ -1780,6 +2202,9 @@ export class IovTopologyScene {
           brickMesh.castShadow = true;
           brickMesh.receiveShadow = false;
           brickMesh.userData.regionId = config.id;
+          brickMesh.userData.restPosition = position.clone();
+          brickMesh.userData.restRotation = brickMesh.rotation.clone();
+          brickMesh.userData.baseColor = brickMaterial.color.clone();
 
           // Add to bridge group instead of using instanced mesh
           this.bridgeBricks.add(brickMesh);
@@ -2469,13 +2894,22 @@ export class IovTopologyScene {
     this.activeTransfer = null;
   }
 
-  private spawnLandingPulse(position: THREE.Vector3) {
+  private spawnLandingPulse(
+    position: THREE.Vector3,
+    options?: {
+      color?: string;
+      duration?: number;
+      startScale?: number;
+      endScale?: number;
+      maxOpacity?: number;
+    }
+  ) {
     const pulse = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(BRICK_W + 0.2, BRICK_H + 0.2, BRICK_D + 0.2)),
       new THREE.LineBasicMaterial({
-        color: "#ffffff",
+        color: options?.color ?? "#ffffff",
         transparent: true,
-        opacity: 0.8,
+        opacity: options?.maxOpacity ?? 0.8,
       })
     );
     pulse.position.copy(position);
@@ -2483,7 +2917,10 @@ export class IovTopologyScene {
     this.landingPulses.push({
       mesh: pulse,
       elapsed: 0,
-      duration: 0.6,
+      duration: options?.duration ?? 0.6,
+      startScale: options?.startScale ?? 1,
+      endScale: options?.endScale ?? 1.5,
+      maxOpacity: options?.maxOpacity ?? 0.8,
     });
   }
 

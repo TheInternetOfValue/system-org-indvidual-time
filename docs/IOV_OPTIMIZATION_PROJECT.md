@@ -248,6 +248,37 @@ Delivered:
 
 ---
 
+### Phase 10: Person Identity Focus Mode + Contextual Meaning Reveal
+Status: `COMPLETED`
+
+Tasks:
+- Remove distracting person-level photon swirl visuals while preserving deterministic layer/facet behavior.
+- Make orbit rings and facet balls directly clickable with focus fade.
+- Reveal contextual meaning when a layer/facet is selected.
+- Keep identity-layer progression scene-first (tap/click/double-click) without blocking overlays.
+
+Acceptance:
+- Clicking a ring or facet focuses that identity context and fades non-focused content.
+- Selected context meaning is visible in-scene and in panel copy.
+- Layer reveal remains deterministic and progressive in person scene.
+- Tests/build pass.
+
+Delivered:
+- Person scene interaction model:
+  - Added explicit person selection kind (`facet`/`layer`) and robust ring picking in `PersonIdentityScene`.
+  - Improved person click routing in `IovTopologyCanvas` to support: empty-space reveal, double-click reveal, and re-tap same target reveal.
+- Focus-mode rendering:
+  - Added focused-layer/facet dimming so non-selected rings/facets fade while selected context remains prominent.
+  - Increased ring hit thickness and reduced facet orbital speed for more reliable clicking.
+- Contextual storytelling:
+  - Added semantic context payload (`selectedContextTitle`, `selectedContextBody`) to person summary.
+  - Surfaced selected context meaning in scene chips and person panel section.
+  - Replaced outdated panel copy about center-card controls with scene-first interaction guidance.
+- Visual cleanup:
+  - Disabled person photon swirl meshes so identity exploration remains calm and readable.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -276,6 +307,9 @@ Delivered:
 - Phase 9:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 10:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -287,3 +321,4 @@ Delivered:
 - Phase 7: `perf: phase 7 guided topology build order and bridge gating`
 - Phase 8: `fix: restore community yellow identity and sync design rules`
 - Phase 9: `feat: scene-first double-click navigation and non-blocking overlays`
+- Phase 10: `feat: phase 10 person focus fade and contextual identity reveal`

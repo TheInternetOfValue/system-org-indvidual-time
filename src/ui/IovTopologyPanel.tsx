@@ -529,7 +529,7 @@ const IovTopologyPanel = ({
                 <strong>{personSummary.personId}</strong>
               </div>
               <div className="iov-panel-value-subline">
-                Identity build controls are in the center scene card.
+                Scene-first mode: tap an orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer.
               </div>
               <div className="iov-panel-value-subline">
                 Build progress:{" "}
@@ -568,17 +568,21 @@ const IovTopologyPanel = ({
                 })}
               </div>
               <div className="iov-panel-value-subline">
-                Layer hovered: {personSummary.hoveredLayer ?? "None"}
-              </div>
-              <div className="iov-panel-value-subline">
-                Facet hovered: {personSummary.hoveredFacet ?? "None"}
-              </div>
-              <div className="iov-panel-value-subline">
                 Layer selected: {personSummary.selectedLayer ?? "None"}
               </div>
               <div className="iov-panel-value-subline">
                 Facet selected: {personSummary.selectedFacet ?? "None"}
               </div>
+              {personSummary.selectedContextTitle && personSummary.selectedContextBody && (
+                <>
+                  <div className="iov-panel-value-line">
+                    <strong>Context: {personSummary.selectedContextTitle}</strong>
+                  </div>
+                  <div className="iov-panel-value-subline">
+                    {personSummary.selectedContextBody}
+                  </div>
+                </>
+              )}
               <div className="iov-panel-value-subline">
                 Wellbeing score: {personSummary.wellbeingScore.toFixed(3)}
               </div>

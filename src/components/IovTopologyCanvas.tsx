@@ -128,7 +128,7 @@ const IovTopologyCanvas = () => {
   const selectedPersonIdRef = useRef<string | null>(null);
   const topologyBuildStepRef = useRef(0);
   const lastSceneTapRef = useRef<{
-    level: "topology" | "block";
+    level: "topology" | "block" | "person";
     key: string;
     at: number;
   } | null>(null);
@@ -458,7 +458,31 @@ const IovTopologyCanvas = () => {
             handleOpenPersonStub(selected);
           }
         } else if (semanticLevelRef.current === "person") {
-          personScene.selectFromPointer();
+          const summaryBefore = personScene.getSummary();
+          const selectionKind = personScene.selectFromPointer();
+          const summary = personScene.getSummary();
+          const focusKey = summary.selectedFacet ?? summary.selectedLayer ?? "__person__";
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "person" &&
+            lastTap.key === focusKey &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "person", key: focusKey, at: now };
+
+          const reselectedFocus =
+            selectionKind !== null &&
+            summaryBefore.selectedFacet === summary.selectedFacet &&
+            summaryBefore.selectedLayer === summary.selectedLayer;
+
+          if (
+            (selectionKind === null || isDoubleTap || reselectedFocus) &&
+            summary.identityBuildMode &&
+            !summary.identityBuildComplete
+          ) {
+            handleNextIdentityLayer();
+          }
         } else if (semanticLevelRef.current === "valuelog") {
           valueLogScene.selectFromPointer();
         }
@@ -1337,8 +1361,16 @@ function getRegionMeaning(regionId: RegionId) {
               {personSummary.identityBuildMode
                 ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
                 : " Identity stack ready. Reveal layers to begin."}
+              {" "}
+              Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer.
             </span>
           </div>
+          {personSummary.selectedContextTitle && personSummary.selectedContextBody && (
+            <div className="iov-scene-chip iov-scene-chip-context">
+              <strong>{personSummary.selectedContextTitle}</strong>
+              <span>{personSummary.selectedContextBody}</span>
+            </div>
+          )}
           <div className="iov-scene-dock iov-scene-dock-person">
             {!personSummary.identityBuildMode ? (
               <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>

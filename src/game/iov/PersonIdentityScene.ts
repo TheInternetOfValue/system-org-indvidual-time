@@ -13,6 +13,7 @@ import {
 } from "./wellbeingIdentityProtocol";
 
 export type PersonDetailMode = "identity" | "valuelog";
+export type PersonSelectionKind = "facet" | "layer" | null;
 
 export interface PersonIdentitySummary {
   personId: string;
@@ -43,6 +44,8 @@ export interface PersonIdentitySummary {
   wellbeingContextNode: WellbeingContextNode | null;
   saocommonsEnabled: boolean;
   saocommonsDomains: string[];
+  selectedContextTitle: string | null;
+  selectedContextBody: string | null;
 }
 
 interface PersonIdentityCallbacks {
@@ -115,6 +118,8 @@ export class PersonIdentityScene {
   private sourceRegion: RegionId = "community";
   private hoveredFacet: string | null = null;
   private selectedFacet: string | null = null;
+  private hoveredLayerKey: string | null = null;
+  private selectedLayerKey: string | null = null;
   private latestCaption = "No active log";
   private readonly orbitPlaneY = 1.48;
   private lastProcessedLogCount = 0;
@@ -183,8 +188,10 @@ export class PersonIdentityScene {
     this.buildLayerIndex = 0;
     this.buildLayerStartSeconds = performance.now() * 0.001;
     this.selectedFacet = null;
+    this.selectedLayerKey = null;
     this.selectedMarker.visible = false;
     this.hoveredFacet = null;
+    this.hoveredLayerKey = null;
     this.hoveredMarker.visible = false;
     this.callbacks.onHoverFacetChange?.(null);
     this.applyModeVisualState();
@@ -232,8 +239,12 @@ export class PersonIdentityScene {
     this.identityBuildMode = true;
     this.buildLayerIndex = 0;
     this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.selectedFacet = null;
+    this.selectedLayerKey = null;
+    this.selectedMarker.visible = false;
     this.hoveredMarker.visible = false;
     this.hoveredFacet = null;
+    this.hoveredLayerKey = null;
     this.callbacks.onHoverFacetChange?.(null);
     this.applyModeVisualState();
   }
@@ -269,14 +280,27 @@ export class PersonIdentityScene {
 
   getSummary(): PersonIdentitySummary {
     const snapshot = this.stateEngine.getSnapshot();
-    const hoveredLayer =
-      this.hoveredFacet === null
-        ? null
-        : this.facetNodes.find((node) => node.facet === this.hoveredFacet)?.layer.label ?? null;
-    const selectedLayer =
+    const selectedFacetNode =
       this.selectedFacet === null
         ? null
-        : this.facetNodes.find((node) => node.facet === this.selectedFacet)?.layer.label ?? null;
+        : this.facetNodes.find((node) => node.facet === this.selectedFacet) ?? null;
+    const selectedLayerKey = selectedFacetNode?.layer.key ?? this.selectedLayerKey;
+    const selectedLayerNode =
+      selectedLayerKey === null
+        ? null
+        : WELLBEING_IDENTITY_LAYERS.find((layer) => layer.key === selectedLayerKey) ?? null;
+    const selectedContextFacet = selectedFacetNode?.facet ?? null;
+    const selectedContext = getIdentityContext(selectedLayerNode?.label ?? null, selectedContextFacet);
+    const hoveredLayerRaw =
+      this.hoveredFacet === null
+        ? this.hoveredLayerKey
+          ? WELLBEING_IDENTITY_LAYERS.find((layer) => layer.key === this.hoveredLayerKey)?.label ?? null
+          : null
+        : this.facetNodes.find((node) => node.facet === this.hoveredFacet)?.layer.label ?? null;
+    const selectedLayerRaw =
+      selectedFacetNode?.layer.label ?? selectedLayerNode?.label ?? null;
+    const hoveredLayer = cleanToken(hoveredLayerRaw);
+    const selectedLayer = cleanToken(selectedLayerRaw);
 
     return {
       personId: this.selectedPersonId,
@@ -314,6 +338,8 @@ export class PersonIdentityScene {
       wellbeingContextNode: this.wellbeingContextNode,
       saocommonsEnabled: this.saocommonsEnabled,
       saocommonsDomains: [...this.saocommonsDomains],
+      selectedContextTitle: selectedContext.title,
+      selectedContextBody: selectedContext.body,
     };
   }
 
@@ -356,21 +382,37 @@ export class PersonIdentityScene {
     this.hasPointer = false;
     this.hoveredMarker.visible = false;
     this.hoveredFacet = null;
+    this.hoveredLayerKey = null;
     this.callbacks.onHoverFacetChange?.(null);
   }
 
-  selectFromPointer() {
-    if (!this.hasPointer) return;
+  selectFromPointer(): PersonSelectionKind {
+    if (!this.hasPointer) return null;
     const hit = this.pickFacet();
-    if (!hit) return;
+    if (hit !== null) {
+      const node = this.facetNodes[hit];
+      if (!node) return "facet";
+      this.selectedFacet = node.facet;
+      this.selectedLayerKey = node.layer.key;
+      this.selectedMarker.visible = true;
+      this.selectedMarker.position.copy(node.mesh.position);
+      this.selectedMarker.lookAt(this.camera.position);
+      this.callbacks.onSelectFacetChange?.(node.facet);
+      return "facet";
+    }
 
-    const node = this.facetNodes[hit];
-    if (!node) return;
-    this.selectedFacet = node.facet;
-    this.selectedMarker.visible = true;
-    this.selectedMarker.position.copy(node.mesh.position);
-    this.selectedMarker.lookAt(this.camera.position);
-    this.callbacks.onSelectFacetChange?.(node.facet);
+    const ringHit = this.pickLayerRing();
+    if (ringHit !== null) {
+      const ring = this.layerRings[ringHit];
+      if (!ring) return "layer";
+      this.selectedLayerKey = ring.key;
+      this.selectedFacet = null;
+      this.selectedMarker.visible = false;
+      this.callbacks.onSelectFacetChange?.(null);
+      return "layer";
+    }
+
+    return null;
   }
 
   update(deltaSeconds: number) {
@@ -469,7 +511,7 @@ export class PersonIdentityScene {
       const y = this.orbitPlaneY;
 
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, 0.024, 14, 150),
+        new THREE.TorusGeometry(radius, 0.038, 14, 150),
         new THREE.MeshBasicMaterial({
           color: layer.color,
           transparent: true,
@@ -534,7 +576,7 @@ export class PersonIdentityScene {
           angle,
           radius,
           baseY: y,
-          speed: 0.04 + layerIndex * 0.01 + (facetIndex % 4) * 0.006,
+          speed: 0.018 + layerIndex * 0.004 + (facetIndex % 4) * 0.002,
           dropOffsetSeconds: facetIndex * this.facetDropStaggerSeconds,
         });
       });
@@ -592,71 +634,11 @@ export class PersonIdentityScene {
     deltaSeconds: number,
     snapshot: ReturnType<PersonStateEngine["getSnapshot"]>
   ) {
-    const time = performance.now() * 0.001;
-    const strength = snapshot.auraStrength;
     this.latestCaption = formatValueLogForCaption(snapshot.currentLog);
     this.pulseEnergy = Math.max(0.03, this.pulseEnergy - deltaSeconds * 0.08);
-
-    // Expansion Logic: If high energy (commit), expand the wavefront
-    if (this.pulseEnergy > 0.6) {
-        // Expand rapidly from center
-        this.wavefrontRadius += deltaSeconds * 6.0;
-    } else if (this.pulseEnergy < 0.1) {
-        // Reset wavefront when calm so it's ready for next pulse
-        // But keep it "full" (essentially infinite) so stable state is visible
-        this.wavefrontRadius = 100;
-        
-        // However, if we just committed, we want to reset to 0 to start the animation
-        // This reset is handled in onLogAdvanced below
-    }
-
-    const maxVisibleLayerIndex =
-      this.identityBuildMode && this.personViewMode === "identity"
-        ? Math.max(0, this.buildLayerIndex)
-        : WELLBEING_IDENTITY_LAYERS.length - 1;
-
-    this.photonPulses.forEach((pulse, index) => {
-      pulse.mesh.visible = maxVisibleLayerIndex >= 0;
-      if (!pulse.mesh.visible) return;
-
-      // The Photon strictly follows the wavefront edge during expansion
-      // Otherwise, it orbits gently at a stable radius (Identity State usually)
-      
-      const isRippleMode = this.pulseEnergy > 0.4;
-      
-      if (isRippleMode) {
-          // Ride the wave!
-          pulse.radius = Math.max(0.1, this.wavefrontRadius);
-          pulse.angle += deltaSeconds * 5.0; // Spin fast while traveling
-          
-          // Visuals for the "traveling packet" - Bright White like the dropped photon
-          pulse.mesh.scale.setScalar(2.0); 
-          (pulse.mesh.material as THREE.MeshStandardMaterial).color.set("#ffffff");
-          (pulse.mesh.material as THREE.MeshStandardMaterial).emissive.set("#ffffff");
-          (pulse.mesh.material as THREE.MeshStandardMaterial).opacity = 1.0;
-          (pulse.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.0;
-      } else {
-          // Orbit calmly around Identity State (usually index 6, radius ~5.3)
-          // or just the last visible layer
-          const stableIndex = Math.min(6, maxVisibleLayerIndex);
-          const stableRadius = this.getLayerRadius(stableIndex);
-          
-          // Lerp to stable orbit
-          pulse.radius += (stableRadius - pulse.radius) * deltaSeconds * 2.0;
-          pulse.angle += deltaSeconds * 0.5; // Slow orbit
-          
-          pulse.mesh.scale.setScalar(1.0 + strength * 0.5);
-          (pulse.mesh.material as THREE.MeshStandardMaterial).color.set("#f5dc67"); // Back to Identity Yellow
-          (pulse.mesh.material as THREE.MeshStandardMaterial).emissive.set("#f5dc67");
-          (pulse.mesh.material as THREE.MeshStandardMaterial).opacity = 0.6;
-          (pulse.mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.5;
-      }
-
-      pulse.mesh.position.set(
-        Math.cos(pulse.angle) * pulse.radius,
-        pulse.baseY,
-        Math.sin(pulse.angle) * pulse.radius
-      );
+    this.wavefrontRadius = 100;
+    this.photonPulses.forEach((pulse) => {
+      pulse.mesh.visible = false;
     });
   }
 
@@ -677,6 +659,11 @@ export class PersonIdentityScene {
     const directKeys = new Set(this.directImpactLayers.map(toLayerKey));
     const derivedKeys = new Set(this.derivedImpactLayers.map(toLayerKey));
     const activityImpact = this.extractActivityImpact(snapshot.currentLog);
+    const selectedFacetNode =
+      this.selectedFacet === null
+        ? null
+        : this.facetNodes.find((node) => node.facet === this.selectedFacet) ?? null;
+    const focusLayerKey = selectedFacetNode?.layer.key ?? this.selectedLayerKey;
 
     this.layerRings.forEach((ringNode) => {
       const material = ringNode.mesh.material as THREE.MeshBasicMaterial;
@@ -717,10 +704,16 @@ export class PersonIdentityScene {
       const label = this.labelsGroup.children[ringLayerIndex];
       if (label) {
           const isSteadyState = this.pulseEnergy < 0.1;
-          const showLabel = (waveImpact > 0.1) || isDirect || (isSteadyState && (isDerived || ringLayerIndex === 0));
+          const showLabel = focusLayerKey
+            ? ringNode.key === focusLayerKey
+            : (waveImpact > 0.1) || isDirect || (isSteadyState && (isDerived || ringLayerIndex === 0));
           label.visible = showLabel;
           // Fade label based on impact
-           ((label as THREE.Sprite).material as THREE.SpriteMaterial).opacity = Math.min(1, 0.4 + waveImpact + (isDirect ? 0.4 : 0));
+           ((label as THREE.Sprite).material as THREE.SpriteMaterial).opacity = focusLayerKey
+             ? ringNode.key === focusLayerKey
+               ? 1
+               : 0.08
+             : Math.min(1, 0.4 + waveImpact + (isDirect ? 0.4 : 0));
       }
 
       let baseline = this.personViewMode === "valuelog" ? 0.42 : 0.65;
@@ -736,12 +729,25 @@ export class PersonIdentityScene {
           : 0;
 
       // Flash on wave impact
-      material.opacity = Math.min(1, baseline + boost + waveImpact * 0.5);
+      let ringOpacity = Math.min(1, baseline + boost + waveImpact * 0.5);
+      if (focusLayerKey && ringNode.key !== focusLayerKey) {
+        ringOpacity *= 0.12;
+      }
+      if (focusLayerKey && ringNode.key === focusLayerKey) {
+        ringOpacity = Math.max(ringOpacity, 0.92);
+      }
+      material.opacity = ringOpacity;
       
       // Pulse scale
-      ringNode.mesh.scale.setScalar(
+      let ringScale =
         1 + (isDirect ? 0.02 : isDerived ? 0.01 : 0) + this.pulseEnergy * (isDirect ? 0.06 : 0.03) + waveImpact * 0.08
-      );
+      ;
+      if (focusLayerKey && ringNode.key === focusLayerKey) {
+        ringScale += 0.03;
+      } else if (focusLayerKey) {
+        ringScale *= 0.98;
+      }
+      ringNode.mesh.scale.setScalar(ringScale);
     });
 
     this.facetNodes.forEach((node) => {
@@ -794,9 +800,22 @@ export class PersonIdentityScene {
         : isDerived
           ? (0.1 + activityImpact * 0.12)
           : 0.05) * dropBlend + this.pulseEnergy * 0.15 + impactGlow;
-          
-      material.opacity = Math.max(0.06, dropBlend);
-      material.transparent = dropBlend < 0.999 || waveImpact > 0.01;
+
+      let nodeOpacity = Math.max(0.06, dropBlend);
+      if (focusLayerKey && node.layer.key !== focusLayerKey) {
+        nodeOpacity *= 0.08;
+        material.emissiveIntensity *= 0.12;
+      }
+      if (focusLayerKey && node.layer.key === focusLayerKey && this.selectedFacet && node.facet !== this.selectedFacet) {
+        nodeOpacity *= 0.28;
+      }
+      if (this.selectedFacet && node.facet === this.selectedFacet) {
+        nodeOpacity = 1;
+        material.emissiveIntensity += 0.36;
+      }
+
+      material.opacity = nodeOpacity;
+      material.transparent = nodeOpacity < 0.999 || waveImpact > 0.01;
     });
 
     if (this.selectedFacet) {
@@ -813,12 +832,8 @@ export class PersonIdentityScene {
 
   private onLogAdvanced(log: IovTimeLogEntry | null) {
     this.syncLogContext(log);
-    const impact = Math.abs(this.extractActivityImpact(log));
-    // Log events inject new outward energy into the orbit field.
-    this.pulseEnergy = Math.min(1.35, 0.2 + impact * 0.95);
-    
-    // Reset wavefront to 0 to start the sequential expansion animation
-    this.wavefrontRadius = 0;
+    this.pulseEnergy = 0.2;
+    this.wavefrontRadius = 100;
   }
 
   private extractActivityImpact(log: IovTimeLogEntry | null) {
@@ -857,7 +872,23 @@ export class PersonIdentityScene {
 
   private updateHover() {
     const hitIndex = this.pickFacet();
-    if (hitIndex === null) {
+    if (hitIndex !== null) {
+      const node = this.facetNodes[hitIndex];
+      if (!node) return;
+      this.hoveredLayerKey = node.layer.key;
+      this.hoveredMarker.visible = true;
+      this.hoveredMarker.position.copy(node.mesh.position);
+      if (this.hoveredFacet !== node.facet) {
+        this.hoveredFacet = node.facet;
+        this.callbacks.onHoverFacetChange?.(node.facet);
+      }
+      return;
+    }
+
+    const ringHit = this.pickLayerRing();
+    if (ringHit !== null) {
+      const ring = this.layerRings[ringHit];
+      this.hoveredLayerKey = ring?.key ?? null;
       this.hoveredMarker.visible = false;
       if (this.hoveredFacet !== null) {
         this.hoveredFacet = null;
@@ -866,14 +897,11 @@ export class PersonIdentityScene {
       return;
     }
 
-    const node = this.facetNodes[hitIndex];
-    if (!node) return;
-
-    this.hoveredMarker.visible = true;
-    this.hoveredMarker.position.copy(node.mesh.position);
-    if (this.hoveredFacet !== node.facet) {
-      this.hoveredFacet = node.facet;
-      this.callbacks.onHoverFacetChange?.(node.facet);
+    this.hoveredMarker.visible = false;
+    this.hoveredLayerKey = null;
+    if (this.hoveredFacet !== null) {
+      this.hoveredFacet = null;
+      this.callbacks.onHoverFacetChange?.(null);
     }
   }
 
@@ -906,9 +934,9 @@ export class PersonIdentityScene {
     });
 
     this.photonPulses.forEach((pulse) => {
-      pulse.mesh.visible = !isDailyLogs;
+      pulse.mesh.visible = false;
       const mat = pulse.mesh.material as THREE.MeshStandardMaterial;
-      mat.opacity = isDailyLogs ? 0.2 : 0.68;
+      mat.opacity = 0;
     });
   }
 
@@ -942,6 +970,15 @@ export class PersonIdentityScene {
     const first = hits.find((hit) => hit.object.visible);
     if (!first) return null;
     const idx = this.facetNodes.findIndex((node) => node.mesh === first.object);
+    return idx >= 0 ? idx : null;
+  }
+
+  private pickLayerRing() {
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hits = this.raycaster.intersectObjects(this.ringsGroup.children, false);
+    const first = hits.find((hit) => hit.object.visible);
+    if (!first) return null;
+    const idx = this.layerRings.findIndex((node) => node.mesh === first.object);
     return idx >= 0 ? idx : null;
   }
 
@@ -992,3 +1029,70 @@ export class PersonIdentityScene {
     group.clear();
   }
 }
+
+const HUMAN_LAYER_MEANINGS: Record<string, string> = {
+  GivenIdentity:
+    "Given identity is the inherited baseline: legal, biological, and origin markers.",
+  EarnedIdentity:
+    "Earned identity reflects developed capability, learning trajectory, and demonstrated merit.",
+  RentedIdentity:
+    "Rented identity captures platform-presence and borrowed network reach.",
+  MoralCompass:
+    "Moral compass defines values, virtues, and ethical boundaries that constrain action.",
+  Story:
+    "Story layers meaning over time: past, present, future, and turning points.",
+  Skills:
+    "Skills convert potential into execution through practiced competencies.",
+  IdentityState:
+    "Identity state is the live health signal: convergence, score, and trajectory.",
+  ConsentAndDisclosure:
+    "Consent and disclosure governs what is shared, with whom, and when it can be revoked.",
+};
+
+const FACET_HINTS: Record<string, string> = {
+  FullName: "Stable personal label used for identity continuity.",
+  DID: "Portable decentralized identity anchor across contexts.",
+  WorkExperience: "Evidence trail of applied skill over time.",
+  Certifications: "External validation of capability.",
+  GitHub: "Public artifact record of technical contribution.",
+  Virtues: "Behavioral north-star that guides decisions under pressure.",
+  Values: "Priority framework for tradeoffs and action choices.",
+  Past: "Historical narrative memory and origin of patterns.",
+  Future: "Intentional trajectory and designed direction.",
+  HardSkills: "Role-specific execution capacity.",
+  SoftSkills: "Relational and communication capacity.",
+  WellbeingScore: "Composite wellbeing vitality indicator.",
+  ScoreHistory: "Trend view of wellbeing over time.",
+  ProtocolConvergence: "Alignment level across identity protocols.",
+  DisclosurePolicy: "Rules defining what data can be revealed.",
+  RevocationState: "Ability to retract prior disclosure permissions.",
+};
+
+const cleanToken = (value: string | null) =>
+  value ? value.replace(/^~+/, "") : null;
+
+const getIdentityContext = (layerLabel: string | null, facet: string | null) => {
+  const cleanLayer = cleanToken(layerLabel);
+  const cleanFacet = cleanToken(facet);
+  if (!cleanLayer && !cleanFacet) {
+    return {
+      title: null,
+      body: null,
+    };
+  }
+
+  if (cleanFacet) {
+    const body =
+      FACET_HINTS[cleanFacet] ??
+      `${cleanFacet} is a concrete signal inside ${cleanLayer ?? "this layer"}.`;
+    return {
+      title: cleanFacet,
+      body,
+    };
+  }
+
+  return {
+    title: cleanLayer,
+    body: cleanLayer ? HUMAN_LAYER_MEANINGS[cleanLayer] ?? `${cleanLayer} defines one identity dimension.` : null,
+  };
+};

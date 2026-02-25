@@ -184,6 +184,13 @@ export interface ValueLogSummary {
   draft: ValueLogDraft;
   outcome: ValueLogOutcome;
   committedCount: number;
+  canCommit: boolean;
+  sceneActionHint: string;
+}
+
+export interface ValueLogSelection {
+  kind: "clock" | "context" | "domain" | null;
+  key: string | null;
 }
 
 export const createInitialValueLogDraft = (): ValueLogDraft => {
@@ -517,15 +524,12 @@ export class ValueLogScene {
     if (this.step === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
       this.step = "select_intensity";
     }
+    this.step = this.ensureStepValid(this.step);
     this.applyDraft();
   }
 
   setStep(step: WizardStep) {
-    if (step === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
-      this.step = "show_outcome";
-    } else {
-      this.step = step;
-    }
+    this.step = this.ensureStepValid(step);
     this.applyStepCameraPreset();
     this.applyDraft();
   }
@@ -542,7 +546,10 @@ export class ValueLogScene {
     this.applyDraft();
   }
 
-  commit(personId: string, roleHint?: string): IovValueLogEntry {
+  commit(personId: string, roleHint?: string): IovValueLogEntry | null {
+    if (!isValueLogCommitReady(this.draft)) {
+      return null;
+    }
     const entry = this.buildEntry(personId, roleHint || "");
     this.committedCount += 1;
     return entry;
@@ -586,39 +593,50 @@ export class ValueLogScene {
     this.updateDomainNodes();
   }
 
-  selectFromPointer() {
-    if (!this.hasPointer) return;
+  selectFromPointer(isDouble = false): ValueLogSelection {
+    if (!this.hasPointer) return { kind: null, key: null };
     const hit = this.raycastInteractive();
-    if (!hit) return;
+    if (!hit) return { kind: null, key: null };
 
     if (hit.type === "clock") {
-      // Allow going back to time selection from any step
-      if (this.step !== "select_time") {
-        this.setStep("select_time");
-      } else {
-        // If already on time, go to next
+      if (isDouble) {
         this.setStep("select_wellbeing");
+      } else if (this.step !== "select_time") {
+        this.setStep("select_time");
       }
-      return;
+      return { kind: "clock", key: "clock" };
     }
     if (hit.type === "clock_hand") {
-      return;
+      if (isDouble) {
+        this.setStep("select_wellbeing");
+      }
+      return { kind: "clock", key: "clock" };
     }
 
     if (hit.type === "context") {
       this.patchDraft({ wellbeingNode: hit.key });
-      if (this.step !== "select_time") {
-        this.setStep("select_intensity");
+      if (isDouble) {
+        if (hit.key === "~~Performance") {
+          this.setStep("select_performance");
+        } else if (this.step === "select_intensity") {
+          this.setStep("show_outcome");
+        } else {
+          this.setStep("select_intensity");
+        }
+      } else if (this.step === "select_time") {
+        this.setStep("select_wellbeing");
       }
-      return;
+      return { kind: "context", key: hit.key };
     }
 
     if (hit.type === "domain") {
-      if (this.draft.wellbeingNode !== "~~Performance") return;
-      if (this.step === "show_outcome") {
+      if (this.draft.wellbeingNode !== "~~Performance") {
+        return { kind: "domain", key: hit.domain };
+      }
+      if (this.step !== "select_performance") {
         this.setStep("select_performance");
       }
-      if (this.step === "select_performance") {
+      if (isDouble && this.step === "select_performance") {
         if (hit.domain === "~~Learning") {
           this.patchDraft({ learningTag: !this.draft.learningTag });
         } else if (hit.domain === "~~Earning") {
@@ -626,9 +644,13 @@ export class ValueLogScene {
         } else {
           this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
         }
-        return;
+        if (isValueLogCommitReady(this.draft)) {
+          this.setStep("show_outcome");
+        }
       }
+      return { kind: "domain", key: hit.domain };
     }
+    return { kind: null, key: null };
   }
 
   update(deltaSeconds: number) {
@@ -799,6 +821,7 @@ export class ValueLogScene {
       show_outcome: "Review & Commit",
     };
 
+    const canCommit = isValueLogCommitReady(this.draft);
     return {
       step: this.step,
       stepIndex: stepIndex < 0 ? 0 : stepIndex,
@@ -806,6 +829,8 @@ export class ValueLogScene {
       draft: this.draft,
       outcome: this.outcome,
       committedCount: this.committedCount,
+      canCommit,
+      sceneActionHint: getSceneActionHint(this.step, this.draft, canCommit),
     };
   }
 
@@ -1074,6 +1099,7 @@ export class ValueLogScene {
     if (Math.abs(this.draft.signalScore - derivedSignalScore) > 0.0001) {
       this.draft = { ...this.draft, signalScore: derivedSignalScore };
     }
+    this.step = this.ensureStepValid(this.step);
     this.outcome = computeValueLogOutcome(this.draft);
 
     const startMinutes = minutesFromLocalInput(this.draft.startTime);
@@ -1436,11 +1462,13 @@ export class ValueLogScene {
 
   private getNextStep(step: WizardStep): WizardStep {
     if (step === "select_time") return "select_wellbeing";
-    if (step === "select_wellbeing") return "select_intensity";
-    if (step === "select_intensity") {
+    if (step === "select_wellbeing") {
       return this.draft.wellbeingNode === "~~Performance"
         ? "select_performance"
-        : "show_outcome";
+        : "select_intensity";
+    }
+    if (step === "select_intensity") {
+      return "show_outcome";
     }
     if (step === "select_performance") return "show_outcome";
     return "show_outcome";
@@ -1452,10 +1480,20 @@ export class ValueLogScene {
         ? "select_performance"
         : "select_intensity";
     }
-    if (step === "select_performance") return "select_intensity";
+    if (step === "select_performance") return "select_wellbeing";
     if (step === "select_intensity") return "select_wellbeing";
     if (step === "select_wellbeing") return "select_time";
     return "select_time";
+  }
+
+  private ensureStepValid(step: WizardStep): WizardStep {
+    if (step === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
+      return "select_intensity";
+    }
+    if (step === "select_intensity" && this.draft.wellbeingNode === "~~Performance") {
+      return "select_performance";
+    }
+    return step;
   }
 
   private setHand(mesh: THREE.Mesh, angle: number, length: number) {
@@ -1713,4 +1751,43 @@ const deriveSignalScore = (draft: ValueLogDraft) => {
       ? selected.reduce((sum, value) => sum + value, 0) / selected.length
       : base;
   return clamp(0, 1, base * 0.45 + domainAverage * 0.55);
+};
+
+const isValidTimeRange = (startTime: string, endTime: string) => {
+  const startMinutes = minutesFromLocalInput(startTime);
+  const endMinutes = minutesFromLocalInput(endTime);
+  return normalizeMinuteSpan(endMinutes - startMinutes) >= 15;
+};
+
+export const isValueLogCommitReady = (draft: ValueLogDraft) => {
+  const hasValueCapture =
+    isValidTimeRange(draft.startTime, draft.endTime) &&
+    draft.activityLabel.trim().length > 0 &&
+    draft.proofOfActivity.trim().length > 0;
+  if (!hasValueCapture) return false;
+
+  if (draft.wellbeingNode !== "~~Performance") {
+    return draft.contextIntensity >= 0;
+  }
+
+  return draft.learningTag || draft.earningTag || draft.orgBuildingTag;
+};
+
+const getSceneActionHint = (step: WizardStep, draft: ValueLogDraft, canCommit: boolean) => {
+  if (canCommit) {
+    return "Ready. Commit Time Slice below.";
+  }
+  if (step === "select_time") {
+    return "Double-click the clock to confirm time capture.";
+  }
+  if (step === "select_wellbeing") {
+    return "Double-click a wellbeing node to select context.";
+  }
+  if (step === "select_intensity") {
+    return `Set intensity in side panel, then double-click ${draft.wellbeingNode.replace("~~", "")} to continue.`;
+  }
+  if (step === "select_performance") {
+    return "Double-click Learning, Earning, or OrgBuilding to select domains.";
+  }
+  return "Review details in side panel and commit when ready.";
 };

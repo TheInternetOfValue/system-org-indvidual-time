@@ -318,6 +318,44 @@ Delivered:
 
 ---
 
+### Phase 12: Time Slice Contract Cleanup (Single-Action UX + Robust Commit Gate)
+Status: `COMPLETED`
+
+Tasks:
+- Remove center Time Slice composer complexity and keep in-scene guidance minimal.
+- Move editing details to the side panel while keeping scene interactions primary.
+- Enforce double-click drill behavior for clock/context/performance-domain flow.
+- Unify commit readiness behind a single deterministic `canCommit` source.
+
+Acceptance:
+- No large center composer card with multi-action button clutter.
+- Scene displays only one contextual action hint at a time.
+- Double-click on Performance enters domain selection; double-click domain toggles selection.
+- Commit enables as soon as required fields are satisfied (including performance-domain requirement).
+- Tests/build pass.
+
+Delivered:
+- Time Slice overlay simplification:
+  - Replaced center composer with a compact top action chip (`sceneActionHint`).
+  - Added compact bottom commit dock visible only when `canCommit` is true.
+- Contract-level state/readiness model:
+  - Added `isValueLogCommitReady(draft)` and wired summary `canCommit` from it.
+  - Added contextual `sceneActionHint` generation from current step/readiness.
+  - Updated commit path to guard on `isValueLogCommitReady` and return `null` when invalid.
+- Scene interaction drill flow:
+  - Extended pointer selection to return selection metadata for reliable double-tap matching.
+  - Implemented valuelog double-tap routing in `IovTopologyCanvas`.
+  - Wired contextual double-click behavior:
+    - clock/clock-hand confirms time stage transition
+    - wellbeing context selects/drills
+    - performance domains toggle on double-click
+- Side panel cleanup:
+  - Removed Time Slice `Prev/Next` controls and center-composer references.
+  - Kept detailed capture/intensity/domain inputs in side panel, with commit gated by summary `canCommit`.
+  - Retained concise mobile quick actions (`Back to Person`, `Commit`) without step-navigation clutter.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -352,6 +390,9 @@ Delivered:
 - Phase 11:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 12:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -365,3 +406,4 @@ Delivered:
 - Phase 9: `feat: scene-first double-click navigation and non-blocking overlays`
 - Phase 10: `feat: phase 10 person focus fade and contextual identity reveal`
 - Phase 11: `feat: phase 11 time-slice clock interaction and contextual intensity flow`
+- Phase 12: `feat: phase 12 time-slice single-action contract and commit gating`

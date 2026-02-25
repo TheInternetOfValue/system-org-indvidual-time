@@ -13,7 +13,6 @@ import {
   VALUE_CAPTURE_ACTIVITY_TEMPLATES,
   VALUE_CAPTURE_PROOF_TEMPLATES,
   WELLBEING_INTENSITY_PROMPTS,
-  WIZARD_STEP_ORDER,
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
@@ -51,8 +50,6 @@ interface IovTopologyPanelProps {
   onBackSemantic: () => void;
   onTogglePresentationMode: () => void;
   onValueLogDraftChange: (patch: Partial<ValueLogDraft>) => void;
-  onValueLogNext: () => void;
-  onValueLogPrev: () => void;
   onValueLogCommit: () => void;
   onOpenValueLog: () => void; // Added for Person Identity view
   canEmpowerCommunity: boolean;
@@ -89,8 +86,6 @@ const IovTopologyPanel = ({
   onBackSemantic,
   onTogglePresentationMode,
   onValueLogDraftChange,
-  onValueLogNext,
-  onValueLogPrev,
   onValueLogCommit,
   onOpenValueLog,
   canEmpowerCommunity,
@@ -120,13 +115,7 @@ const IovTopologyPanel = ({
     { id: "community", label: "Community", color: "#d9b114" },
     { id: "bridge", label: "Bridge", color: "#4a4f57" },
   ] as const;
-  const valueLogStepIndex = valueLogSummary
-    ? WIZARD_STEP_ORDER.indexOf(valueLogSummary.step)
-    : WIZARD_STEP_ORDER.indexOf(valueLogStep);
-  const canValueLogPrev = valueLogStepIndex > 0;
-  const canValueLogNext =
-    valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
-  const canValueLogCommit = valueLogSummary?.step === "show_outcome";
+  const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const isTopologyContext = semanticLevel === "topology";
   const showTopologyDetails = isTopologyContext && topologyActivated;
   const panelTitle = isTopologyContext
@@ -327,12 +316,6 @@ const IovTopologyPanel = ({
           <div className="iov-mobile-person-row">
             <button type="button" onClick={onBackSemantic}>
               Back to Person
-            </button>
-            <button type="button" onClick={onValueLogPrev} disabled={!canValueLogPrev}>
-              Prev
-            </button>
-            <button type="button" onClick={onValueLogNext} disabled={!canValueLogNext}>
-              Next
             </button>
             <button type="button" onClick={onValueLogCommit} disabled={!canValueLogCommit}>
               Commit
@@ -601,28 +584,8 @@ const IovTopologyPanel = ({
                 <strong>Time Slice Composer</strong>
               </div>
               <div className="iov-panel-value-subline">
-                Step: {valueLogSummary.stepLabel}
+                Current action: {valueLogSummary.sceneActionHint}
               </div>
-              <div className="iov-panel-value-subline">
-                {formatValueLogNarrative(valueLogStep)}
-              </div>
-              {isMobile ? (
-                <div className="iov-panel-mode-toggle iov-panel-mode-toggle-compact">
-                  <button type="button" onClick={onValueLogPrev} disabled={!canValueLogPrev}>
-                    Prev
-                  </button>
-                  <button type="button" onClick={onValueLogNext} disabled={!canValueLogNext}>
-                    Next
-                  </button>
-                  <button type="button" onClick={onValueLogCommit} disabled={!canValueLogCommit}>
-                    Commit Time Slice
-                  </button>
-                </div>
-              ) : (
-                <div className="iov-panel-value-subline">
-                  Use the center Time Slice composer controls for navigation and commit.
-                </div>
-              )}
               <div className="iov-panel-log-chain">
                 {valueLogStep === "select_time" && (
                   <div className="iov-panel-log-card">
@@ -1011,23 +974,6 @@ const formatSemanticContext = (level: SemanticZoomLevel) => {
       return "System layer: compare Market, State, Community, and Bridge structures, then open organizations by double-clicking a selected brick.";
     default:
       return "Scene context is active.";
-  }
-};
-
-const formatValueLogNarrative = (step: WizardStep) => {
-  switch (step) {
-    case "select_time":
-      return "Define where your time/energy was spent.";
-    case "select_wellbeing":
-      return "Select the primary wellbeing layer this action touched.";
-    case "select_intensity":
-      return "Answer the contextual intensity question for the selected wellbeing layer.";
-    case "select_performance":
-      return "Map performance work into Learning / Earning / Org Building.";
-    case "show_outcome":
-      return "Review personal outcome before committing the time slice.";
-    default:
-      return "Build the action-to-impact chain.";
   }
 };
 

@@ -26,7 +26,6 @@ import {
 import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
 import {
   ValueLogScene,
-  WIZARD_STEP_ORDER,
   createInitialValueLogDraft,
   type ValueLogDraft,
   type ValueLogSummary,
@@ -66,14 +65,6 @@ const buildInitialToggles = (data: IovTopologyData) =>
     },
     {} as Record<ToggleId, boolean>
   );
-
-const VALUELOG_STEP_STORY: Record<WizardStep, string> = {
-  select_time: "Set StartTime/EndTime with the clock hands, then capture Activity + Proof.",
-  select_wellbeing: "Choose the primary human layer affected by this action.",
-  select_intensity: "Answer the contextual intensity question for the selected wellbeing layer.",
-  select_performance: "If Performance is selected, choose SAOcommons domains and set domain intensity.",
-  show_outcome: "Review the modeled personal outcome before committing the signal.",
-};
 
 interface PendingEmpowerState {
   communityPowerDelta: number;
@@ -129,7 +120,7 @@ const IovTopologyCanvas = () => {
   const selectedPersonIdRef = useRef<string | null>(null);
   const topologyBuildStepRef = useRef(0);
   const lastSceneTapRef = useRef<{
-    level: "topology" | "block" | "person";
+    level: "topology" | "block" | "person" | "valuelog";
     key: string;
     at: number;
   } | null>(null);
@@ -509,7 +500,19 @@ const IovTopologyCanvas = () => {
             handleNextIdentityLayer();
           }
         } else if (semanticLevelRef.current === "valuelog") {
-          valueLogScene.selectFromPointer();
+          const selection = valueLogScene.selectFromPointer(false);
+          const key = selection.key ?? "__empty__";
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "valuelog" &&
+            lastTap.key === key &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "valuelog", key, at: now };
+          if (isDoubleTap) {
+            valueLogScene.selectFromPointer(true);
+          }
         }
       }
     };
@@ -625,12 +628,7 @@ const IovTopologyCanvas = () => {
   const empowerLabel = pendingEmpower
     ? `Empower Community Pillar (${pendingEmpower.activationCount})`
     : "Empower Community Pillar";
-  const valueLogStepIndex = valueLogSummary
-    ? WIZARD_STEP_ORDER.indexOf(valueLogSummary.step)
-    : WIZARD_STEP_ORDER.indexOf(valueLogStep);
-  const canValueLogPrev = valueLogStepIndex > 0;
-  const canValueLogNext = valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
-  const canValueLogCommit = valueLogSummary?.step === "show_outcome";
+  const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
   const nextTopologyBuildRegion =
     IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild &&
@@ -843,16 +841,6 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  const onValueLogNext = () => {
-      valueLogSceneRef.current?.nextStep();
-      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
-  };
-
-  const onValueLogPrev = () => {
-      valueLogSceneRef.current?.prevStep();
-      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
-  };
-
   const handleBackSemantic = () => {
     if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
     const next = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
@@ -996,18 +984,10 @@ const IovTopologyCanvas = () => {
   const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
     setValueLogDraft((prev) => ({ ...prev, ...patch }));
     if (patch.wellbeingNode) {
-      setValueLogStep("select_intensity");
+      setValueLogStep(
+        patch.wellbeingNode === "~~Performance" ? "select_performance" : "select_intensity"
+      );
     }
-  };
-
-  const handleValueLogNext = () => {
-    valueLogSceneRef.current?.nextStep();
-    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
-  };
-
-  const handleValueLogPrev = () => {
-    valueLogSceneRef.current?.prevStep();
-    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
   const startSystemImpactSequence = (
@@ -1343,7 +1323,7 @@ function getRegionMeaning(regionId: RegionId) {
 
       {semanticLevel === "topology" && selectedBrickInfo && (
         <>
-          <div className="iov-scene-chip iov-scene-chip-top">
+          <div className="iov-scene-chip">
             <strong>{selectedBrickLabel ?? "Organization selected"}</strong>
             <span>Double-click to open organization.</span>
           </div>
@@ -1440,78 +1420,19 @@ function getRegionMeaning(regionId: RegionId) {
       )}
 
       {semanticLevel === "valuelog" && valueLogSummary && (
-        <div className="iov-scene-card iov-scene-card-center" style={{ width: "440px" }}>
-          <div className="iov-scene-card-header">
-            <h3>Time Slice Composer</h3>
-            <div className="iov-scene-card-sub">
-              Step {Math.max(1, valueLogStepIndex + 1)} / {WIZARD_STEP_ORDER.length}
-            </div>
+        <>
+          <div className="iov-scene-chip iov-scene-chip-top">
+            <strong>Time Slice</strong>
+            <span>{valueLogSummary.sceneActionHint}</span>
           </div>
-          <div className="iov-scene-card-content">
-            <div className="iov-scene-card-stat">
-              Active step: {valueLogSummary.step.replace("select_", "").replace("_", " ")}
-            </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#cbd5e1",
-                marginBottom: "12px",
-                lineHeight: 1.45,
-              }}
-            >
-              {VALUELOG_STEP_STORY[valueLogSummary.step]}
-            </div>
-            <div className="iov-scene-card-stat">
-              Active node: {valueLogDraft.wellbeingNode.replace("~~", "")} | Signal score:{" "}
-              {(valueLogSummary?.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)}
-            </div>
-            {valueLogSummary.step === "show_outcome" && (
-              <div className="iov-scene-card-stat">
-                Outcome: WB {valueLogSummary.outcome.wellbeingDelta >= 0 ? "+" : ""}
-                {valueLogSummary.outcome.wellbeingDelta.toFixed(3)} | Aura{" "}
-                {valueLogSummary.outcome.auraDelta >= 0 ? "+" : ""}
-                {valueLogSummary.outcome.auraDelta.toFixed(3)}
-              </div>
-            )}
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#cbd5e1",
-                marginBottom: "12px",
-                lineHeight: 1.45,
-              }}
-            >
-              Scene clicks are primary. Use the controls below only when needed.
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-              <button
-                className="iov-btn-secondary"
-                onClick={handleValueLogPrev}
-                disabled={!canValueLogPrev}
-              >
-                Prev
-              </button>
-              <button
-                className="iov-btn-secondary"
-                onClick={handleValueLogNext}
-                disabled={!canValueLogNext}
-              >
-                Next
-              </button>
-              <button className="iov-btn-secondary" onClick={handleBackSemantic}>
-                Back
+          {canValueLogCommit && (
+            <div className="iov-scene-dock">
+              <button className="iov-btn-action iov-btn-inline" onClick={handleValueLogCommit}>
+                Commit Time Slice
               </button>
             </div>
-            <div className="iov-scene-card-divider" />
-            <button
-              className="iov-btn-action"
-              onClick={handleValueLogCommit}
-              disabled={!canValueLogCommit}
-            >
-              Commit Time Slice
-            </button>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       <IovTopologyPanel
@@ -1545,8 +1466,6 @@ function getRegionMeaning(regionId: RegionId) {
         onBackSemantic={handleBackSemantic}
         onTogglePresentationMode={() => setPresentationMode((p) => !p)}
         onValueLogDraftChange={handleValueLogDraftChange}
-        onValueLogNext={onValueLogNext}
-        onValueLogPrev={onValueLogPrev}
         onValueLogCommit={handleValueLogCommit}
         onOpenValueLog={handleOpenValueLog}
         canEmpowerCommunity={canEmpowerCommunity}

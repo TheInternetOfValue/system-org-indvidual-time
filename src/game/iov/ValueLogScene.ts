@@ -970,7 +970,7 @@ export class ValueLogScene {
       const z = 0; // Keep them flat on the Z axis for the infinity loop
       
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.45, 32, 32), // Made spheres slightly larger
+        new THREE.SphereGeometry(0.32, 28, 28),
         new THREE.MeshStandardMaterial({
           color: def.color,
           emissive: def.color,
@@ -982,8 +982,8 @@ export class ValueLogScene {
       mesh.position.set(x, y, z);
       this.root.add(mesh);
 
-      const label = this.createTextSprite(def.label, { width: 180, height: 52, fontSize: 16 });
-      label.position.set(x, y + 1.0, z); // Moved label slightly higher
+      const label = this.createTextSprite(def.label, { width: 152, height: 44, fontSize: 14 });
+      label.position.set(x, y + 0.74, z);
       this.root.add(label);
 
       this.contextNodes.push({ key: def.key, mesh, label, angle: def.t });
@@ -1260,34 +1260,25 @@ export class ValueLogScene {
       lookAt.set(0, 4.0, 0);
     } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
-        position.set(0, 0.0, 18.0);
+        position.set(0, 0.3, 17.2);
       } else {
-        position.set(0, 0.0, 16.0);
+        position.set(0, 0.15, 15.2);
       }
       lookAt.set(0, 0.0, 0);
     } else if (this.step === "select_intensity") {
-      const selectedNode = this.contextNodes.find((node) => node.key === this.draft.wellbeingNode);
-      const nx = selectedNode?.mesh.position.x ?? 0;
-      const ny = selectedNode?.mesh.position.y ?? 0;
-      const nz = selectedNode?.mesh.position.z ?? 0;
       if (this.isMobileViewport) {
-        position.set(nx, ny + 2.2, nz + 10.5);
+        position.set(0, 0.4, 17.2);
       } else {
-        position.set(nx, ny + 1.7, nz + 8.6);
+        position.set(0, 0.2, 15.0);
       }
-      lookAt.set(nx, ny, nz);
+      lookAt.set(0, 0, 0);
     } else if (this.step === "select_performance") {
-      const performanceNode = this.contextNodes.find((node) => node.key === "~~Performance");
-      const px = performanceNode ? performanceNode.mesh.position.x : 0;
-      const py = performanceNode ? performanceNode.mesh.position.y - 2.5 : -3;
-      const pz = performanceNode ? performanceNode.mesh.position.z : 0;
-
       if (this.isMobileViewport) {
-        position.set(px, py + 2.0, pz + 10.0);
+        position.set(0, -0.5, 17.0);
       } else {
-        position.set(px, py + 1.5, pz + 8.0);
+        position.set(0, -0.8, 14.8);
       }
-      lookAt.set(px, py, pz);
+      lookAt.set(0, -1.9, 0);
     } else {
       // show_outcome: pull back to see the whole chandelier
       if (this.isMobileViewport) {

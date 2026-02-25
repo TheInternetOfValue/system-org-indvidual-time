@@ -169,6 +169,36 @@ body {
   gap: 11px;
 }
 
+.iov-panel.iov-level-block,
+.iov-panel.iov-level-person,
+.iov-panel.iov-level-valuelog,
+.iov-panel.iov-level-impact,
+.iov-panel.iov-level-orgimpact,
+.iov-panel.iov-level-systemimpact {
+  width: min(340px, calc(100vw - 32px));
+}
+
+.iov-panel-peek {
+  width: auto;
+  padding: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(140, 172, 219, 0.48);
+  background: rgba(10, 23, 41, 0.86);
+  box-shadow: 0 10px 28px rgba(8, 20, 37, 0.34);
+}
+
+.iov-mobile-panel-open {
+  border: 1px solid rgba(170, 200, 244, 0.56);
+  background: rgba(27, 43, 70, 0.95);
+  color: rgba(243, 248, 255, 0.98);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 42px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
 .iov-panel-header {
   display: flex;
   align-items: center;
@@ -690,6 +720,22 @@ body {
     gap: 10px;
     padding: 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
+  .iov-panel.iov-level-block,
+  .iov-panel.iov-level-person,
+  .iov-panel.iov-level-valuelog,
+  .iov-panel.iov-level-impact,
+  .iov-panel.iov-level-orgimpact,
+  .iov-panel.iov-level-systemimpact {
+    width: auto;
+  }
+
+  .iov-panel-peek {
+    left: 10px;
+    right: auto;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    padding: 6px;
   }
 
   .iov-panel-content {

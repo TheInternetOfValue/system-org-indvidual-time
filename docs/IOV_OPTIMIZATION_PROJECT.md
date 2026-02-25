@@ -107,6 +107,33 @@ Delivered:
 
 ---
 
+### Phase 5: Contextual Panel + Mobile On-Demand Visibility
+Status: `COMPLETED`
+
+Tasks:
+- Remove topology legend/value burden from non-topology scenes.
+- Make panel copy explicitly contextual per semantic scene.
+- Keep panel hidden by default on mobile unless requested.
+
+Acceptance:
+- Topology content remains available in topology.
+- Non-topology scenes show only relevant contextual guidance.
+- Mobile defaults to scene-first with opt-in panel expansion.
+- Tests/build pass.
+
+Delivered:
+- Contextual panel behavior:
+  - Topology-heavy blocks (legend, value stacks, transfer guidance, toggle bank, build formation) now render only in topology.
+  - Non-topology scenes now show scene-specific context copy instead of Market/State/Community definitions.
+  - Panel title now follows scene semantics outside topology.
+- Mobile on-demand panel:
+  - Added collapsed “Show context” peek state as the default mobile mode.
+  - Full panel appears only when user explicitly opens it.
+- Space reduction:
+  - Narrower panel width profile for non-topology scenes, preserving space for 3D scene focus.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -120,9 +147,13 @@ Delivered:
 - Phase 4:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 5:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
 - Phase 2: `perf: phase 2 cache static data loaders`
 - Phase 3: `perf: phase 3 time-slice storytelling and impact polish`
 - Phase 4: `perf: phase 4 mobile interaction polish`
+- Phase 5: `perf: phase 5 contextual panel and mobile scene-first mode`

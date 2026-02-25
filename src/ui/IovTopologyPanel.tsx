@@ -397,7 +397,7 @@ const IovTopologyPanel = ({
               Back to Person
             </button>
             <button type="button" onClick={onValueLogCommit} disabled={!canValueLogCommit}>
-              Commit
+              Capture
             </button>
           </div>
           {valueLogSummary && (
@@ -1149,7 +1149,7 @@ const getPresenterAction = ({
 
   if (semanticLevel === "valuelog") {
     return {
-      label: "Commit Time Slice",
+      label: "Capture Value",
       onClick: onValueLogCommit,
       disabled: !(valueLogSummary?.canCommit ?? false),
     };

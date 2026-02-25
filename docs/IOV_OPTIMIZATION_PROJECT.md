@@ -566,6 +566,37 @@ Delivered:
 
 ---
 
+### Phase 21: Scene-First Time Slice Causal Capture Flow
+Status: `COMPLETED`
+
+Tasks:
+- Replace ambiguous Time Slice commit-only overlay with a strict one-action-at-a-time scene flow.
+- Keep interactions in-scene (photon-context dock), not dependent on side-panel sequencing.
+- Support contextual progression: time -> activity -> proof -> wellbeing -> intensity -> SAOcommons (for Performance) -> capture.
+
+Acceptance:
+- Time Slice flow is understandable on first pass with one primary action visible per stage.
+- Performance node selection opens SAOcommons domain handling in-scene, including domain intensity tuning.
+- Final CTA uses `Capture Value` language and preserves existing impact drop transition.
+- Tests/build pass.
+
+Delivered:
+- Added explicit scene action-stage contract in `IovTopologyCanvas`:
+  - `time_capture -> activity_capture -> proof_capture -> wellbeing_select -> intensity_select|performance_domains -> performance_intensity -> ready_capture`.
+  - Stage-to-scene-step mapping keeps `ValueLogScene` visuals deterministic while allowing richer sequencing.
+- Added contextual floating Time Slice dock (anchored near photon) with stage-specific controls:
+  - Time confirmation from clock.
+  - Activity/proof templates plus editable text capture.
+  - Wellbeing intensity controls for non-performance contexts.
+  - SAOcommons domain selection and per-domain intensity controls for performance context.
+  - Final CTA renamed to `Capture Value`.
+- Removed fragile auto-step jumps in `ValueLogScene.selectFromPointer`:
+  - Pointer selection now updates meaningfully without forced hidden progression.
+  - Domain selection toggles on direct interaction, improving mobile reliability.
+- Updated ValueLog scene hint copy and panel CTA wording to align with the new capture narrative.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -627,6 +658,9 @@ Delivered:
 - Phase 20:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 21:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -649,3 +683,4 @@ Delivered:
 - Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`
 - Phase 19: `fix: phase 19 anchor empower community CTA near community base`
 - Phase 20: `fix: phase 20 unify mobile safe viewport overlay clamping`
+- Phase 21: `feat: phase 21 scene-first time-slice causal capture flow`

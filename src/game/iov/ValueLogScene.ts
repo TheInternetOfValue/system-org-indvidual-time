@@ -599,33 +599,17 @@ export class ValueLogScene {
     if (!hit) return { kind: null, key: null };
 
     if (hit.type === "clock") {
-      if (isDouble) {
-        this.setStep("select_wellbeing");
-      } else if (this.step !== "select_time") {
+      if (!isDouble && this.step !== "select_time") {
         this.setStep("select_time");
       }
       return { kind: "clock", key: "clock" };
     }
     if (hit.type === "clock_hand") {
-      if (isDouble) {
-        this.setStep("select_wellbeing");
-      }
       return { kind: "clock", key: "clock" };
     }
 
     if (hit.type === "context") {
       this.patchDraft({ wellbeingNode: hit.key });
-      if (isDouble) {
-        if (hit.key === "~~Performance") {
-          this.setStep("select_performance");
-        } else if (this.step === "select_intensity") {
-          this.setStep("show_outcome");
-        } else {
-          this.setStep("select_intensity");
-        }
-      } else if (this.step === "select_time") {
-        this.setStep("select_wellbeing");
-      }
       return { kind: "context", key: hit.key };
     }
 
@@ -633,19 +617,16 @@ export class ValueLogScene {
       if (this.draft.wellbeingNode !== "~~Performance") {
         return { kind: "domain", key: hit.domain };
       }
-      if (this.step !== "select_performance") {
+      if (this.step !== "select_performance" && this.step !== "show_outcome") {
         this.setStep("select_performance");
       }
-      if (isDouble && this.step === "select_performance") {
+      if (this.step === "select_performance" || this.step === "show_outcome") {
         if (hit.domain === "~~Learning") {
           this.patchDraft({ learningTag: !this.draft.learningTag });
         } else if (hit.domain === "~~Earning") {
           this.patchDraft({ earningTag: !this.draft.earningTag });
         } else {
           this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
-        }
-        if (isValueLogCommitReady(this.draft)) {
-          this.setStep("show_outcome");
         }
       }
       return { kind: "domain", key: hit.domain };
@@ -1779,19 +1760,19 @@ export const isValueLogCommitReady = (draft: ValueLogDraft) => {
 
 const getSceneActionHint = (step: WizardStep, draft: ValueLogDraft, canCommit: boolean) => {
   if (canCommit) {
-    return "Ready. Commit Time Slice below.";
+    return "Ready to capture value.";
   }
   if (step === "select_time") {
-    return "Double-click the clock to confirm time capture.";
+    return "Set start and end time with the clock hands.";
   }
   if (step === "select_wellbeing") {
-    return "Double-click a wellbeing node to select context.";
+    return "Select one wellbeing context node.";
   }
   if (step === "select_intensity") {
-    return `Set intensity in side panel, then double-click ${draft.wellbeingNode.replace("~~", "")} to continue.`;
+    return `Set intensity for ${draft.wellbeingNode.replace("~~", "")}.`;
   }
   if (step === "select_performance") {
-    return "Double-click Learning, Earning, or OrgBuilding to select domains.";
+    return "Select SAOcommons domains and set domain intensity.";
   }
-  return "Review details in side panel and commit when ready.";
+  return "Capture value to trigger the photon drop.";
 };

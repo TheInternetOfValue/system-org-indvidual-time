@@ -80,6 +80,33 @@ Delivered:
 
 ---
 
+### Phase 4: Mobile Interaction Polish
+Status: `COMPLETED`
+
+Tasks:
+- Increase mobile touch-target reliability for quick actions.
+- Improve mobile panel/overlay spacing and safe-area behavior.
+- Make Time Slice mobile controls harder to mis-trigger.
+
+Acceptance:
+- No flow changes, only interaction polish.
+- Tests/build pass.
+
+Delivered:
+- Mobile control reliability:
+  - Added step-aware disable states for mobile Time Slice `Prev/Next/Commit` buttons.
+  - Clarified mobile back control label (`Back to Person`).
+- Touch ergonomics:
+  - Increased mobile quick-action button target sizes to `44px` min-height.
+  - Shifted compact action grids from 4-column to 2-column layout for better thumb targeting.
+  - Added tap-behavior hints (`touch-action: manipulation`, reduced tap highlight).
+- Mobile layout resilience:
+  - Improved bottom safe-area handling and panel scroll containment.
+  - Made breadcrumb row horizontally scrollable on mobile to prevent cramped multi-line wraps.
+  - Constrained scene-card size/overflow on mobile so controls remain reachable above panel.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -90,8 +117,12 @@ Delivered:
 - Phase 3:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated, now split entry + lazy topology chunk).
+- Phase 4:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
 - Phase 2: `perf: phase 2 cache static data loaders`
 - Phase 3: `perf: phase 3 time-slice storytelling and impact polish`
+- Phase 4: `perf: phase 4 mobile interaction polish`

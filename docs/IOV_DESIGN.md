@@ -63,3 +63,8 @@ Current semantic zoom chain:
   - State: burnt brown (`#8c4e2f`)
   - Community: muted green (`#5f8d63`)
   - Bridge: graphite (`#4a4f57`)
+
+## Mobile Interaction
+- Quick-action controls are optimized for thumb use (`44px` targets and compact 2-column action grids).
+- Breadcrumb navigation stays single-row and horizontally scrollable on small screens.
+- Overlay cards are height-constrained with contained scrolling to keep key controls reachable above the bottom panel.

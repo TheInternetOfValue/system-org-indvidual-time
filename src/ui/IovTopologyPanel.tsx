@@ -9,10 +9,11 @@ import type { BlockPeopleSummary } from "@/game/iov/BlockInteriorScene";
 import type {
   PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
-import type {
-  ValueLogDraft,
-  ValueLogSummary,
-  WizardStep,
+import {
+  WIZARD_STEP_ORDER,
+  type ValueLogDraft,
+  type ValueLogSummary,
+  type WizardStep,
 } from "@/game/iov/ValueLogScene";
 import type { SemanticZoomLevel } from "@/game/iov/IovSemanticZoomController";
 import {
@@ -116,6 +117,13 @@ const IovTopologyPanel = ({
     { id: "community", label: "Community", color: "#5f8d63" },
     { id: "bridge", label: "Bridge", color: "#4a4f57" },
   ] as const;
+  const valueLogStepIndex = valueLogSummary
+    ? WIZARD_STEP_ORDER.indexOf(valueLogSummary.step)
+    : WIZARD_STEP_ORDER.indexOf(valueLogStep);
+  const canValueLogPrev = valueLogStepIndex > 0;
+  const canValueLogNext =
+    valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
+  const canValueLogCommit = valueLogSummary?.step === "show_outcome";
 
   return (
     <div
@@ -199,15 +207,15 @@ const IovTopologyPanel = ({
         <>
           <div className="iov-mobile-person-row">
             <button type="button" onClick={onBackSemantic}>
-              Person
+              Back to Person
             </button>
-            <button type="button" onClick={onValueLogPrev}>
+            <button type="button" onClick={onValueLogPrev} disabled={!canValueLogPrev}>
               Prev
             </button>
-            <button type="button" onClick={onValueLogNext}>
+            <button type="button" onClick={onValueLogNext} disabled={!canValueLogNext}>
               Next
             </button>
-            <button type="button" onClick={onValueLogCommit}>
+            <button type="button" onClick={onValueLogCommit} disabled={!canValueLogCommit}>
               Commit
             </button>
           </div>

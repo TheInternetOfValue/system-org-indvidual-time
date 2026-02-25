@@ -236,6 +236,13 @@ body {
   display: none;
 }
 
+.iov-panel button,
+.iov-breadcrumb button,
+.iov-scene-card button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .iov-panel-content {
   display: flex;
   flex-direction: column;
@@ -550,6 +557,12 @@ body {
   margin-bottom: 4px;
 }
 
+.iov-scene-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .iov-scene-card-sub {
   font-size: 12px;
   color: #94a3b8;
@@ -648,12 +661,19 @@ body {
 @media (max-width: 900px) {
   .iov-breadcrumb {
     top: 8px;
+    left: 8px;
     right: 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: calc(100vw - 16px);
+    padding-bottom: 2px;
+    -webkit-overflow-scrolling: touch;
   }
 
   .iov-breadcrumb button {
     font-size: 10px;
     padding: 5px 8px;
+    flex: 0 0 auto;
   }
 
   .iov-semantic-card {
@@ -666,14 +686,18 @@ body {
     left: 10px;
     right: 10px;
     bottom: max(10px, env(safe-area-inset-bottom));
-    max-height: min(58svh, 540px);
+    max-height: min(65svh, 620px);
     gap: 10px;
     padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .iov-panel-content {
     overflow-y: auto;
     padding-right: 2px;
+    padding-bottom: 4px;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
   }
 
   .iov-panel.is-collapsed {
@@ -695,7 +719,7 @@ body {
 
   .iov-mobile-build-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
   }
 
@@ -704,8 +728,9 @@ body {
     background: rgba(24, 40, 67, 0.95);
     color: rgba(245, 250, 255, 0.98);
     border-radius: 8px;
-    padding: 8px 4px;
-    font-size: 12px;
+    padding: 10px 8px;
+    min-height: 44px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
   }
@@ -716,7 +741,7 @@ body {
 
   .iov-mobile-semantic-row {
     display: grid;
-    grid-template-columns: 1.3fr 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
   }
 
@@ -725,7 +750,8 @@ body {
     background: rgba(24, 40, 67, 0.95);
     color: rgba(245, 250, 255, 0.98);
     border-radius: 8px;
-    padding: 7px 6px;
+    padding: 9px 8px;
+    min-height: 44px;
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -743,7 +769,7 @@ body {
 
   .iov-mobile-person-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
   }
 
@@ -752,8 +778,9 @@ body {
     background: rgba(24, 40, 67, 0.95);
     color: rgba(245, 250, 255, 0.98);
     border-radius: 8px;
-    padding: 7px 4px;
-    font-size: 11px;
+    padding: 9px 8px;
+    min-height: 44px;
+    font-size: 12px;
     font-weight: 600;
     cursor: pointer;
   }
@@ -785,6 +812,21 @@ body {
     border-color: rgba(232, 211, 137, 0.82);
     background: rgba(64, 88, 130, 0.92);
     color: rgba(248, 253, 255, 1);
+  }
+
+  .iov-scene-card {
+    top: 44%;
+    width: min(440px, calc(100vw - 18px));
+    max-width: calc(100vw - 18px);
+    max-height: min(50svh, 460px);
+    padding: 16px;
+    gap: 12px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .iov-scene-card-content {
+    gap: 8px;
   }
 
   .iov-panel.is-mobile .iov-panel-focus-buttons {

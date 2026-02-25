@@ -54,6 +54,8 @@ interface IovTopologyPanelProps {
   canEmpowerCommunity: boolean;
   empowerLabel: string;
   onEmpowerCommunity: () => void;
+  canReplaySystemImpact: boolean;
+  onReplaySystemImpact: () => void;
 }
 
 const IovTopologyPanel = ({
@@ -90,6 +92,8 @@ const IovTopologyPanel = ({
   canEmpowerCommunity,
   empowerLabel,
   onEmpowerCommunity,
+  canReplaySystemImpact,
+  onReplaySystemImpact,
 }: IovTopologyPanelProps) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -182,6 +186,11 @@ const IovTopologyPanel = ({
           {canEmpowerCommunity && (
             <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
               {empowerLabel}
+            </button>
+          )}
+          {canReplaySystemImpact && (
+            <button type="button" onClick={onReplaySystemImpact}>
+              Replay Impact
             </button>
           )}
         </div>
@@ -360,6 +369,11 @@ const IovTopologyPanel = ({
             {canEmpowerCommunity && (
               <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
                 {empowerLabel}
+              </button>
+            )}
+            {canReplaySystemImpact && (
+              <button type="button" onClick={onReplaySystemImpact}>
+                Replay Impact
               </button>
             )}
           </div>

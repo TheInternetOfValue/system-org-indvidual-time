@@ -40,6 +40,8 @@ The core message:
   - `src/game/iov/PersonIdentityScene.ts`
   - `src/game/iov/ValueLogScene.ts`
   - `src/game/iov/PersonImpactScene.ts`
+- Camera orchestration:
+  - `src/game/iov/IovCameraDirector.ts`
 - Zoom controller:
   - `src/game/iov/IovSemanticZoomController.ts`
 - Left panel:
@@ -82,7 +84,69 @@ Current pass status:
 - Escalation route is now `impact -> orgimpact -> block -> topology`; system impact is user-triggered via `Empower Community Pillar`.
 - System impact now includes rapid community build-up visuals before bridge collision and stress evaluation.
 - Bridge collapse now requires both threshold and contact gate, using bridge geometry bounds for impact targeting.
-- Next pass should remove the legacy transfer-count collapse fallback and tune end-scene presentation.
+- Latest tuning checkpoint (`2026-02-25`) added:
+  - org impact now forces organization-overview framing before contagion playback
+  - returning to topology after org/system impact forces full-system framing and clears brick lock
+  - donor bricks are consumed from Market/State during system impact and source holes remain visible
+  - staged bridge failure timing is active (`pre-shake -> bang -> wobble/crack -> collapse`)
+  - topology now exposes `Replay Impact` for rerunning the latest system-impact cinematic.
+
+## New Approved Track: Aesthetic + Interaction Development
+Branch context:
+- active implementation branch for this track: `codex/aesthetic-interaction-development`
+- branched from `codex/end-scenes-overhaul` to retain latest end-scene fixes.
+
+Primary goals:
+1. Cinematic camera transitions across semantic zoom levels.
+2. Move primary actions from side panel into in-scene interaction affordances.
+
+Module plan:
+1. `Module 0`: camera shot contract (spec doc only, no runtime changes).
+2. `Module 1`: camera director implementation and transition wiring.
+3. `Module 2`: transition polish pass (focus cue, settle hold, subtle cinematic emphasis).
+4. `Module 3`: in-scene controls phase 1 (`Open Organization`, `Inspect/Reclaim`, `Open Person`) with panel fallback.
+5. `Module 4`: in-scene controls phase 2 (person/time-slice primary actions in scene).
+6. `Module 5`: cinematic consistency/performance sweep.
+
+Execution policy:
+- commit each module as a checkpoint before moving to the next.
+- run regression checks on each module (`npm run test -- --run`, `npm run build`).
+- keep current impact escalation logic stable while camera/interaction UX evolves.
+
+Module status update:
+- `Module 0` is complete.
+- camera contract doc added: `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
+- `Module 1` is complete:
+  - `IovCameraDirector` added and wired into `IovTopologyCanvas`.
+  - cinematic shots active for:
+    - `Open Organization` (`SYSTEM_TO_ORGANIZATION`)
+    - `Open Person` (`ORGANIZATION_TO_PERSON`)
+  - interactions are blocked during active shot playback to avoid transition conflicts.
+- `Module 2` is complete:
+  - pre-focus cues added before open transitions (`IovTopologyScene.playBrickFocusCue`, `BlockInteriorScene.playPersonFocusCue`)
+  - settle holds added after shot completion before level swap
+  - subtle FOV overshoot/settle emphasis added to `IovCameraDirector.playShot(...)`
+  - transition-busy lock added to prevent concurrent interactions during cue/settle windows.
+- `Module 3` phase 1 is complete:
+  - topology selected-organization actions now appear in-scene (`Inspect`, `Reclaim`, `Open Organization`)
+  - side panel remains available as fallback.
+- `Module 4` phase 2 is complete:
+  - Time Slice now has an in-scene control card (`Prev`, `Next`, `Back`, `Commit Time Slice`)
+  - step index and active-step visibility added in-scene for guided progress.
+  - side panel remains available as fallback.
+- `Module 5` is complete:
+  - topology in-scene action card now anchors to the selected brick in screen space
+  - safe-area clamping keeps card readable away from panel and viewport edges
+  - integrated camera + interaction polish from Modules 1-4 remains stable.
+- current module track (`Module 0` to `Module 5`) is complete.
+- post-module cinematic timing pass is in progress:
+  - slower donor-brick travel for readability
+  - heavier contact emphasis on bridge impact
+  - explicit replay support for capture workflows.
+
+## Documentation continuity rule
+- Treat `docs/IOV_SEMANTIC_ZOOM_PROJECT.md` and this file as append-only journals.
+- Add new dated checkpoint entries; do not remove prior entries even if superseded.
 
 ## Newly added (this pass)
 - `Person` scene has a staged identity-build mode:

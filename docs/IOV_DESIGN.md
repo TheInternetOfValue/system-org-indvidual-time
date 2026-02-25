@@ -8,7 +8,7 @@
 - `PersonImpactScene` (`Impact`): transition FX between commit and updated person state.
 
 Current semantic zoom chain:
-- `topology -> block -> person -> valuelog -> impact`.
+- `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology -> systemimpact -> topology`.
 
 ## Coordinate System
 - All structures use one shared world coordinate space and one shared baseplate.
@@ -37,8 +37,23 @@ Current semantic zoom chain:
   - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
 - Post-impact propagation:
   - impacted person activation ring in `BlockInteriorScene`.
+  - org-level contagion in `BlockInteriorScene` (all people remain visible while aura spreads).
   - source organization brick activation in `IovTopologyScene`.
-  - bridge collapse trigger available once reclaim pressure crosses threshold.
+  - system impact runs from explicit `Empower Community Pillar` action.
+
+## System Impact Cinematic Contract (Checkpoint)
+- Community uplift is built from donor bricks taken from Market/State towers.
+- Donor source holes remain visible (no fake duplicate spawn).
+- Community pillar build timing is intentionally staged (slower transfers, readable stack-up).
+- Bridge failure timing is gated in sequence:
+  - pre-impact stress shake,
+  - contact bang impulse,
+  - wobble/crack foreshadow,
+  - then collapse.
+- Bridge collapse is still gated by both:
+  - stress threshold crossing,
+  - visible geometric contact with bridge underside.
+- Replay of latest system impact is available from topology controls for capture/demo workflows.
 
 ## Color Rendering
 - Detailed rendering diagnosis and target semantics are in `docs/IOV_COLOR_RENDERING.md`.

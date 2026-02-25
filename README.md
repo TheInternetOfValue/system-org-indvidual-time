@@ -16,6 +16,10 @@ The visualization uses a 3D “brick stack” analogy:
 The interface includes:
 - Click-to-assemble phases (Market, State, Community, Bridge)
 - Brick transfer interaction (top bricks can be reclaimed into Community)
+- In-scene topology action card anchored near selected brick (`Inspect/Reclaim` + `Open Organization`)
+- In-scene Time Slice action card (`Prev/Next/Back/Commit`) for direct progression without panel dependence
+- Replay control for the latest system-impact cinematic (`Replay Impact`)
+- Automatic camera reset to full-system overview after org/system impact completion
 - Tooltip + left info panel with definitions and values
 - Presentation Mode toggle for cleaner demo/readability view
 - Dynamic phase headline messaging (build/reveal state text)
@@ -54,8 +58,9 @@ Interaction host:
 5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
 6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
 7. Return to `System`: org activation is queued and panel shows `Empower Community Pillar (N)`.
-8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, Community pillar builds upward, stress ramps, and impact targets the real bridge geometry.
-9. Return to `System`: source brick remains radiant; bridge collapses only when stress threshold is crossed and visible community-to-bridge contact is reached.
+8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, donor bricks are consumed from Market/State, fly into a Community pillar stack, and leave visible source holes.
+9. `Bridge Break` (`IovTopologyScene`): after contact, collapse uses staged timing (`pre-shake -> bang -> wobble/crack -> collapse`) instead of instant fall.
+10. Return to `System`: source brick remains radiant; bridge collapses only when stress threshold is crossed and visible community-to-bridge contact is reached; replay is available from the topology controls.
 
 ---
 
@@ -72,6 +77,7 @@ src/
       PersonIdentityScene.ts     # Person (micro) scene
       ValueLogScene.ts           # Time Slice action scene
       PersonImpactScene.ts       # Impact transition FX scene
+      IovCameraDirector.ts       # Cinematic camera shot orchestrator
       IovSemanticZoomController.ts # Semantic level state machine
       PersonStateEngine.ts       # Person wellbeing/aura evolution engine
       iovTimelogs.ts             # Value log loading + resolution
@@ -221,6 +227,15 @@ Tests:
 ```bash
 npm run test -- --run
 ```
+
+---
+
+## Documentation Trail (Append-Only)
+
+- Historical evolution is recorded chronologically in:
+  - `docs/IOV_SEMANTIC_ZOOM_PROJECT.md` (`Change Log` + `Decision Log`)
+  - `docs/LLM_HANDOFF_CONTEXT.md` (`Current pass status` updates)
+- New updates should be appended as dated checkpoints, not rewritten in place.
 
 ---
 

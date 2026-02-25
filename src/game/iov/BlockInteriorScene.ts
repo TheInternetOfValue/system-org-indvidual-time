@@ -130,6 +130,11 @@ export class BlockInteriorScene {
     this.contagionPulseMaterial
   );
   private readonly contagionPulseLight = new THREE.PointLight("#ffd15a", 0, 3.8);
+  private personFocusCueActive = false;
+  private personFocusCueElapsed = 0;
+  private personFocusCueDuration = 0;
+  private personFocusCueResolver: (() => void) | null = null;
+  private personFocusCueBaseOpacity = 0.92;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -185,6 +190,32 @@ export class BlockInteriorScene {
     };
   }
 
+  getPersonAnchor(personId: string | null) {
+    const targetId = personId ?? this.selectedPersonId;
+    if (!targetId) return null;
+    const token = this.personTokens.find((person) => person.id === targetId);
+    if (!token) return null;
+    return new THREE.Vector3(token.position.x, 0.78 * token.heightScale, token.position.z);
+  }
+
+  playPersonFocusCue(personId: string, durationMs = 160) {
+    const token = this.personTokens.find((person) => person.id === personId);
+    if (!token) return Promise.resolve();
+
+    this.selectedMarker.visible = true;
+    this.selectedMarker.position.set(token.position.x, 0.05, token.position.z);
+    this.selectedMarker.scale.set(1, 1, 1);
+    const material = this.selectedMarker.material as THREE.MeshBasicMaterial;
+    this.personFocusCueBaseOpacity = material.opacity;
+    this.personFocusCueActive = true;
+    this.personFocusCueElapsed = 0;
+    this.personFocusCueDuration = Math.max(0.08, durationMs / 1000);
+
+    return new Promise<void>((resolve) => {
+      this.personFocusCueResolver = resolve;
+    });
+  }
+
   resize(width: number, height: number) {
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
@@ -195,6 +226,25 @@ export class BlockInteriorScene {
     this.isMobileViewport = isMobile;
 
     if (isMobile) {
+      this.camera.fov = 52;
+      this.camera.position.set(0, 2.7, 7.8);
+      this.controls.target.set(0, 1.05, 0);
+      this.controls.minDistance = 4.2;
+      this.controls.maxDistance = 11;
+    } else {
+      this.camera.fov = 48;
+      this.camera.position.set(0, 2.5, 6.8);
+      this.controls.target.set(0, 0.95, 0);
+      this.controls.minDistance = 3.4;
+      this.controls.maxDistance = 10;
+    }
+
+    this.camera.updateProjectionMatrix();
+    this.controls.update();
+  }
+
+  frameOrganizationOverview() {
+    if (this.isMobileViewport) {
       this.camera.fov = 52;
       this.camera.position.set(0, 2.7, 7.8);
       this.controls.target.set(0, 1.05, 0);
@@ -372,6 +422,8 @@ export class BlockInteriorScene {
       this.contagionPulse.scale.setScalar(pulse);
       this.contagionPulseLight.intensity = 1.6 + Math.sin(time * 12) * 0.3;
     }
+
+    this.updatePersonFocusCue(deltaSeconds);
   }
 
   render(renderer: THREE.WebGLRenderer) {
@@ -380,6 +432,12 @@ export class BlockInteriorScene {
 
   dispose() {
     this.controls.dispose();
+    if (this.personFocusCueActive) {
+      this.personFocusCueActive = false;
+      const done = this.personFocusCueResolver;
+      this.personFocusCueResolver = null;
+      done?.();
+    }
     if (this.activationMesh) {
       this.root.remove(this.activationMesh);
       this.activationMesh.geometry.dispose();
@@ -722,6 +780,26 @@ export class BlockInteriorScene {
           ? (this.contagionOrder[this.contagionCursor] ?? null)
           : null;
       this.contagionStepT = 0;
+    }
+  }
+
+  private updatePersonFocusCue(deltaSeconds: number) {
+    if (!this.personFocusCueActive) return;
+
+    this.personFocusCueElapsed += deltaSeconds;
+    const t = Math.min(1, this.personFocusCueElapsed / this.personFocusCueDuration);
+    const pulse = 1 + Math.sin(t * Math.PI) * 0.24;
+    this.selectedMarker.scale.set(pulse, pulse, 1);
+    const material = this.selectedMarker.material as THREE.MeshBasicMaterial;
+    material.opacity = this.personFocusCueBaseOpacity + Math.sin(t * Math.PI) * 0.08;
+
+    if (t >= 1) {
+      this.selectedMarker.scale.set(1, 1, 1);
+      material.opacity = this.personFocusCueBaseOpacity;
+      this.personFocusCueActive = false;
+      const done = this.personFocusCueResolver;
+      this.personFocusCueResolver = null;
+      done?.();
     }
   }
 

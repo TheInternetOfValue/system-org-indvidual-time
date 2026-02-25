@@ -2,6 +2,7 @@
 
 Handoff companion:
 - `docs/LLM_HANDOFF_CONTEXT.md` (plain-language transfer brief for next LLM, including known UX failures and required next-pass contract)
+- `docs/IOV_CAMERA_SHOT_CONTRACT.md` (locked camera choreography contract for Aesthetic + Interaction track)
 
 ## Purpose
 Build the next narrative layer of the Internet of Value experience through semantic zoom:
@@ -31,6 +32,75 @@ Narrative chain:
 3. `Person`: stable identity layers (slow-changing profile structure).
 4. `Breathing Layer`: daily protocol logs that update wellbeing state/aura over time.
 5. `Impact`: post-commit transition that makes state change legible.
+
+## Aesthetic + Interaction Development Track (Approved)
+Track date: `2026-02-24`
+
+Primary goals:
+1. Camera choreography for semantic transitions:
+   - `System -> Organization`: move from macro frame into selected brick.
+   - `Organization -> Person`: move into clicked person.
+   - maintain cinematic reverse transitions on back-navigation.
+2. In-scene-first interaction model:
+   - migrate core actions from side panel into world-space/in-scene affordances.
+   - keep side panel as secondary telemetry/help fallback.
+
+Execution modules (with checkpoints):
+1. `Module 0` (spec only): camera shot contract document (durations/easing/FOV/framing/interrupt rules/mobile variants).
+2. `Module 1`: `CameraDirector` foundation (`playShot`, `cancelShot`, deterministic transitions).
+3. `Module 2`: transition polish (pre-focus highlight, settle hold, subtle cinematic emphasis).
+4. `Module 3`: in-scene controls phase 1 (`Open Organization`, `Inspect/Reclaim`, `Open Person`) with panel fallback retained.
+5. `Module 4`: in-scene controls phase 2 (person/time-slice primary actions in scene; panel becomes optional for demos).
+6. `Module 5`: cinematic consistency/perf sweep (timing continuity, lighting continuity, perf guardrails).
+
+Checkpoint policy:
+- commit after every module with a local checkpoint before any push.
+- keep regression checks on each module (`npm run test -- --run`, `npm run build`).
+- preserve existing impact-escalation behavior while migrating camera/interaction UX.
+
+Module 0 status:
+- `completed` on `2026-02-24`
+- output doc: `docs/IOV_CAMERA_SHOT_CONTRACT.md`
+
+Module 1 status:
+- `completed` on `2026-02-25`
+- runtime module added: `src/game/iov/IovCameraDirector.ts`
+- wired shots:
+  - `SYSTEM_TO_ORGANIZATION` on `Open Organization`
+  - `ORGANIZATION_TO_PERSON` on `Open Person`
+- guardrails added:
+  - pointer/key/breadcrumb actions are blocked during active camera shot playback
+  - fallback to existing immediate transition path when shot anchors are unavailable
+
+Module 2 status:
+- `completed` on `2026-02-25`
+- transition polish added on top of Module 1 shots:
+  - pre-focus visual cue on selected brick/person before camera travel
+  - short settle hold after shot completion before semantic level swap
+  - subtle FOV overshoot/settle emphasis in `IovCameraDirector` shot playback
+- safety guard:
+  - transition-busy lock to prevent concurrent interaction during pre-focus/settle windows
+
+Module 3 status (phase 1):
+- `completed` on `2026-02-25`
+- topology-level primary actions now available in-scene:
+  - `Inspect` / `Reclaim` mode toggle
+  - `Open Organization` action
+- panel controls are preserved as fallback for continuity and safety.
+
+Module 4 status (phase 2):
+- `completed` on `2026-02-25`
+- in-scene controls extended into person/time-slice flow:
+  - Time Slice scene card added with `Prev`, `Next`, `Back`, and `Commit Time Slice`
+  - step index/status surfaced in-scene for guided progression
+- panel remains as secondary/fallback control surface.
+
+Module 5 status:
+- `completed` on `2026-02-25`
+- cinematic consistency/performance sweep delivered:
+  - topology action card now anchors to selected brick in screen space (with safe-area clamping)
+  - transition locking and camera polish retained across modules 1-4
+  - runtime remains deterministic and build/test clean after integration
 
 ## Impact Escalation Contract (Implemented)
 Goal: make impact progression explicit and modular across three scenes:
@@ -182,6 +252,12 @@ Pass 3 progress (implemented):
   - community pillar scale increases from `communityPowerDelta`
   - bridge color/stress ramps during impact
   - bridge collapse triggers only when stress threshold crosses and contact gate is reached
+- System-impact choreography now uses donor-brick transfer instead of abstract pillar jumps:
+  - donor bricks are consumed from Market/State and source holes remain visible
+  - donor bricks fly into a stacked Community uplift column with edge outlines
+  - contact phase is staged (`pre-shake -> bang -> wobble/crack -> collapse`)
+- Added topology replay support for system impact:
+  - `Replay Impact` action can replay the last staged sequence without mutating source towers again.
 - `IovTopologyCanvas` now queues org outcomes and requires explicit topology action:
   - `impact -> orgimpact -> block -> topology`
   - press `Empower Community Pillar` -> `systemimpact -> topology`
@@ -204,6 +280,7 @@ For every pass above, update in the same commit:
 2. `docs/LLM_HANDOFF_CONTEXT.md`
 3. `README.md` (scene inventory/flow if changed)
 4. Change Log + Decision Log entries with date and rationale
+5. Append new entries; do not delete or rewrite earlier historical entries.
 
 ## Scope
 - In scope:
@@ -569,6 +646,17 @@ After each implementation pass:
 - 2026-02-24: System impact must run on `IovTopologyScene` (shared world context), not a detached abstract scene.
 - 2026-02-24: System impact is user-triggered from topology via `Empower Community Pillar`; org impact no longer auto-runs macro impact.
 - 2026-02-24: Bridge collapse is gated by both stress threshold and visual contact with bridge underside to prevent non-physical early collapse.
+- 2026-02-24: New development track approved: prioritize cinematic camera choreography and in-scene-first interaction migration in modular checkpoints.
+- 2026-02-24: Camera choreography must be implemented from a locked shot contract (durations, framing, interrupt rules, mobile variants) before runtime camera refactors.
+- 2026-02-25: Camera transitions are orchestrated through `IovCameraDirector` with shot-level blocking to prevent concurrent interaction during playback.
+- 2026-02-25: Transition polish must preserve determinism and must not permit concurrent input during cue/settle phases.
+- 2026-02-25: In-scene-first migration must land with panel fallback retained until full interaction parity is reached.
+- 2026-02-25: Time Slice progression must be completable through in-scene controls to reduce panel dependence in presentation mode.
+- 2026-02-25: In-scene overlays should spatially align to selected world objects where practical to strengthen semantic zoom continuity.
+- 2026-02-25: Returning from person impact into org impact must reset to full-organization framing before contagion playback.
+- 2026-02-25: Returning to topology after org/system impact must reset to full-system framing and clear selected-brick lock.
+- 2026-02-25: System-impact storytelling prioritizes staged readability over raw speed (slower donor transfer, delayed collapse lead-in, explicit hit moment).
+- 2026-02-25: Replayability is required for demo capture; latest system-impact sequence must be replayable from topology without consuming additional donor bricks.
 
 ## Change Log
 - 2026-02-22: Document created; phases, architecture, and task plan established.
@@ -591,8 +679,20 @@ After each implementation pass:
 - 2026-02-24: Implemented Pass 3 on live topology (`IovTopologyScene.playSystemImpact`) and enabled escalation route `impact -> orgimpact -> systemimpact -> topology`.
 - 2026-02-24: Added explicit `Empower Community Pillar` topology action; system impact now runs on demand with cinematic community build-up and threshold-based bridge collapse.
 - 2026-02-24: Fixed system-impact collapse timing to use real bridge geometry target + contact gating (stress-only collapse removed).
+- 2026-02-24: Started `Aesthetic + Interaction Development` track and documented modular rollout/checkpoint policy.
+- 2026-02-24: Completed Module 0 and added locked shot contract doc `docs/IOV_CAMERA_SHOT_CONTRACT.md`.
+- 2026-02-25: Completed Module 1 camera foundation (`IovCameraDirector`) and wired cinematic `System -> Organization -> Person` transitions.
+- 2026-02-25: Completed Module 2 transition polish (pre-focus cues, settle holds, subtle shot emphasis, transition-busy lock).
+- 2026-02-25: Completed Module 3 phase 1 by moving topology primary actions into in-scene controls while retaining panel fallback.
+- 2026-02-25: Completed Module 4 phase 2 with in-scene Time Slice progression/commit controls and step visibility.
+- 2026-02-25: Completed Module 5 consistency sweep with selected-brick-anchored topology action card and integrated camera/interaction polish.
+- 2026-02-25: Added org-impact camera reset to organization overview so contagion is seen at group level (not zoom-locked to one person).
+- 2026-02-25: Added topology camera reset to system overview after org impact return and after system impact completion/replay.
+- 2026-02-25: Reworked system-impact build to donor-brick transfer from Market/State with visible source holes and outlined community stack bricks.
+- 2026-02-25: Added staged bridge failure timeline (`pre-shake`, `bang`, `wobble/crack`, `collapse`) and tuned collapse physics for slower cinematic readability.
+- 2026-02-25: Added `Replay Impact` controls in topology panel and in-scene card to rerun latest system-impact sequence for presentation/video capture.
 
 ## Next Up
-1. Pass 4: remove legacy transfer-count bridge collapse path entirely (currently gated off when escalation flag is enabled).
-2. Tune org/system impact camera and timing for presentation clarity.
-3. Add panel telemetry for macro stress state (pillar height, bridge stress, threshold).
+1. Add transition tests/telemetry hooks for shot completion/cancel behavior to protect camera UX regressions.
+2. Optional: add shot replay/debug overlay for presentation rehearsal.
+3. Optional: extend object-anchored card behavior to block/person cards for full spatial consistency.

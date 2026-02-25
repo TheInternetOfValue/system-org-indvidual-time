@@ -1788,9 +1788,9 @@ const IovTopologyCanvas = () => {
     applySemanticTransition(next.level);
     const nodeLabel = finalDraft.wellbeingNode.replace("~~", "");
     setPhaseHeadline(
-      `Photon drop: ${finalDraft.signalLabel} (${finalDraft.signalScore.toFixed(
+      `Photon lands in ${selectedPersonId}'s identity core (${nodeLabel}, ${finalDraft.signalScore.toFixed(
         2
-      )}) lands in ${nodeLabel}.`
+      )}) and radiates outward.`
     );
 
     if (impactSceneRef.current) {

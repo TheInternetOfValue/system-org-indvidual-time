@@ -689,31 +689,17 @@ export class ValueLogScene {
       }
     } else if (this.step === "show_outcome") {
       if (this.isCommitting) {
-          // Drop FAST into the Identity/Aura pool
-          const yPos = -5.0; 
-          targetPos.set(0, yPos, 0);
-
-          // Force very fast lerp when committing
-          this.token.position.lerp(targetPos, 12.0 * deltaSeconds);
+        // Keep commit motion near center so handoff to impact scene feels continuous.
+        targetPos.set(0, -0.25, 0);
+        this.token.position.lerp(targetPos, 12.0 * deltaSeconds);
       } else {
-          // Hover above the pool, waiting for commit
-          // Previous step was hanging around y ~ -1.2.
-          // Let's hover visibly above the bottom labels.
-          const yPos = -1.8 + Math.sin(this.elapsedSeconds * 2.0) * 0.15;
-          targetPos.set(0, yPos, 0);
-          
-          // Normal lerp for hover
-          this.token.position.lerp(targetPos, 4.0 * deltaSeconds);
+        const yPos = 0.55 + Math.sin(this.elapsedSeconds * 2.0) * 0.1;
+        targetPos.set(0, yPos, 0);
+        this.token.position.lerp(targetPos, 4.5 * deltaSeconds);
       }
 
-      // Trigger ripple if we hit bottom (only happens during commit drop)
-      if (this.isCommitting && this.token.position.y < -4.7) {
-          this.isRippling = true;
-          this.rippleMesh!.visible = true; // Force visible immediate
-      } else {
-        this.isRippling = false;
-        if (this.rippleMesh) this.rippleMesh.visible = false;
-      }
+      this.isRippling = false;
+      if (this.rippleMesh) this.rippleMesh.visible = false;
     } else {
       this.isRippling = false; // Reset if step changes
       
@@ -1231,7 +1217,7 @@ export class ValueLogScene {
     this.stringsGroup.visible = showWellbeing;
 
     // Outcome elements - only visible during outcome review
-    const showOutcome = this.step === "show_outcome";
+    const showOutcome = false;
     this.auraBands.forEach((band) => {
       band.visible = showOutcome;
     });

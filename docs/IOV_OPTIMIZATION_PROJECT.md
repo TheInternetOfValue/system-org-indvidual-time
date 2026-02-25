@@ -597,6 +597,37 @@ Delivered:
 
 ---
 
+### Phase 22: Person-Centered Impact Continuity (Photon -> Human -> Aura)
+Status: `COMPLETED`
+
+Tasks:
+- Remove disjoint "bottom ocean" outcome clutter from Time Slice commit handoff.
+- Redesign Impact scene so the human remains visually present during photon impact.
+- Show identity propagation clearly: head/core hit -> rings expand -> IdentityState ring glow -> aura formation.
+
+Acceptance:
+- Commit handoff feels continuous into the person, not a separate abstract scene.
+- Impact scene includes visible human core and identity ring system.
+- IdentityState ring reads as the final energized layer before transition to org/system.
+- Tests/build pass.
+
+Delivered:
+- Time Slice handoff cleanup in `ValueLogScene`:
+  - Removed bottom-oriented outcome clutter from the visible commit state (no bottom bars/labels/aura bands shown).
+  - Changed commit token motion to stay near center for a tighter visual handoff into impact.
+  - Disabled in-scene ripple/ocean effect during commit handoff.
+- Impact continuity redesign in `PersonImpactScene`:
+  - Added visible human core (torso/head/base) styled consistently with Person scene.
+  - Added concentric identity rings around the person (using protocol layer colors).
+  - Changed photon trajectory to land on the head/core target.
+  - Added impact flash and outward ring propagation wave.
+  - Added sustained IdentityState ring glow and aura-band emergence to represent aura formation.
+  - Added responsive camera framing and explicit `dispose()` cleanup.
+- Narrative copy update:
+  - Updated impact phase headline in `IovTopologyCanvas` to describe photon landing in the person's identity core.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -661,6 +692,9 @@ Delivered:
 - Phase 21:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 22:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -684,3 +718,4 @@ Delivered:
 - Phase 19: `fix: phase 19 anchor empower community CTA near community base`
 - Phase 20: `fix: phase 20 unify mobile safe viewport overlay clamping`
 - Phase 21: `feat: phase 21 scene-first time-slice causal capture flow`
+- Phase 22: `feat: phase 22 person-centered impact continuity and aura propagation`

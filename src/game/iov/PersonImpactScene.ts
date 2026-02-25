@@ -2,190 +2,373 @@ import * as THREE from "three";
 import { WELLBEING_IDENTITY_LAYERS } from "./wellbeingIdentityProtocol";
 import type { ValueLogDraft } from "./ValueLogModel";
 
+interface ImpactRingMeta {
+  baseRadius: number;
+  baseColor: THREE.Color;
+  isIdentityState: boolean;
+}
+
 export class PersonImpactScene {
   readonly scene = new THREE.Scene();
-  // Using a slightly wider FOV for dramatic impact effect
   readonly camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-  
+
   private readonly root = new THREE.Group();
   private readonly photon: THREE.Mesh;
   private readonly photonLight: THREE.PointLight;
+  private readonly impactFlash: THREE.Mesh;
   private readonly rings: THREE.Mesh[] = [];
-  
+  private readonly auraBands: THREE.Mesh[] = [];
+  private readonly coreMaterials: THREE.MeshStandardMaterial[] = [];
+
   private isAnimating = false;
   private time = 0;
-  private readonly impactDuration = 0.6; // Seconds for drop
-  private readonly rippleSpeed = 6.0;    // Units per second
+  private readonly dropDuration = 0.52;
+  private readonly rippleSpeed = 5.8;
+  private readonly completionDelay = 2.65;
   private impactStrength = 1;
   private onComplete?: () => void;
   private draft: ValueLogDraft | null = null;
-  private readonly startY = 12.0;
+  private readonly photonStart = new THREE.Vector3(0, 7.6, 1.2);
+  private readonly headTarget = new THREE.Vector3(0, 2.45, 0);
   private readonly neutralEmissive = new THREE.Color(0x000000);
   private readonly unitScale = new THREE.Vector3(1, 1, 1);
+  private readonly impactColor = new THREE.Color("#ffd700");
+  private readonly workingColor = new THREE.Color("#ffd700");
 
   constructor() {
     this.scene.add(this.root);
-    
-    // Atmospheric Lighting
-    const ambient = new THREE.AmbientLight("#112233", 0.4);
-    const dirLight = new THREE.DirectionalLight("#ffffff", 0.8);
-    dirLight.position.set(5, 10, 5);
-    this.scene.add(ambient, dirLight);
 
-    // Camera Position - Angled down to see the surface clearly
-    this.camera.position.set(0, 10, 16);
-    this.camera.lookAt(0, 0, 0);
+    this.setupSceneLook();
+    this.buildIdentityCore();
+    this.buildIdentityRings();
+    this.buildAuraBands();
 
-    // 1. The Photon (The Drop)
     this.photon = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 32, 32),
-      new THREE.MeshBasicMaterial({ color: "#ffffff" })
+      new THREE.SphereGeometry(0.3, 24, 20),
+      new THREE.MeshBasicMaterial({ color: "#ffd700" })
     );
-    this.photonLight = new THREE.PointLight("#ffffff", 2, 8);
+    this.photonLight = new THREE.PointLight("#ffd770", 2.1, 10);
     this.photon.add(this.photonLight);
     this.root.add(this.photon);
     this.photon.visible = false;
 
-    // 2. Identity Surface Rings
-    // Recreated from PersonIdentityScene to allow independent animation.
-    // Order: Inner (Physiology) -> Outer (Context/Performance)
-    WELLBEING_IDENTITY_LAYERS.forEach((layer, idx) => {
-      const radius = 1.55 + idx * 0.62;
-      
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(radius, 0.05, 16, 120),
-        new THREE.MeshStandardMaterial({
-          color: layer.color, 
-          emissive: "#000000",
-          metalness: 0.6,
-          roughness: 0.4,
-          transparent: true,
-          opacity: 0.2
-        })
-      );
-      ring.rotation.x = -Math.PI / 2; // Lie flat
-      
-      // Store metadata for visual logic
-      ring.userData = { 
-        baseRadius: radius, 
-        baseColor: new THREE.Color(layer.color).multiplyScalar(0.8) 
-      };
-      
-      this.rings.push(ring);
-      this.root.add(ring);
-    });
+    this.impactFlash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.24, 16, 14),
+      new THREE.MeshBasicMaterial({
+        color: "#fff3cf",
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    this.impactFlash.position.copy(this.headTarget);
+    this.impactFlash.visible = false;
+    this.root.add(this.impactFlash);
   }
 
   resize(width: number, height: number) {
     this.camera.aspect = width / Math.max(1, height);
+    const aspect = width / Math.max(1, height);
+    if (aspect < 0.86) {
+      this.camera.fov = 54;
+      this.camera.position.set(0, 6.2, 12.6);
+    } else {
+      this.camera.fov = 50;
+      this.camera.position.set(0, 5.8, 10.8);
+    }
+    this.camera.lookAt(0, 1.8, 0);
     this.camera.updateProjectionMatrix();
   }
 
-  /**
-   * Starts the Drop -> Impact -> Ripple sequence.
-   */
   playImpact(draft: ValueLogDraft, onComplete: () => void) {
     this.draft = draft;
     this.onComplete = onComplete;
     this.isAnimating = true;
     this.time = 0;
-    
-    // Determine Color based on Value Domain
-    const color = new THREE.Color("#ffd700"); // Default Gold
+
+    this.impactColor.set("#ffd700");
     if (draft.impactDirection === "decrease") {
-      color.set("#ff6f7f");
+      this.impactColor.set("#ff6f7f");
     } else if (draft.impactDirection === "neutral") {
-      color.set("#9ab7d9");
+      this.impactColor.set("#9ab7d9");
     } else if (draft.learningTag) {
-      color.set("#4cc9f0");
+      this.impactColor.set("#4cc9f0");
     } else if (draft.earningTag) {
-      color.set("#f72585");
+      this.impactColor.set("#f72585");
     } else if (draft.orgBuildingTag) {
-      color.set("#4361ee");
+      this.impactColor.set("#4361ee");
     }
 
     const baseStrength = 0.55 + draft.signalScore;
     this.impactStrength =
       draft.impactDirection === "neutral"
-        ? Math.max(0.35, Math.min(0.85, baseStrength * 0.65))
+        ? Math.max(0.35, Math.min(0.9, baseStrength * 0.7))
         : Math.max(0.45, Math.min(1.35, baseStrength));
 
-    (this.photon.material as THREE.MeshBasicMaterial).color.copy(color);
-    this.photonLight.color.copy(color);
+    (this.photon.material as THREE.MeshBasicMaterial).color.copy(this.impactColor);
+    this.photonLight.color.copy(this.impactColor);
+    this.photonLight.intensity = 2.1;
 
-    // Reset Scene State
     this.photon.visible = true;
-    this.photon.position.set(0, this.startY, 0);
+    this.photon.position.copy(this.photonStart);
     this.photon.scale.setScalar(1);
 
-    this.rings.forEach(ring => {
-        const mat = ring.material as THREE.MeshStandardMaterial;
-        mat.emissive.setHex(0x000000);
-        mat.opacity = 0.2;
-        ring.scale.set(1, 1, 1);
+    this.impactFlash.visible = false;
+    this.impactFlash.scale.setScalar(1);
+    (this.impactFlash.material as THREE.MeshBasicMaterial).opacity = 0;
+
+    this.rings.forEach((ring) => {
+      const mat = ring.material as THREE.MeshStandardMaterial;
+      const meta = ring.userData as ImpactRingMeta;
+      mat.color.copy(meta.baseColor);
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+      mat.opacity = 0.24;
+      ring.scale.set(1, 1, 1);
+    });
+
+    this.auraBands.forEach((band) => {
+      const mat = band.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0;
+      band.visible = false;
+      band.scale.setScalar(1);
+    });
+
+    this.coreMaterials.forEach((material) => {
+      material.emissive.setHex(0x000000);
+      material.emissiveIntensity = 0.1;
     });
   }
 
-  update(delta: number) {
+  update(deltaSeconds: number) {
     if (!this.isAnimating) return;
-    
-    this.time += delta;
 
-    // --- Phase 1: The Drop (Gravity) ---
-    if (this.time < this.impactDuration) {
-        const t = this.time / this.impactDuration;
-        const ease = t * t; // Quadratic ease-in
-        this.photon.position.y = THREE.MathUtils.lerp(this.startY, 0, ease);
-        
-        // Slight stretch effect for speed
-        const stretch = 1.0 + (ease * 0.5);
-        this.photon.scale.set(1/stretch, stretch, 1/stretch);
-    } 
-    // --- Phase 2: Impact & Ripple Expansion ---
-    else {
-        this.photon.visible = false;
-        
-        // Ripple wavefront radius
-        const rippleTime = this.time - this.impactDuration;
-        const wavefrontRadius = rippleTime * this.rippleSpeed; 
-        
-        this.rings.forEach(ring => {
-            const dist = ring.userData.baseRadius;
-            const diff = wavefrontRadius - dist;
-            
-            // "Hit" window: when wavefront passes through the ring radius
-            // Logic: Inner rings are hit first (smaller radius)
-            if (diff > -0.5 && diff < 1.5) {
-                // Peak intensity at diff = 0
-                const intensity = Math.max(0, 1.0 - Math.abs(diff - 0.5)) * this.impactStrength;
-                
-                const mat = ring.material as THREE.MeshStandardMaterial;
-                const baseColor = ring.userData.baseColor as THREE.Color;
-                
-                // Visual Flash
-                mat.emissive.copy(baseColor);
-                mat.emissiveIntensity = 2.0 * intensity;
-                mat.opacity = 0.2 + (0.8 * intensity);
-                
-                // Physical "Bounce" (Scale Z because of rotation)
-                // The rings pulse upward as the wave passes
-                ring.scale.set(1, 1, 1 + (0.8 * intensity));
-                
-            } else {
-                // Decay back to rest
-                const mat = ring.material as THREE.MeshStandardMaterial;
-                mat.emissive.lerp(this.neutralEmissive, delta * 3);
-                mat.emissiveIntensity = THREE.MathUtils.lerp(mat.emissiveIntensity, 0, delta * 3);
-                mat.opacity = THREE.MathUtils.lerp(mat.opacity, 0.2, delta * 2);
-                ring.scale.lerp(this.unitScale, delta * 4);
-            }
-        });
+    this.time += deltaSeconds;
 
-        // End Sequence (approx 3.0s total)
-        if (this.time > this.impactDuration + 3.0) {
-            this.isAnimating = false;
-            if (this.onComplete) this.onComplete();
-        }
+    if (this.time < this.dropDuration) {
+      const t = this.time / this.dropDuration;
+      const ease = 1 - Math.pow(1 - t, 3);
+      this.photon.position.lerpVectors(this.photonStart, this.headTarget, ease);
+
+      const stretch = 1 + 0.32 * (1 - ease);
+      this.photon.scale.set(1 / stretch, stretch, 1 / stretch);
+      this.photonLight.intensity = THREE.MathUtils.lerp(2.1, 4.1, ease);
+      this.impactFlash.visible = false;
+      return;
     }
+
+    this.photon.visible = false;
+    const rippleTime = this.time - this.dropDuration;
+    const wavefrontRadius = rippleTime * this.rippleSpeed;
+    const identityStateRadius =
+      (this.rings.find((ring) => (ring.userData as ImpactRingMeta).isIdentityState)?.userData as
+        | ImpactRingMeta
+        | undefined)?.baseRadius ?? 3.9;
+    const auraProgress = THREE.MathUtils.clamp(
+      (wavefrontRadius - identityStateRadius + 0.35) / 2.0,
+      0,
+      1
+    );
+
+    if (rippleTime < 0.34) {
+      const flashProgress = rippleTime / 0.34;
+      this.impactFlash.visible = true;
+      this.impactFlash.scale.setScalar(1 + flashProgress * 4.5);
+      (this.impactFlash.material as THREE.MeshBasicMaterial).opacity =
+        (1 - flashProgress) * 0.82 * this.impactStrength;
+    } else {
+      this.impactFlash.visible = false;
+    }
+
+    this.rings.forEach((ring) => {
+      const meta = ring.userData as ImpactRingMeta;
+      const dist = meta.baseRadius;
+      const hit = Math.max(0, 1 - Math.abs(wavefrontRadius - dist) / 0.85) * this.impactStrength;
+      const mat = ring.material as THREE.MeshStandardMaterial;
+
+      if (hit > 0.01) {
+        mat.emissive.copy(meta.baseColor);
+        mat.emissiveIntensity = (meta.isIdentityState ? 1.6 : 1.0) + hit * 1.45;
+        mat.opacity = Math.min(0.97, 0.24 + hit * 0.72);
+        const pulse = 1 + hit * (meta.isIdentityState ? 0.2 : 0.12);
+        ring.scale.setScalar(pulse);
+      } else {
+        mat.emissive.lerp(this.neutralEmissive, deltaSeconds * 2.8);
+        const targetEmissive =
+          meta.isIdentityState && auraProgress > 0.01 ? 1.15 + auraProgress * 1.25 : 0;
+        mat.emissiveIntensity = THREE.MathUtils.lerp(
+          mat.emissiveIntensity,
+          targetEmissive,
+          deltaSeconds * 2.4
+        );
+        const targetOpacity =
+          meta.isIdentityState && auraProgress > 0.01
+            ? 0.72 + auraProgress * 0.2 + 0.04 * Math.sin(this.time * 4.1)
+            : 0.24;
+        mat.opacity = THREE.MathUtils.lerp(mat.opacity, targetOpacity, deltaSeconds * 2.6);
+        ring.scale.lerp(this.unitScale, deltaSeconds * 3.2);
+      }
+    });
+
+    this.auraBands.forEach((band, index) => {
+      const mat = band.material as THREE.MeshBasicMaterial;
+      if (auraProgress > 0.02) {
+        band.visible = true;
+        const pulse = 1 + Math.sin(this.time * (1.8 + index * 0.45)) * 0.03;
+        const baseScale = 1 + auraProgress * (0.26 + index * 0.08);
+        band.scale.setScalar(baseScale * pulse);
+        mat.opacity = Math.min(0.55, 0.08 + auraProgress * (0.19 + index * 0.08));
+      } else {
+        band.visible = false;
+        mat.opacity = 0;
+      }
+    });
+
+    const coreGlow = THREE.MathUtils.clamp(auraProgress * 1.2 + (this.impactStrength - 0.55) * 0.2, 0, 1);
+    this.workingColor.copy(this.impactColor).multiplyScalar(0.2 + coreGlow * 0.45);
+    this.coreMaterials.forEach((material) => {
+      material.emissive.copy(this.workingColor);
+      material.emissiveIntensity = 0.22 + coreGlow * 0.55;
+    });
+
+    if (this.time > this.dropDuration + this.completionDelay) {
+      this.isAnimating = false;
+      this.impactFlash.visible = false;
+      this.onComplete?.();
+    }
+  }
+
+  dispose() {
+    this.disposeGroup(this.root);
+  }
+
+  private setupSceneLook() {
+    this.scene.background = new THREE.Color("#101722");
+    this.scene.fog = new THREE.Fog("#101722", 13, 42);
+
+    this.scene.add(new THREE.AmbientLight("#7b96bc", 0.86));
+
+    const key = new THREE.DirectionalLight("#dde9ff", 1.08);
+    key.position.set(8, 10, 5);
+    this.scene.add(key);
+
+    const rim = new THREE.DirectionalLight("#77a8ff", 0.68);
+    rim.position.set(-10, 7, -8);
+    this.scene.add(rim);
+
+    const glow = new THREE.PointLight("#f4d372", 0.62, 12);
+    glow.position.set(0, 2.5, 0);
+    this.scene.add(glow);
+
+    this.camera.position.set(0, 5.8, 10.8);
+    this.camera.lookAt(0, 1.8, 0);
+  }
+
+  private buildIdentityCore() {
+    const coreGroup = new THREE.Group();
+
+    const torsoMaterial = new THREE.MeshStandardMaterial({
+      color: "#303a4b",
+      roughness: 0.68,
+      metalness: 0.08,
+      emissive: "#000000",
+      emissiveIntensity: 0.1,
+    });
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 1.1, 4, 8), torsoMaterial);
+    torso.position.y = 1.25;
+
+    const headMaterial = new THREE.MeshStandardMaterial({
+      color: "#d9c7b6",
+      roughness: 0.6,
+      metalness: 0.02,
+      emissive: "#000000",
+      emissiveIntensity: 0.1,
+    });
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 12), headMaterial);
+    head.position.y = 2.45;
+
+    const baseMaterial = new THREE.MeshStandardMaterial({
+      color: "#c9d8ea",
+      roughness: 0.92,
+      metalness: 0.01,
+      emissive: "#000000",
+      emissiveIntensity: 0.08,
+    });
+    const footBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.85, 0.95, 0.2, 18),
+      baseMaterial
+    );
+    footBase.position.y = 0.1;
+
+    coreGroup.add(torso, head, footBase);
+    this.root.add(coreGroup);
+    this.coreMaterials.push(torsoMaterial, headMaterial, baseMaterial);
+  }
+
+  private buildIdentityRings() {
+    WELLBEING_IDENTITY_LAYERS.forEach((layer, idx) => {
+      const radius = 1.55 + idx * 0.62;
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(radius, 0.045, 16, 130),
+        new THREE.MeshStandardMaterial({
+          color: layer.color,
+          emissive: "#000000",
+          roughness: 0.38,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.24,
+        })
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 1.48;
+      ring.userData = {
+        baseRadius: radius,
+        baseColor: new THREE.Color(layer.color),
+        isIdentityState: layer.key === "identity_state",
+      } satisfies ImpactRingMeta;
+      this.rings.push(ring);
+      this.root.add(ring);
+    });
+  }
+
+  private buildAuraBands() {
+    const defs = [
+      { radius: 5.8, color: "#87d1ff", opacity: 0.22 },
+      { radius: 6.5, color: "#9be0ff", opacity: 0.18 },
+      { radius: 7.2, color: "#b6e8ff", opacity: 0.14 },
+    ];
+    defs.forEach((entry) => {
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(entry.radius, 0.08, 16, 160),
+        new THREE.MeshBasicMaterial({
+          color: entry.color,
+          transparent: true,
+          opacity: entry.opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      band.rotation.x = Math.PI / 2;
+      band.position.y = 1.48;
+      band.visible = false;
+      this.auraBands.push(band);
+      this.root.add(band);
+    });
+  }
+
+  private disposeGroup(group: THREE.Object3D) {
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        const material = child.material;
+        if (Array.isArray(material)) {
+          material.forEach((entry) => entry.dispose());
+        } else {
+          material.dispose();
+        }
+      }
+    });
+    group.clear();
   }
 }

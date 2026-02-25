@@ -628,6 +628,31 @@ Delivered:
 
 ---
 
+### Phase 23: Impact Timing Cadence Polish (Handoff + Contact + Glow Hold)
+Status: `COMPLETED`
+
+Tasks:
+- Refine pacing between Time Slice commit and Impact to improve readability of causal beats.
+- Add a brief "photon contact" moment at the person core before ripple expansion.
+- Smooth final glow hold so identity/aura formation is legible before scene transition.
+
+Acceptance:
+- Commit handoff no longer feels abrupt.
+- Head/core impact beat is visible before rings propagate.
+- Final ring/aura state has enough dwell time to be understood before returning to org/system.
+- Tests/build pass.
+
+Delivered:
+- Updated Time Slice handoff timing in `IovTopologyCanvas`:
+  - Increased `playCommitDrop` duration (`390ms` desktop, `340ms` mobile) for cleaner handoff pacing.
+- Updated Impact animation cadence in `PersonImpactScene`:
+  - Added `headContactDuration` phase between drop and ripple.
+  - Tuned drop/ripple/completion timing constants for clearer visual storytelling.
+  - Adjusted flash timing to align with contact -> propagation sequence.
+- Updated impact headline copy to match the new cadence language (`rings and aura light up`).
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -695,6 +720,9 @@ Delivered:
 - Phase 22:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 23:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -719,3 +747,4 @@ Delivered:
 - Phase 20: `fix: phase 20 unify mobile safe viewport overlay clamping`
 - Phase 21: `feat: phase 21 scene-first time-slice causal capture flow`
 - Phase 22: `feat: phase 22 person-centered impact continuity and aura propagation`
+- Phase 23: `style: phase 23 impact timing cadence polish`

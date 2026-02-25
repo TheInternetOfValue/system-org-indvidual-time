@@ -1742,7 +1742,7 @@ const IovTopologyCanvas = () => {
     if (!entry || !finalDraft) return;
     transitionBusyRef.current = true;
     try {
-      await valueLogScene.playCommitDrop(320);
+      await valueLogScene.playCommitDrop(isMobileRef.current ? 340 : 390);
     } finally {
       transitionBusyRef.current = false;
     }
@@ -1790,7 +1790,7 @@ const IovTopologyCanvas = () => {
     setPhaseHeadline(
       `Photon lands in ${selectedPersonId}'s identity core (${nodeLabel}, ${finalDraft.signalScore.toFixed(
         2
-      )}) and radiates outward.`
+      )}), then identity rings and aura light up.`
     );
 
     if (impactSceneRef.current) {

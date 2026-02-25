@@ -22,9 +22,10 @@ export class PersonImpactScene {
 
   private isAnimating = false;
   private time = 0;
-  private readonly dropDuration = 0.52;
-  private readonly rippleSpeed = 5.8;
-  private readonly completionDelay = 2.65;
+  private readonly dropDuration = 0.56;
+  private readonly headContactDuration = 0.16;
+  private readonly rippleSpeed = 5.4;
+  private readonly completionDelay = 2.85;
   private impactStrength = 1;
   private onComplete?: () => void;
   private draft: ValueLogDraft | null = null;
@@ -158,8 +159,21 @@ export class PersonImpactScene {
       return;
     }
 
+    if (this.time < this.dropDuration + this.headContactDuration) {
+      const contactT = (this.time - this.dropDuration) / this.headContactDuration;
+      this.photon.visible = true;
+      this.photon.position.copy(this.headTarget);
+      const pulse = 1 + 0.45 * Math.sin(contactT * Math.PI);
+      this.photon.scale.setScalar(pulse);
+      this.photonLight.intensity = 3.8 + 1.7 * Math.sin(contactT * Math.PI);
+      this.impactFlash.visible = true;
+      this.impactFlash.scale.setScalar(1 + contactT * 2.6);
+      (this.impactFlash.material as THREE.MeshBasicMaterial).opacity = (1 - contactT) * 0.72;
+      return;
+    }
+
     this.photon.visible = false;
-    const rippleTime = this.time - this.dropDuration;
+    const rippleTime = this.time - (this.dropDuration + this.headContactDuration);
     const wavefrontRadius = rippleTime * this.rippleSpeed;
     const identityStateRadius =
       (this.rings.find((ring) => (ring.userData as ImpactRingMeta).isIdentityState)?.userData as
@@ -171,8 +185,8 @@ export class PersonImpactScene {
       1
     );
 
-    if (rippleTime < 0.34) {
-      const flashProgress = rippleTime / 0.34;
+    if (rippleTime < 0.3) {
+      const flashProgress = rippleTime / 0.3;
       this.impactFlash.visible = true;
       this.impactFlash.scale.setScalar(1 + flashProgress * 4.5);
       (this.impactFlash.material as THREE.MeshBasicMaterial).opacity =
@@ -232,7 +246,7 @@ export class PersonImpactScene {
       material.emissiveIntensity = 0.22 + coreGlow * 0.55;
     });
 
-    if (this.time > this.dropDuration + this.completionDelay) {
+    if (this.time > this.dropDuration + this.headContactDuration + this.completionDelay) {
       this.isAnimating = false;
       this.impactFlash.visible = false;
       this.onComplete?.();

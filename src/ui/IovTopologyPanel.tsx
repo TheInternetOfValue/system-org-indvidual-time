@@ -130,6 +130,33 @@ const IovTopologyPanel = ({
     marketWithDerivatives !== null && values.state.total !== null
       ? marketWithDerivatives + values.state.total
       : null;
+  const presenterCue = getPresenterCue({
+    semanticLevel,
+    phaseHeadline,
+    topologyActivated,
+    nextTopologyBuildRegion,
+    valueLogSummary,
+    personSummary,
+    canOpenBrick,
+    canEmpowerCommunity,
+    canReplaySystemImpact,
+  });
+  const presenterAction = getPresenterAction({
+    semanticLevel,
+    canOpenBrick,
+    canEmpowerCommunity,
+    canReplaySystemImpact,
+    blockSummary,
+    personSummary,
+    valueLogSummary,
+    onOpenBrick,
+    onEmpowerCommunity,
+    onReplaySystemImpact,
+    onOpenPerson,
+    onOpenValueLog,
+    onValueLogCommit,
+    empowerLabel,
+  });
 
   const renderTopologyValues = () => {
     switch (selectedRegionId) {
@@ -223,8 +250,60 @@ const IovTopologyPanel = ({
           className="iov-mobile-panel-open"
           onClick={() => setMobileExpanded(true)}
         >
-          Show context ({formatSemanticLevel(semanticLevel)})
+          {presentationMode
+            ? `Show cue (${formatSemanticLevel(semanticLevel)})`
+            : `Show context (${formatSemanticLevel(semanticLevel)})`}
         </button>
+      </div>
+    );
+  }
+
+  if (presentationMode) {
+    return (
+      <div
+        className={`iov-panel iov-level-${semanticLevel} is-presentation ${
+          isMobile ? "is-mobile" : ""
+        }`}
+      >
+        <div className="iov-panel-header">
+          <div className="iov-panel-kicker">Presentation Mode</div>
+          <div className="iov-panel-header-actions">
+            <button
+              type="button"
+              className="iov-presentation-toggle"
+              onClick={onTogglePresentationMode}
+            >
+              Exit Presentation
+            </button>
+            {isMobile && (
+              <button
+                type="button"
+                className="iov-mobile-expand"
+                onClick={() => setMobileExpanded((prev) => !prev)}
+              >
+                {mobileExpanded ? "Hide cue" : "Show cue"}
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="iov-panel-content iov-panel-content-presenter">
+          <div className="iov-phase-headline">{phaseHeadline}</div>
+          <div className="iov-panel-title">{panelTitle}</div>
+          <div className="iov-panel-presenter-cue">{presenterCue}</div>
+          {presenterAction && (
+            <button
+              type="button"
+              className="iov-btn-action"
+              onClick={presenterAction.onClick}
+              disabled={presenterAction.disabled}
+            >
+              {presenterAction.label}
+            </button>
+          )}
+          <div className="iov-panel-value-subline">
+            Scene is primary. Use breadcrumb chips at top-right for navigation.
+          </div>
+        </div>
       </div>
     );
   }
@@ -921,6 +1000,162 @@ const IovTopologyPanel = ({
       </div>
     </div>
   );
+};
+
+interface PresenterCueInput {
+  semanticLevel: SemanticZoomLevel;
+  phaseHeadline: string;
+  topologyActivated: boolean;
+  nextTopologyBuildRegion: RegionId | null;
+  valueLogSummary: ValueLogSummary | null;
+  personSummary: PersonIdentitySummary | null;
+  canOpenBrick: boolean;
+  canEmpowerCommunity: boolean;
+  canReplaySystemImpact: boolean;
+}
+
+interface PresenterAction {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+interface PresenterActionInput {
+  semanticLevel: SemanticZoomLevel;
+  canOpenBrick: boolean;
+  canEmpowerCommunity: boolean;
+  canReplaySystemImpact: boolean;
+  blockSummary: BlockPeopleSummary | null;
+  personSummary: PersonIdentitySummary | null;
+  valueLogSummary: ValueLogSummary | null;
+  onOpenBrick: () => void;
+  onEmpowerCommunity: () => void;
+  onReplaySystemImpact: () => void;
+  onOpenPerson: () => void;
+  onOpenValueLog: () => void;
+  onValueLogCommit: () => void;
+  empowerLabel: string;
+}
+
+const getPresenterCue = ({
+  semanticLevel,
+  phaseHeadline,
+  topologyActivated,
+  nextTopologyBuildRegion,
+  valueLogSummary,
+  personSummary,
+  canOpenBrick,
+  canEmpowerCommunity,
+  canReplaySystemImpact,
+}: PresenterCueInput) => {
+  if (semanticLevel === "topology") {
+    if (!topologyActivated) {
+      return "Tap Community in-scene to start the story loop.";
+    }
+    if (canEmpowerCommunity) {
+      return "Community uplift is ready. Trigger the empowerment action.";
+    }
+    if (canOpenBrick) {
+      return "Brick selected. Double-click it in-scene to open organization.";
+    }
+    if (nextTopologyBuildRegion) {
+      return `Guided build next: ${formatRegionShortLabel(nextTopologyBuildRegion)}.`;
+    }
+    if (canReplaySystemImpact) {
+      return "System loop is complete. Replay impact if you want another take.";
+    }
+    return phaseHeadline;
+  }
+
+  if (semanticLevel === "block") {
+    return blockCueForPresentation();
+  }
+
+  if (semanticLevel === "person") {
+    if (!personSummary) return "Select a person in-scene.";
+    if (!personSummary.identityBuildMode) {
+      return "Reveal identity layers to start the person-level narrative.";
+    }
+    if (!personSummary.identityBuildComplete) {
+      return "Advance one layer at a time. Keep scene focus on the dropping facets.";
+    }
+    return "Identity build complete. Open Time Slice from the scene or button below.";
+  }
+
+  if (semanticLevel === "valuelog") {
+    return valueLogSummary?.sceneActionHint ?? "Compose a Time Slice in-scene.";
+  }
+
+  if (semanticLevel === "impact") {
+    return "Photon drop is propagating into identity impact.";
+  }
+
+  if (semanticLevel === "orgimpact") {
+    return "Org contagion is spreading. Let the scene finish before next step.";
+  }
+
+  if (semanticLevel === "systemimpact") {
+    return "System impact sequence is active. Watch the bridge stress response.";
+  }
+
+  return phaseHeadline;
+};
+
+const blockCueForPresentation = () =>
+  "Select one person in-scene, then double-click to open person view.";
+
+const getPresenterAction = ({
+  semanticLevel,
+  canOpenBrick,
+  canEmpowerCommunity,
+  canReplaySystemImpact,
+  blockSummary,
+  personSummary,
+  valueLogSummary,
+  onOpenBrick,
+  onEmpowerCommunity,
+  onReplaySystemImpact,
+  onOpenPerson,
+  onOpenValueLog,
+  onValueLogCommit,
+  empowerLabel,
+}: PresenterActionInput): PresenterAction | null => {
+  if (semanticLevel === "topology") {
+    if (canEmpowerCommunity) {
+      return { label: empowerLabel, onClick: onEmpowerCommunity };
+    }
+    if (canOpenBrick) {
+      return { label: "Open Organization", onClick: onOpenBrick };
+    }
+    if (canReplaySystemImpact) {
+      return { label: "Replay Impact", onClick: onReplaySystemImpact };
+    }
+    return null;
+  }
+
+  if (semanticLevel === "block") {
+    if (blockSummary?.selectedPersonId) {
+      return { label: "Open Person", onClick: onOpenPerson };
+    }
+    return null;
+  }
+
+  if (semanticLevel === "person") {
+    if (!personSummary?.identityBuildComplete) {
+      return null;
+    }
+    return { label: "Open Time Slice", onClick: onOpenValueLog };
+  }
+
+  if (semanticLevel === "valuelog") {
+    return {
+      label: "Commit Time Slice",
+      onClick: onValueLogCommit,
+      disabled: !(valueLogSummary?.canCommit ?? false),
+    };
+  }
+
+  return null;
 };
 
 const formatSigned = (value: number) => {

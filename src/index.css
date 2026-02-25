@@ -372,22 +372,36 @@ body {
 }
 
 .iov-panel.is-presentation {
-  width: min(440px, calc(100vw - 24px));
-  padding: 18px;
+  width: min(350px, calc(100vw - 24px));
+  padding: 14px;
 }
 
 .iov-panel.is-presentation .iov-panel-title {
-  font-size: 27px;
+  font-size: 23px;
 }
 
 .iov-panel.is-presentation .iov-panel-definition,
 .iov-panel.is-presentation .iov-panel-meaning,
 .iov-panel.is-presentation .iov-phase-headline {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .iov-panel.is-presentation .iov-panel-value-line {
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.iov-panel-content-presenter {
+  gap: 9px;
+}
+
+.iov-panel-presenter-cue {
+  border: 1px solid rgba(188, 214, 249, 0.34);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(19, 35, 59, 0.68), rgba(14, 29, 49, 0.6));
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(230, 241, 255, 0.96);
 }
 
 .iov-panel-definition,
@@ -694,6 +708,43 @@ body {
 
 .iov-scene-dock-person {
   max-width: min(820px, calc(100vw - 24px));
+}
+
+.iov-stage.is-presentation .iov-topology-scene-action {
+  min-width: 136px;
+  min-height: 54px;
+  border-radius: 12px;
+  padding: 9px 12px;
+}
+
+.iov-stage.is-presentation .iov-topology-scene-action-cue {
+  display: none;
+}
+
+.iov-stage.is-presentation .iov-scene-chip {
+  top: 84px;
+  max-width: min(700px, calc(100vw - 24px));
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.iov-stage.is-presentation .iov-scene-chip-context {
+  display: none;
+}
+
+.iov-stage.is-presentation .iov-scene-dock {
+  bottom: 24px;
+  padding: 6px;
+  border-color: rgba(152, 184, 230, 0.2);
+  background: rgba(10, 21, 37, 0.5);
+}
+
+.iov-stage.is-presentation .iov-scene-dock-person {
+  max-width: min(420px, calc(100vw - 24px));
+}
+
+.iov-stage.is-presentation .iov-btn-inline {
+  min-width: 220px;
 }
 
 .iov-btn-inline {
@@ -1100,6 +1151,25 @@ body {
 
   .iov-panel-title {
     font-size: 22px;
+  }
+
+  .iov-panel.is-presentation {
+    max-height: min(44svh, 360px);
+    width: min(340px, calc(100vw - 20px));
+  }
+
+  .iov-stage.is-presentation .iov-scene-chip {
+    top: 54px;
+    padding: 8px 11px;
+    font-size: 11px;
+  }
+
+  .iov-stage.is-presentation .iov-scene-dock {
+    bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .iov-stage.is-presentation .iov-btn-inline {
+    min-width: 172px;
   }
 
   .iov-panel-definition,

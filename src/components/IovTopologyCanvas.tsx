@@ -1470,10 +1470,13 @@ function getRegionMeaning(regionId: RegionId) {
             <span>Double-click to open organization.</span>
           </div>
           <div className="iov-scene-dock">
-            <button className="iov-btn-secondary iov-btn-inline" onClick={() => onOpenBrick()}>
+            <button
+              className={`${presentationMode ? "iov-btn-action" : "iov-btn-secondary"} iov-btn-inline`}
+              onClick={() => onOpenBrick()}
+            >
               Open Organization
             </button>
-            {canReplayImpact && (
+            {!presentationMode && canReplayImpact && (
               <button className="iov-btn-secondary iov-btn-inline" onClick={handleReplaySystemImpact}>
                 Replay Impact
               </button>
@@ -1489,18 +1492,23 @@ function getRegionMeaning(regionId: RegionId) {
             <span> selected. Double-click to open person.</span>
           </div>
           <div className="iov-scene-dock">
-            <button className="iov-btn-secondary iov-btn-inline" onClick={() => handleOpenPersonStub()}>
+            <button
+              className={`${presentationMode ? "iov-btn-action" : "iov-btn-secondary"} iov-btn-inline`}
+              onClick={() => handleOpenPersonStub()}
+            >
               Open Person
             </button>
-            <button
-              className="iov-btn-secondary iov-btn-inline"
-              onClick={() => {
-                const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-                applySemanticTransition(back.level);
-              }}
-            >
-              Back to System
-            </button>
+            {!presentationMode && (
+              <button
+                className="iov-btn-secondary iov-btn-inline"
+                onClick={() => {
+                  const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+                  applySemanticTransition(back.level);
+                }}
+              >
+                Back to System
+              </button>
+            )}
           </div>
         </>
       )}
@@ -1513,56 +1521,76 @@ function getRegionMeaning(regionId: RegionId) {
               {personSummary.identityBuildMode
                 ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
                 : " Identity stack ready. Reveal layers to begin."}
-              {" "}
-              Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person to open Time Slice.
+              {presentationMode
+                ? " Follow the highlighted action to progress."
+                : " Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person to open Time Slice."}
             </span>
           </div>
-          {personSummary.selectedContextTitle && personSummary.selectedContextBody && (
+          {!presentationMode && personSummary.selectedContextTitle && personSummary.selectedContextBody && (
             <div className="iov-scene-chip iov-scene-chip-context">
               <strong>{personSummary.selectedContextTitle}</strong>
               <span>{personSummary.selectedContextBody}</span>
             </div>
           )}
           <div className="iov-scene-dock iov-scene-dock-person">
-            {!personSummary.identityBuildMode ? (
-              <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>
-                Reveal Layers
-              </button>
+            {presentationMode ? (
+              !personSummary.identityBuildMode ? (
+                <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>
+                  Reveal Layers
+                </button>
+              ) : !personSummary.identityBuildComplete ? (
+                <button className="iov-btn-primary iov-btn-inline" onClick={handleNextIdentityLayer}>
+                  Next Layer ({personSummary.identityBuildLayerIndex + 1}/
+                  {personSummary.identityBuildLayerCount})
+                </button>
+              ) : (
+                <button className="iov-btn-action iov-btn-inline" onClick={handleOpenValueLog}>
+                  Open Time Slice
+                </button>
+              )
             ) : (
               <>
-                {!personSummary.identityBuildComplete && (
-                  <button className="iov-btn-primary iov-btn-inline" onClick={handleNextIdentityLayer}>
-                    Next Layer ({personSummary.identityBuildLayerIndex + 1}/
-                    {personSummary.identityBuildLayerCount})
+                {!personSummary.identityBuildMode ? (
+                  <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>
+                    Reveal Layers
                   </button>
+                ) : (
+                  <>
+                    {!personSummary.identityBuildComplete && (
+                      <button className="iov-btn-primary iov-btn-inline" onClick={handleNextIdentityLayer}>
+                        Next Layer ({personSummary.identityBuildLayerIndex + 1}/
+                        {personSummary.identityBuildLayerCount})
+                      </button>
+                    )}
+                    <button
+                      className="iov-btn-secondary iov-btn-inline"
+                      onClick={handleReplayIdentityLayer}
+                      disabled={personSummary.identityBuildLayerIndex < 0}
+                    >
+                      Replay
+                    </button>
+                  </>
                 )}
                 <button
-                  className="iov-btn-secondary iov-btn-inline"
-                  onClick={handleReplayIdentityLayer}
-                  disabled={personSummary.identityBuildLayerIndex < 0}
+                  className="iov-btn-action iov-btn-inline"
+                  onClick={handleOpenValueLog}
+                  disabled={!personSummary.identityBuildComplete}
                 >
-                  Replay
+                  {personSummary.identityBuildComplete
+                    ? "Open Time Slice"
+                    : "Complete Layers to Open Time Slice"}
+                </button>
+                <button
+                  className="iov-btn-secondary iov-btn-inline"
+                  onClick={() => {
+                    const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+                    applySemanticTransition(back.level);
+                  }}
+                >
+                  Back to Org
                 </button>
               </>
             )}
-            <button
-              className="iov-btn-action iov-btn-inline"
-              onClick={handleOpenValueLog}
-              disabled={!personSummary.identityBuildComplete}
-            >
-              {personSummary.identityBuildComplete
-                ? "Open Time Slice"
-                : "Complete Layers to Open Time Slice"}
-            </button>
-            <button
-              className="iov-btn-secondary iov-btn-inline"
-              onClick={() => {
-                const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-                applySemanticTransition(back.level);
-              }}
-            >
-              Back to Org
-            </button>
           </div>
         </>
       )}

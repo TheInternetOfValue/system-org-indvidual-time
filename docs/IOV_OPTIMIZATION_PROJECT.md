@@ -416,7 +416,40 @@ Delivered:
   - Existing System -> Org -> Person -> Time Slice -> Impact loop remains intact.
 - Shared lightweight Value Log model:
   - Added `src/game/iov/ValueLogModel.ts` to hold wizard/types/prompts/templates and draft/outcome helpers used by UI.
-  - Updated panel and canvas imports to depend on the lightweight model (avoids static scene-runtime coupling for these symbols).
+- Updated panel and canvas imports to depend on the lightweight model (avoids static scene-runtime coupling for these symbols).
+
+---
+
+### Phase 15: Presenter-Mode Single-Action Polish + Cinematic Spacing
+Status: `COMPLETED`
+
+Tasks:
+- Make presenter mode enforce one clear next action in-scene per step.
+- Reduce presenter panel density to one cue + optional fallback action.
+- Tune overlay spacing for cleaner recording composition on desktop/mobile.
+
+Acceptance:
+- Presenter mode avoids multi-button action clutter in scene docks.
+- Side panel in presenter mode no longer dumps full contextual data.
+- Overlay spacing keeps scene subject visible while preserving guidance.
+- Tests/build pass.
+
+Delivered:
+- Scene action simplification in presenter mode:
+  - Topology selected-brick dock now emphasizes one primary action (`Open Organization`) and hides secondary replay button.
+  - Block dock now emphasizes one primary action (`Open Person`) and hides secondary back action.
+  - Person dock now becomes strictly single-action in presenter mode:
+    - `Reveal Layers` -> `Next Layer` -> `Open Time Slice` (based on progression state).
+  - Person contextual text and chips are shortened in presenter mode for lower visual noise.
+- Presenter panel condensation:
+  - Added a dedicated presenter panel path in `IovTopologyPanel` with:
+    - one cue line (`presenterCue`)
+    - one optional fallback action button (`presenterAction`)
+    - no full legend/value/advanced-detail block
+  - Updated mobile collapsed label to `Show cue` in presentation mode.
+- Cinematic spacing refinements:
+  - Added presenter-specific CSS for scene chips/docks/action anchors to improve framing and reduce occlusion.
+  - Added mobile presenter spacing adjustments for safe-area and button footprint.
 
 ---
 
@@ -463,6 +496,9 @@ Delivered:
 - Phase 14:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated with deferred scene chunks).
+- Phase 15:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -479,3 +515,4 @@ Delivered:
 - Phase 12: `feat: phase 12 time-slice single-action contract and commit gating`
 - Phase 13: `fix: phase 13 end-to-end flow hardening for time-slice entry and commit readiness`
 - Phase 14: `perf: phase 14 deferred scene loading and idle preload`
+- Phase 15: `style: phase 15 presenter-mode single-action polish and cinematic spacing`

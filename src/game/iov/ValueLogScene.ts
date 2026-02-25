@@ -2,18 +2,121 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { IovValueLogEntry, WellbeingContextNode } from "./iovTimelogs";
 
+export type SaocommonsDomain = "~~Learning" | "~~Earning" | "~~OrgBuilding";
+
 export type WizardStep =
   | "select_time"
   | "select_wellbeing"
+  | "select_intensity"
   | "select_performance"
   | "show_outcome";
 
 export const WIZARD_STEP_ORDER: WizardStep[] = [
   "select_time",
   "select_wellbeing",
+  "select_intensity",
   "select_performance",
   "show_outcome",
 ];
+
+export interface ValueCaptureActivityTemplate {
+  id: string;
+  label: string;
+  activityLabel: string;
+  taskType: string;
+  intent: string;
+}
+
+export interface ValueCaptureProofTemplate {
+  id: string;
+  label: string;
+  proofOfActivity: string;
+  artifactType: string;
+  evidenceLink: string;
+}
+
+export const VALUE_CAPTURE_ACTIVITY_TEMPLATES: ReadonlyArray<ValueCaptureActivityTemplate> = [
+  {
+    id: "deep-work",
+    label: "Deep Work Sprint",
+    activityLabel: "Focused deep-work sprint",
+    taskType: "focused-execution",
+    intent: "ship-meaningful-progress",
+  },
+  {
+    id: "learning-block",
+    label: "Learning Block",
+    activityLabel: "Skill learning and synthesis block",
+    taskType: "learning",
+    intent: "build-capability",
+  },
+  {
+    id: "team-sync",
+    label: "Team Alignment",
+    activityLabel: "Team alignment and decision sync",
+    taskType: "coordination",
+    intent: "reduce-friction",
+  },
+  {
+    id: "recovery",
+    label: "Recovery Reset",
+    activityLabel: "Recovery reset and energy restoration",
+    taskType: "recovery",
+    intent: "restore-wellbeing",
+  },
+];
+
+export const VALUE_CAPTURE_PROOF_TEMPLATES: ReadonlyArray<ValueCaptureProofTemplate> = [
+  {
+    id: "commit-proof",
+    label: "Commit + Artifact",
+    proofOfActivity: "Code commit with artifact snapshot",
+    artifactType: "commit-log",
+    evidenceLink: "proof://repo/commit",
+  },
+  {
+    id: "note-proof",
+    label: "Meeting Notes",
+    proofOfActivity: "Meeting notes with decisions and actions",
+    artifactType: "meeting-notes",
+    evidenceLink: "proof://docs/notes",
+  },
+  {
+    id: "metric-proof",
+    label: "Metric Screenshot",
+    proofOfActivity: "Metric screenshot tied to action",
+    artifactType: "metric-capture",
+    evidenceLink: "proof://metrics/snapshot",
+  },
+  {
+    id: "journal-proof",
+    label: "Reflection Journal",
+    proofOfActivity: "Short reflection log of activity outcome",
+    artifactType: "reflection-log",
+    evidenceLink: "proof://journal/entry",
+  },
+];
+
+export const WELLBEING_INTENSITY_PROMPTS: Record<WellbeingContextNode, string> = {
+  "~~Physiology":
+    "How strongly did this timeslice improve or drain your body baseline (sleep, nutrition, movement)?",
+  "~~Emotion":
+    "How intense was the emotional shift caused by this action?",
+  "~~Feeling":
+    "How strongly did your felt state move after this action?",
+  "~~Thought":
+    "How much cognitive clarity or overload did this action create?",
+  "~~Habit":
+    "Was this part of a healthy habit streak, and how strongly did it reinforce the habit?",
+  "~~Performance":
+    "How strongly did this action advance real performance outcomes?",
+};
+
+export const SAOCOMMONS_DOMAIN_PROMPTS: Record<SaocommonsDomain, string> = {
+  "~~Learning": "Learning intensity: how much capability growth happened?",
+  "~~Earning": "Earning intensity: how much value capture moved forward?",
+  "~~OrgBuilding": "Org building intensity: how much durable system capacity improved?",
+};
 
 interface StageVisual {
   id: "value_capture" | "wellbeing" | "saocommons" | "outcome";
@@ -29,7 +132,7 @@ interface ContextNodeVisual {
 }
 
 interface DomainNodeVisual {
-  domain: "~~Learning" | "~~Earning" | "~~OrgBuilding";
+  domain: SaocommonsDomain;
   mesh: THREE.Mesh;
   label: THREE.Sprite;
 }
@@ -38,9 +141,11 @@ export interface ValueLogDraft {
   startTime: string;
   endTime: string;
   activityLabel: string;
+  activityTemplateId: string;
   taskType: string;
   intent: string;
   proofOfActivity: string;
+  proofTemplateId: string;
   evidenceLink: string;
   artifactType: string;
   community: string;
@@ -52,12 +157,16 @@ export interface ValueLogDraft {
   wellbeingNode: WellbeingContextNode;
   signalLabel: string;
   signalScore: number;
+  contextIntensity: number;
   impactDirection: "increase" | "decrease" | "neutral";
   skillApplication: string;
   communityContext: string;
   learningTag: boolean;
   earningTag: boolean;
   orgBuildingTag: boolean;
+  learningIntensity: number;
+  earningIntensity: number;
+  orgBuildingIntensity: number;
 }
 
 export interface ValueLogOutcome {
@@ -65,7 +174,7 @@ export interface ValueLogOutcome {
   auraDelta: number;
   identityStateDelta: number;
   saocommonsEnabled: boolean;
-  saocommonsDomains: Array<"~~Learning" | "~~Earning" | "~~OrgBuilding">;
+  saocommonsDomains: SaocommonsDomain[];
 }
 
 export interface ValueLogSummary {
@@ -75,20 +184,31 @@ export interface ValueLogSummary {
   draft: ValueLogDraft;
   outcome: ValueLogOutcome;
   committedCount: number;
+  canCommit: boolean;
+  sceneActionHint: string;
+}
+
+export interface ValueLogSelection {
+  kind: "clock" | "context" | "domain" | null;
+  key: string | null;
 }
 
 export const createInitialValueLogDraft = (): ValueLogDraft => {
   const now = new Date();
-  const end = new Date(now.getTime() + 90 * 60000);
+  const end = new Date(now.getTime());
+  const activityTemplate = VALUE_CAPTURE_ACTIVITY_TEMPLATES[0];
+  const proofTemplate = VALUE_CAPTURE_PROOF_TEMPLATES[0];
   return {
     startTime: toLocalInputValue(now),
     endTime: toLocalInputValue(end),
-    activityLabel: "Visualizing Internet of Value stack",
-    taskType: "protocol-visualization",
-    intent: "clarity-and-shared-understanding",
-    proofOfActivity: "Output link + commit",
-    evidenceLink: "proof://local/log",
-    artifactType: "scene-output",
+    activityLabel: activityTemplate?.activityLabel ?? "Focused deep-work sprint",
+    activityTemplateId: activityTemplate?.id ?? "deep-work",
+    taskType: activityTemplate?.taskType ?? "focused-execution",
+    intent: activityTemplate?.intent ?? "ship-meaningful-progress",
+    proofOfActivity: proofTemplate?.proofOfActivity ?? "Code commit with artifact snapshot",
+    proofTemplateId: proofTemplate?.id ?? "commit-proof",
+    evidenceLink: proofTemplate?.evidenceLink ?? "proof://repo/commit",
+    artifactType: proofTemplate?.artifactType ?? "commit-log",
     community: "GrowthFlow Engineering",
     project: "IOV Visualization",
     contributorRole: "Contributor",
@@ -96,19 +216,51 @@ export const createInitialValueLogDraft = (): ValueLogDraft => {
     anomalyFlag: false,
     fraudRiskSignal: 0.04,
     wellbeingNode: "~~Performance",
-    signalLabel: "Business growth skill execution",
-    signalScore: 0.72,
+    signalLabel: "Performance execution quality",
+    signalScore: 0.68,
+    contextIntensity: 0.68,
     impactDirection: "increase",
     skillApplication: "Business Growth",
     communityContext: "GrowthFlow Engineering",
-    learningTag: true,
-    earningTag: true,
+    learningTag: false,
+    earningTag: false,
     orgBuildingTag: false,
+    learningIntensity: 0.64,
+    earningIntensity: 0.62,
+    orgBuildingIntensity: 0.58,
   };
 };
 
 export const computeValueLogOutcome = (draft: ValueLogDraft): ValueLogOutcome => {
-  let base = (draft.signalScore - 0.5) * 0.06;
+  const contextIntensity = clamp(0, 1, draft.contextIntensity);
+  const saocommonsEnabled = draft.wellbeingNode === "~~Performance";
+  const domains: SaocommonsDomain[] = [];
+  const selectedDomainIntensities: number[] = [];
+  if (saocommonsEnabled) {
+    if (draft.learningTag) {
+      domains.push("~~Learning");
+      selectedDomainIntensities.push(clamp(0, 1, draft.learningIntensity));
+    }
+    if (draft.earningTag) {
+      domains.push("~~Earning");
+      selectedDomainIntensities.push(clamp(0, 1, draft.earningIntensity));
+    }
+    if (draft.orgBuildingTag) {
+      domains.push("~~OrgBuilding");
+      selectedDomainIntensities.push(clamp(0, 1, draft.orgBuildingIntensity));
+    }
+  }
+
+  const domainAverage =
+    selectedDomainIntensities.length > 0
+      ? selectedDomainIntensities.reduce((sum, value) => sum + value, 0) /
+        selectedDomainIntensities.length
+      : contextIntensity;
+  const effectiveSignal = saocommonsEnabled
+    ? clamp(0, 1, contextIntensity * 0.45 + domainAverage * 0.55)
+    : contextIntensity;
+
+  let base = (effectiveSignal - 0.5) * 0.08;
   if (draft.impactDirection === "increase") {
     base = Math.abs(base) + 0.004;
   } else if (draft.impactDirection === "decrease") {
@@ -117,15 +269,9 @@ export const computeValueLogOutcome = (draft: ValueLogDraft): ValueLogOutcome =>
     base *= 0.2;
   }
 
-  const saocommonsEnabled = draft.wellbeingNode === "~~Performance";
-  const domains: Array<"~~Learning" | "~~Earning" | "~~OrgBuilding"> = [];
-  if (saocommonsEnabled) {
-    if (draft.learningTag) domains.push("~~Learning");
-    if (draft.earningTag) domains.push("~~Earning");
-    if (draft.orgBuildingTag) domains.push("~~OrgBuilding");
-  }
-
-  const domainBonus = saocommonsEnabled ? domains.length * 0.004 : 0;
+  const domainBonus = saocommonsEnabled
+    ? selectedDomainIntensities.reduce((sum, value) => sum + (value - 0.5) * 0.01, 0)
+    : 0;
   const wellbeingDelta = clamp(-0.08, 0.09, base + domainBonus);
   const auraDelta = clamp(-0.11, 0.13, wellbeingDelta * 1.65);
   const identityStateDelta = clamp(-0.1, 0.11, wellbeingDelta * 1.24);
@@ -212,6 +358,7 @@ export class ValueLogScene {
   private readonly stageByStep: Record<WizardStep, StageVisual["id"]> = {
     select_time: "value_capture",
     select_wellbeing: "wellbeing",
+    select_intensity: "wellbeing",
     select_performance: "saocommons",
     show_outcome: "outcome",
   };
@@ -228,28 +375,33 @@ export class ValueLogScene {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointerNdc = new THREE.Vector2();
   private hasPointer = false;
+  private activeClockHand: "start" | "end" | null = null;
   private hoveredContext: WellbeingContextNode | null = null;
   private hoveredDomain: DomainNodeVisual["domain"] | null = null;
+  private readonly clockInteractionPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -4);
+  private readonly clockInteractionPoint = new THREE.Vector3();
+  private readonly clockInteractionLocal = new THREE.Vector3();
   private rippleMesh: THREE.Mesh | null = null;
   private rippleTime = 0;
   private isRippling = false;
   private isCommitting = false; // New flag to control the drop animation
 
   private readonly stringsGroup = new THREE.Group();
-  private onCompleteCallback?: (outcome: ValueLogOutcome) => void;
-  private domElement: HTMLElement;
+  private readonly stringsMaterial = new THREE.LineBasicMaterial({
+    color: "#ffffff",
+    transparent: true,
+    opacity: 0.15,
+  });
+  private readonly clockCenter = new THREE.Vector3(0, 4, 0);
 
-  constructor(domElement: HTMLElement, onComplete?: (outcome: ValueLogOutcome) => void) {
-    this.domElement = domElement;
-    this.onCompleteCallback = onComplete;
-    
+  constructor(domElement: HTMLElement) {
     // ---- Photon Token Creation ----
     this.token = new THREE.Object3D();
     
     // Core photon (small, bright)
     const core = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 16, 16),
-      new THREE.MeshBasicMaterial({ color: "#ffffff" })
+      new THREE.MeshBasicMaterial({ color: "#f6c15b" })
     );
     this.token.add(core);
 
@@ -260,9 +412,9 @@ export class ValueLogScene {
     const ctx = glowCanvas.getContext("2d");
     if (ctx) {
       const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-      grad.addColorStop(0, "rgba(200, 235, 255, 1)");
-      grad.addColorStop(0.3, "rgba(80, 160, 255, 0.6)");
-      grad.addColorStop(1, "rgba(0, 50, 150, 0)");
+      grad.addColorStop(0, "rgba(255, 226, 171, 1)");
+      grad.addColorStop(0.3, "rgba(245, 177, 77, 0.7)");
+      grad.addColorStop(1, "rgba(102, 58, 8, 0)");
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 64, 64);
     }
@@ -278,7 +430,7 @@ export class ValueLogScene {
     this.token.add(glowSprite);
 
     // Point Light attached to photon
-    const light = new THREE.PointLight("#6eb6ff", 1.2, 5);
+    const light = new THREE.PointLight("#f6c15b", 1.2, 5);
     this.token.add(light);
 
     // Create tail segments
@@ -286,7 +438,7 @@ export class ValueLogScene {
         const seg = new THREE.Mesh(
             new THREE.SphereGeometry(0.05 - (i * 0.0035), 8, 8),
             new THREE.MeshBasicMaterial({ 
-                color: "#92c9ff", 
+                color: "#f5d184",
                 transparent: true, 
                 opacity: 0.4 - (i * 0.03),
                 blending: THREE.AdditiveBlending
@@ -316,7 +468,7 @@ export class ValueLogScene {
 
     this.clockGroup.position.set(0, 4, 0);
 
-    this.controls = new OrbitControls(this.camera, this.domElement);
+    this.controls = new OrbitControls(this.camera, domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
     this.controls.minDistance = 6;
@@ -358,150 +510,147 @@ export class ValueLogScene {
   }
 
   patchDraft(patch: Partial<ValueLogDraft>) {
+    const previousWellbeingNode = this.draft.wellbeingNode;
     this.draft = { ...this.draft, ...patch };
+    if (patch.wellbeingNode && patch.wellbeingNode !== previousWellbeingNode) {
+      this.draft.signalLabel = DEFAULT_SIGNAL_LABEL_BY_NODE[patch.wellbeingNode];
+      this.draft.impactDirection = "increase";
+    }
     if (this.draft.wellbeingNode !== "~~Performance") {
       this.draft.learningTag = false;
       this.draft.earningTag = false;
       this.draft.orgBuildingTag = false;
     }
+    if (this.step === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
+      this.step = "select_intensity";
+    }
+    this.step = this.ensureStepValid(this.step);
     this.applyDraft();
   }
 
   setStep(step: WizardStep) {
-    this.step = step;
+    this.step = this.ensureStepValid(step);
     this.applyStepCameraPreset();
     this.applyDraft();
   }
 
   nextStep() {
-    const currentIndex = WIZARD_STEP_ORDER.indexOf(this.step);
-    if (currentIndex < 0 || currentIndex >= WIZARD_STEP_ORDER.length - 1) return;
-
-    const next = WIZARD_STEP_ORDER[currentIndex + 1] ?? this.step;
-    if (next === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
-      this.step = "show_outcome";
-    } else {
-      this.step = next;
-    }
+    this.step = this.getNextStep(this.step);
     this.applyStepCameraPreset();
     this.applyDraft();
   }
 
   prevStep() {
-    const currentIndex = WIZARD_STEP_ORDER.indexOf(this.step);
-    if (currentIndex <= 0) return;
-
-    if (this.step === "show_outcome" && this.draft.wellbeingNode !== "~~Performance") {
-      this.step = "select_wellbeing";
-    } else {
-      this.step = WIZARD_STEP_ORDER[currentIndex - 1] ?? this.step;
-    }
+    this.step = this.getPreviousStep(this.step);
     this.applyStepCameraPreset();
     this.applyDraft();
   }
 
-  commit(personId: string, roleHint?: string): IovValueLogEntry {
-    this.isCommitting = true; // Trigger the drop
+  commit(personId: string, roleHint?: string): IovValueLogEntry | null {
+    if (!isValueLogCommitReady(this.draft)) {
+      return null;
+    }
     const entry = this.buildEntry(personId, roleHint || "");
     this.committedCount += 1;
-
-    // Trigger completion if callback exists
-    if (this.onCompleteCallback) {
-        this.onCompleteCallback(this.outcome);
-    }
-
-    // Do NOT reset loop immediately. The UI controller will handle the reset
-    // after the transition effect completes.
     return entry;
+  }
+
+  beginPointerInteraction() {
+    if (!this.hasPointer || this.step !== "select_time") return;
+    this.activeClockHand = this.raycastClockHand();
+    if (this.activeClockHand) {
+      this.updateClockHandFromPointer();
+    }
+  }
+
+  endPointerInteraction() {
+    this.activeClockHand = null;
+  }
+
+  playCommitDrop(durationMs = 320) {
+    this.isCommitting = true;
+    return new Promise<void>((resolve) => {
+      window.setTimeout(resolve, durationMs);
+    });
   }
 
   setPointerFromCanvas(x: number, y: number, width: number, height: number) {
     this.pointerNdc.x = (x / width) * 2 - 1;
     this.pointerNdc.y = -(y / height) * 2 + 1;
     this.hasPointer = true;
+    if (this.activeClockHand) {
+      this.updateClockHandFromPointer();
+    }
     this.updatePointerHover();
   }
 
   clearPointer() {
     this.hasPointer = false;
+    this.activeClockHand = null;
     this.hoveredContext = null;
     this.hoveredDomain = null;
     this.updateContextNodes();
     this.updateDomainNodes();
   }
 
-  selectFromPointer() {
-    if (!this.hasPointer) return;
+  selectFromPointer(isDouble = false): ValueLogSelection {
+    if (!this.hasPointer) return { kind: null, key: null };
     const hit = this.raycastInteractive();
-    if (!hit) return;
+    if (!hit) return { kind: null, key: null };
 
     if (hit.type === "clock") {
-      // Allow going back to time selection from any step
-      if (this.step !== "select_time") {
+      if (isDouble) {
+        this.setStep("select_wellbeing");
+      } else if (this.step !== "select_time") {
         this.setStep("select_time");
-      } else {
-        // If already on time, go to next
+      }
+      return { kind: "clock", key: "clock" };
+    }
+    if (hit.type === "clock_hand") {
+      if (isDouble) {
         this.setStep("select_wellbeing");
       }
-      return;
+      return { kind: "clock", key: "clock" };
     }
 
     if (hit.type === "context") {
-      // If we are at the end, allow going back to change selection
-      if (this.step === "show_outcome") {
-        this.patchDraft({ wellbeingNode: hit.key });
+      this.patchDraft({ wellbeingNode: hit.key });
+      if (isDouble) {
         if (hit.key === "~~Performance") {
           this.setStep("select_performance");
-        } else {
-          // Stay on outcome but update
+        } else if (this.step === "select_intensity") {
           this.setStep("show_outcome");
+        } else {
+          this.setStep("select_intensity");
         }
-        return;
+      } else if (this.step === "select_time") {
+        this.setStep("select_wellbeing");
       }
-      
-      if (this.step === "select_wellbeing" || this.step === "select_performance") {
-         // Toggle selection logic
-         if (this.draft.wellbeingNode === hit.key) {
-           this.patchDraft({ wellbeingNode: undefined });
-           // If deselected, stay on wellbeing step
-           this.setStep("select_wellbeing");
-         } else {
-           this.patchDraft({ wellbeingNode: hit.key });
-           if (hit.key === "~~Performance") {
-             this.setStep("select_performance");
-           } else {
-             this.setStep("show_outcome");
-           }
-         }
-         return;
-      }
+      return { kind: "context", key: hit.key };
     }
 
     if (hit.type === "domain") {
-      // If we are at the end, allow going back to performance to toggle domains
-      if (this.step === "show_outcome" && this.draft.wellbeingNode === "~~Performance") {
+      if (this.draft.wellbeingNode !== "~~Performance") {
+        return { kind: "domain", key: hit.domain };
+      }
+      if (this.step !== "select_performance") {
         this.setStep("select_performance");
-        // Apply toggle immediately too
+      }
+      if (isDouble && this.step === "select_performance") {
         if (hit.domain === "~~Learning") {
-            this.patchDraft({ learningTag: !this.draft.learningTag });
+          this.patchDraft({ learningTag: !this.draft.learningTag });
         } else if (hit.domain === "~~Earning") {
-            this.patchDraft({ earningTag: !this.draft.earningTag });
+          this.patchDraft({ earningTag: !this.draft.earningTag });
         } else {
-            this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
+          this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
         }
-        return;
+        if (isValueLogCommitReady(this.draft)) {
+          this.setStep("show_outcome");
+        }
       }
-
-      if (this.step === "select_performance" && this.draft.wellbeingNode === "~~Performance") {
-          if (hit.domain === "~~Learning") {
-            this.patchDraft({ learningTag: !this.draft.learningTag });
-          } else if (hit.domain === "~~Earning") {
-            this.patchDraft({ earningTag: !this.draft.earningTag });
-          } else {
-            this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
-          }
-      }
+      return { kind: "domain", key: hit.domain };
     }
+    return { kind: null, key: null };
   }
 
   update(deltaSeconds: number) {
@@ -534,6 +683,14 @@ export class ValueLogScene {
         }
       } else {
         targetPos.set(0, 0.5 + Math.sin(this.elapsedSeconds * 2) * 0.1, 0);
+      }
+    } else if (this.step === "select_intensity") {
+      const node = this.contextNodes.find((n) => n.key === this.draft.wellbeingNode);
+      if (node) {
+        targetPos.copy(node.mesh.position);
+        targetPos.y += 1.0 + Math.sin(this.elapsedSeconds * 3.5) * 0.05;
+      } else {
+        targetPos.set(0, 0.8 + Math.sin(this.elapsedSeconds * 2) * 0.1, 0);
       }
     } else if (this.step === "select_performance") {
       if (this.hoveredDomain) {
@@ -659,10 +816,12 @@ export class ValueLogScene {
     const stepLabels: Record<WizardStep, string> = {
       select_time: "Select Time Slice",
       select_wellbeing: "Add Wellbeing Context",
+      select_intensity: "Set Context Intensity",
       select_performance: "Performance Domains",
       show_outcome: "Review & Commit",
     };
 
+    const canCommit = isValueLogCommitReady(this.draft);
     return {
       step: this.step,
       stepIndex: stepIndex < 0 ? 0 : stepIndex,
@@ -670,11 +829,15 @@ export class ValueLogScene {
       draft: this.draft,
       outcome: this.outcome,
       committedCount: this.committedCount,
+      canCommit,
+      sceneActionHint: getSceneActionHint(this.step, this.draft, canCommit),
     };
   }
 
   dispose() {
     this.controls.dispose();
+    this.disposeStringsGroup();
+    this.stringsMaterial.dispose();
     this.disposeGroup(this.root);
   }
 
@@ -832,7 +995,7 @@ export class ValueLogScene {
       const z = 0; // Keep them flat on the Z axis for the infinity loop
       
       const mesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.45, 32, 32), // Made spheres slightly larger
+        new THREE.SphereGeometry(0.32, 28, 28),
         new THREE.MeshStandardMaterial({
           color: def.color,
           emissive: def.color,
@@ -844,8 +1007,8 @@ export class ValueLogScene {
       mesh.position.set(x, y, z);
       this.root.add(mesh);
 
-      const label = this.createTextSprite(def.label, { width: 180, height: 52, fontSize: 16 });
-      label.position.set(x, y + 1.0, z); // Moved label slightly higher
+      const label = this.createTextSprite(def.label, { width: 152, height: 44, fontSize: 14 });
+      label.position.set(x, y + 0.74, z);
       this.root.add(label);
 
       this.contextNodes.push({ key: def.key, mesh, label, angle: def.t });
@@ -932,6 +1095,11 @@ export class ValueLogScene {
   }
 
   private applyDraft() {
+    const derivedSignalScore = deriveSignalScore(this.draft);
+    if (Math.abs(this.draft.signalScore - derivedSignalScore) > 0.0001) {
+      this.draft = { ...this.draft, signalScore: derivedSignalScore };
+    }
+    this.step = this.ensureStepValid(this.step);
     this.outcome = computeValueLogOutcome(this.draft);
 
     const startMinutes = minutesFromLocalInput(this.draft.startTime);
@@ -1022,20 +1190,13 @@ export class ValueLogScene {
   }
 
   private updateStrings() {
-    this.stringsGroup.clear();
-
-    const material = new THREE.LineBasicMaterial({
-      color: "#ffffff",
-      transparent: true,
-      opacity: 0.15,
-    });
+    this.disposeStringsGroup();
 
     // Connect Clock to Wellbeing Nodes
-    const clockCenter = new THREE.Vector3(0, 4, 0);
     this.contextNodes.forEach((node) => {
-      const points = [clockCenter, node.mesh.position];
+      const points = [this.clockCenter, node.mesh.position];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry, material);
+      const line = new THREE.Line(geometry, this.stringsMaterial);
       this.stringsGroup.add(line);
     });
 
@@ -1045,7 +1206,7 @@ export class ValueLogScene {
       this.domainNodes.forEach((domain) => {
         const points = [performanceNode.mesh.position, domain.mesh.position];
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(geometry, material);
+        const line = new THREE.Line(geometry, this.stringsMaterial);
         this.stringsGroup.add(line);
       });
     }
@@ -1079,7 +1240,7 @@ export class ValueLogScene {
     });
 
     // Performance domains - visible from step 2 onwards (if Performance was chosen)
-    const showPerformance = stepIndex >= 2 && this.draft.wellbeingNode === "~~Performance";
+    const showPerformance = stepIndex >= 3 && this.draft.wellbeingNode === "~~Performance";
     this.domainNodes.forEach((entry) => {
       entry.mesh.visible = showPerformance;
       entry.label.visible = showPerformance;
@@ -1125,23 +1286,25 @@ export class ValueLogScene {
       lookAt.set(0, 4.0, 0);
     } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
-        position.set(0, 0.0, 18.0);
+        position.set(0, 0.3, 17.2);
       } else {
-        position.set(0, 0.0, 16.0);
+        position.set(0, 0.15, 15.2);
       }
       lookAt.set(0, 0.0, 0);
-    } else if (this.step === "select_performance") {
-      const performanceNode = this.contextNodes.find((node) => node.key === "~~Performance");
-      const px = performanceNode ? performanceNode.mesh.position.x : 0;
-      const py = performanceNode ? performanceNode.mesh.position.y - 2.5 : -3;
-      const pz = performanceNode ? performanceNode.mesh.position.z : 0;
-
+    } else if (this.step === "select_intensity") {
       if (this.isMobileViewport) {
-        position.set(px, py + 2.0, pz + 10.0);
+        position.set(0, 0.4, 17.2);
       } else {
-        position.set(px, py + 1.5, pz + 8.0);
+        position.set(0, 0.2, 15.0);
       }
-      lookAt.set(px, py, pz);
+      lookAt.set(0, 0, 0);
+    } else if (this.step === "select_performance") {
+      if (this.isMobileViewport) {
+        position.set(0, -0.5, 17.0);
+      } else {
+        position.set(0, -0.8, 14.8);
+      }
+      lookAt.set(0, -1.9, 0);
     } else {
       // show_outcome: pull back to see the whole chandelier
       if (this.isMobileViewport) {
@@ -1172,28 +1335,19 @@ export class ValueLogScene {
 
   private raycastInteractive():
     | { type: "clock" }
-    | { type: "stage"; id: StageVisual["id"] } // Added stage back in case needed
+    | { type: "clock_hand"; hand: "start" | "end" }
     | { type: "context"; key: WellbeingContextNode }
     | { type: "domain"; domain: DomainNodeVisual["domain"] }
     | null {
     
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
-    
-    // Check stage cards
-    const stageIntersects = this.raycaster.intersectObjects(this.stageCards.map(c => c.mesh), false);
-    if (stageIntersects.length > 0) {
-      const hit = stageIntersects[0];
-      if (hit) {
-        const card = this.stageCards.find(c => c.mesh === hit.object);
-        if (card) return { type: "stage", id: card.id };
-      }
-    }
 
     const targets: THREE.Object3D[] = [];
     // Prioritize context interaction based on step
     if (this.step === "select_time") {
         const bgIntersect = this.raycaster.intersectObject(this.sliceArc);
         if (bgIntersect.length > 0) return { type: "clock" };
+        targets.push(this.startHand, this.endHand);
         if (this.clockDial) targets.push(this.clockDial);
     }
     
@@ -1216,6 +1370,12 @@ export class ValueLogScene {
     if (this.clockDial && object === this.clockDial) {
       return { type: "clock" };
     }
+    if (object === this.startHand) {
+      return { type: "clock_hand", hand: "start" };
+    }
+    if (object === this.endHand) {
+      return { type: "clock_hand", hand: "end" };
+    }
 
     for (const node of this.contextNodes) {
       if (node.mesh === object) {
@@ -1230,6 +1390,110 @@ export class ValueLogScene {
     }
 
     return null;
+  }
+
+  private raycastClockHand(): "start" | "end" | null {
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hits = this.raycaster.intersectObjects([this.startHand, this.endHand], false);
+    const first = hits[0]?.object ?? null;
+    if (!first) return null;
+    if (first === this.startHand) return "start";
+    if (first === this.endHand) return "end";
+    return null;
+  }
+
+  private updateClockHandFromPointer() {
+    if (!this.activeClockHand) return;
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(
+      this.clockInteractionPlane,
+      this.clockInteractionPoint
+    );
+    if (!hit) return;
+
+    this.clockInteractionLocal.copy(this.clockInteractionPoint).sub(this.clockGroup.position);
+    const radiusSq =
+      this.clockInteractionLocal.x * this.clockInteractionLocal.x +
+      this.clockInteractionLocal.z * this.clockInteractionLocal.z;
+    if (radiusSq < 0.1) return;
+
+    const rawAngle = Math.atan2(this.clockInteractionLocal.z, this.clockInteractionLocal.x);
+    const snappedMinutes = snapMinutes(angleToMinutes(rawAngle), 5);
+    const currentStart = minutesFromLocalInput(this.draft.startTime);
+    const currentEnd = minutesFromLocalInput(this.draft.endTime);
+    const minSpan = 15;
+
+    if (this.activeClockHand === "start") {
+      let nextStart = snappedMinutes;
+      let nextEnd = currentEnd;
+      if (normalizeMinuteSpan(nextEnd - nextStart) < minSpan) {
+        nextEnd = (nextStart + minSpan) % 1440;
+      }
+      this.applyClockRange(nextStart, nextEnd);
+      return;
+    }
+
+    let nextStart = currentStart;
+    let nextEnd = snappedMinutes;
+    if (normalizeMinuteSpan(nextEnd - nextStart) < minSpan) {
+      nextStart = (nextEnd - minSpan + 1440) % 1440;
+    }
+    this.applyClockRange(nextStart, nextEnd);
+  }
+
+  private applyClockRange(startMinutes: number, endMinutes: number) {
+    const baseStart = parseLocalInputDate(this.draft.startTime) ?? new Date();
+    const nextStart = new Date(baseStart);
+    nextStart.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0);
+
+    const nextEnd = new Date(nextStart);
+    nextEnd.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0);
+    if (endMinutes <= startMinutes) {
+      nextEnd.setDate(nextEnd.getDate() + 1);
+    }
+
+    this.draft = {
+      ...this.draft,
+      startTime: toLocalInputValue(nextStart),
+      endTime: toLocalInputValue(nextEnd),
+    };
+    this.applyDraft();
+  }
+
+  private getNextStep(step: WizardStep): WizardStep {
+    if (step === "select_time") return "select_wellbeing";
+    if (step === "select_wellbeing") {
+      return this.draft.wellbeingNode === "~~Performance"
+        ? "select_performance"
+        : "select_intensity";
+    }
+    if (step === "select_intensity") {
+      return "show_outcome";
+    }
+    if (step === "select_performance") return "show_outcome";
+    return "show_outcome";
+  }
+
+  private getPreviousStep(step: WizardStep): WizardStep {
+    if (step === "show_outcome") {
+      return this.draft.wellbeingNode === "~~Performance"
+        ? "select_performance"
+        : "select_intensity";
+    }
+    if (step === "select_performance") return "select_wellbeing";
+    if (step === "select_intensity") return "select_wellbeing";
+    if (step === "select_wellbeing") return "select_time";
+    return "select_time";
+  }
+
+  private ensureStepValid(step: WizardStep): WizardStep {
+    if (step === "select_performance" && this.draft.wellbeingNode !== "~~Performance") {
+      return "select_intensity";
+    }
+    if (step === "select_intensity" && this.draft.wellbeingNode === "~~Performance") {
+      return "select_performance";
+    }
+    return step;
   }
 
   private setHand(mesh: THREE.Mesh, angle: number, length: number) {
@@ -1296,9 +1560,9 @@ export class ValueLogScene {
         ...(this.draft.wellbeingNode === "~~Performance"
           ? {
               "~~Performance": {
-                "~~~LearningOutput": this.draft.learningTag ? 0.72 : 0.45,
-                "~~~EarningOutput": this.draft.earningTag ? 0.69 : 0.43,
-                "~~~OrgBuildingOutput": this.draft.orgBuildingTag ? 0.68 : 0.41,
+                "~~~LearningOutput": this.draft.learningTag ? Number(this.draft.learningIntensity.toFixed(2)) : 0,
+                "~~~EarningOutput": this.draft.earningTag ? Number(this.draft.earningIntensity.toFixed(2)) : 0,
+                "~~~OrgBuildingOutput": this.draft.orgBuildingTag ? Number(this.draft.orgBuildingIntensity.toFixed(2)) : 0,
                 "~~~SkillApplication": this.draft.skillApplication,
                 "~~~CommunityContext": this.draft.communityContext,
               },
@@ -1404,6 +1668,14 @@ export class ValueLogScene {
     });
     group.clear();
   }
+
+  private disposeStringsGroup() {
+    this.stringsGroup.children.forEach((child) => {
+      const line = child as THREE.Line;
+      line.geometry?.dispose?.();
+    });
+    this.stringsGroup.clear();
+  }
 }
 
 const clamp = (min: number, max: number, value: number) => Math.min(max, Math.max(min, value));
@@ -1437,4 +1709,85 @@ const normalizeMinuteSpan = (deltaMinutes: number) => {
 
 const minutesToClockAngle = (minutes: number) => {
   return (minutes / 1440) * Math.PI * 2 - Math.PI / 2;
+};
+
+const angleToMinutes = (angle: number) => {
+  const normalized = ((angle + Math.PI / 2) / (Math.PI * 2) + 1) % 1;
+  return Math.round(normalized * 1440) % 1440;
+};
+
+const snapMinutes = (minutes: number, step: number) => {
+  if (step <= 1) return minutes;
+  const snapped = Math.round(minutes / step) * step;
+  return ((snapped % 1440) + 1440) % 1440;
+};
+
+const parseLocalInputDate = (value: string) => {
+  const parsed = value.length > 0 ? new Date(value) : new Date();
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const DEFAULT_SIGNAL_LABEL_BY_NODE: Record<WellbeingContextNode, string> = {
+  "~~Physiology": "Body baseline quality",
+  "~~Emotion": "Emotional stability shift",
+  "~~Feeling": "Felt-state coherence",
+  "~~Thought": "Cognitive clarity quality",
+  "~~Habit": "Habit streak quality",
+  "~~Performance": "Performance execution quality",
+};
+
+const deriveSignalScore = (draft: ValueLogDraft) => {
+  const base = clamp(0, 1, draft.contextIntensity);
+  if (draft.wellbeingNode !== "~~Performance") {
+    return base;
+  }
+
+  const selected: number[] = [];
+  if (draft.learningTag) selected.push(clamp(0, 1, draft.learningIntensity));
+  if (draft.earningTag) selected.push(clamp(0, 1, draft.earningIntensity));
+  if (draft.orgBuildingTag) selected.push(clamp(0, 1, draft.orgBuildingIntensity));
+  const domainAverage =
+    selected.length > 0
+      ? selected.reduce((sum, value) => sum + value, 0) / selected.length
+      : base;
+  return clamp(0, 1, base * 0.45 + domainAverage * 0.55);
+};
+
+const isValidTimeRange = (startTime: string, endTime: string) => {
+  const startMinutes = minutesFromLocalInput(startTime);
+  const endMinutes = minutesFromLocalInput(endTime);
+  return normalizeMinuteSpan(endMinutes - startMinutes) >= 15;
+};
+
+export const isValueLogCommitReady = (draft: ValueLogDraft) => {
+  const hasValueCapture =
+    isValidTimeRange(draft.startTime, draft.endTime) &&
+    draft.activityLabel.trim().length > 0 &&
+    draft.proofOfActivity.trim().length > 0;
+  if (!hasValueCapture) return false;
+
+  if (draft.wellbeingNode !== "~~Performance") {
+    return draft.contextIntensity >= 0;
+  }
+
+  return draft.learningTag || draft.earningTag || draft.orgBuildingTag;
+};
+
+const getSceneActionHint = (step: WizardStep, draft: ValueLogDraft, canCommit: boolean) => {
+  if (canCommit) {
+    return "Ready. Commit Time Slice below.";
+  }
+  if (step === "select_time") {
+    return "Double-click the clock to confirm time capture.";
+  }
+  if (step === "select_wellbeing") {
+    return "Double-click a wellbeing node to select context.";
+  }
+  if (step === "select_intensity") {
+    return `Set intensity in side panel, then double-click ${draft.wellbeingNode.replace("~~", "")} to continue.`;
+  }
+  if (step === "select_performance") {
+    return "Double-click Learning, Earning, or OrgBuilding to select domains.";
+  }
+  return "Review details in side panel and commit when ready.";
 };

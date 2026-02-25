@@ -437,6 +437,28 @@ export class IovTopologyScene {
     return DEFAULT_MEANING_BY_REGION[regionId];
   }
 
+  getRegionAnchor(regionId: RegionId) {
+    if (regionId === "crony_bridge") {
+      const marketCenterX = this.regions.get("market")?.center.x ?? MARKET_X;
+      const stateCenterX = this.regions.get("state")?.center.x ?? STATE_X;
+      const anchorX = THREE.MathUtils.lerp(marketCenterX, stateCenterX, 0.72);
+      const anchorY = this.bridgeTopY + STEP_Y * 1.35;
+      const anchorZ = TOPOLOGY_Z - STEP_XZ * 0.35;
+      return new THREE.Vector3(anchorX, anchorY, anchorZ);
+    }
+
+    const runtime = this.regions.get(regionId);
+    if (!runtime) return null;
+
+    const anchor = runtime.center.clone();
+    if (regionId === "market" || regionId === "state") {
+      anchor.y = runtime.topY + HALF_H * 1.5;
+    } else {
+      anchor.y = runtime.topY + HALF_H * 1.2;
+    }
+    return anchor;
+  }
+
   getSelectedBrickInfo() {
     return this.selectedBrickInfo;
   }

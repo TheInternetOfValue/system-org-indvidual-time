@@ -35,6 +35,7 @@ Current semantic zoom chain:
 - State change feedback uses pulse/outline effects instead of recoloring brick identity.
 - Value commit flow uses explicit transition FX:
   - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
+- Time Slice interaction is centered on in-scene composer controls for desktop capture flow; panel controls are secondary/mobile-first.
 - Post-impact propagation:
   - impacted person activation ring in `BlockInteriorScene`.
   - org-level contagion in `BlockInteriorScene` (all people remain visible while aura spreads).
@@ -57,3 +58,19 @@ Current semantic zoom chain:
 
 ## Color Rendering
 - Detailed rendering diagnosis and target semantics are in `docs/IOV_COLOR_RENDERING.md`.
+- Active region identity palette:
+  - Market: deep blue (`#1f4c8f`)
+  - State: burnt brown (`#8c4e2f`)
+  - Community: yellow (`#d9b114`)
+  - Bridge: graphite (`#4a4f57`)
+
+## Mobile Interaction
+- Quick-action controls are optimized for thumb use (`44px` targets and compact 2-column action grids).
+- Breadcrumb navigation stays single-row and horizontally scrollable on small screens.
+- Overlay cards are height-constrained with contained scrolling to keep key controls reachable above the bottom panel.
+- Mobile panel defaults to an on-demand "Show context" state so the scene stays primary unless the viewer explicitly opens context.
+
+## Contextual Panel Rules
+- Topology-only panel sections: region definitions, legend, values, transfer guidance, toggle bank, build formation.
+- Non-topology panel sections: concise scene-specific guidance and local controls for the active semantic level.
+- Panel title follows active scene semantics outside topology to avoid repeating Market/State/Community copy in all scenes.

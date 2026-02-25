@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -8,7 +8,6 @@ import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
 import IovTopologyPanel from "@/ui/IovTopologyPanel";
 import topologyRaw from "@/game/iov/iov.topology.json";
 import {
-  type BrickInteractionMode,
   IovTopologyScene,
   IOV_TOPOLOGY_CONFIG,
   type IovTopologyData,
@@ -16,23 +15,22 @@ import {
   type SelectedBrickInfo,
   type ToggleId,
 } from "@/game/iov/IovTopologyScene";
-import {
-  BlockInteriorScene,
-  type BlockPeopleSummary,
+import type {
+  BlockInteriorScene as BlockInteriorSceneRuntime,
+  BlockPeopleSummary,
 } from "@/game/iov/BlockInteriorScene";
-import {
-  PersonIdentityScene,
-  type PersonIdentitySummary,
+import type {
+  PersonIdentityScene as PersonIdentitySceneRuntime,
+  PersonIdentitySummary,
 } from "@/game/iov/PersonIdentityScene";
-import { PersonImpactScene } from "@/game/iov/PersonImpactScene";
+import type { PersonImpactScene as PersonImpactSceneRuntime } from "@/game/iov/PersonImpactScene";
+import type { ValueLogScene as ValueLogSceneRuntime } from "@/game/iov/ValueLogScene";
 import {
-  ValueLogScene,
-  WIZARD_STEP_ORDER,
   createInitialValueLogDraft,
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
-} from "@/game/iov/ValueLogScene";
+} from "@/game/iov/ValueLogModel";
 import {
   IovSemanticZoomController,
   getSemanticBreadcrumb,
@@ -56,6 +54,13 @@ import {
   type OrgImpactResult,
   type PersonImpactResult,
 } from "@/game/iov/iovImpactEscalation";
+import {
+  loadBlockInteriorSceneModule,
+  loadPersonIdentitySceneModule,
+  loadPersonImpactSceneModule,
+  loadValueLogSceneModule,
+  preloadDeferredIovSceneModules,
+} from "@/game/iov/sceneModules";
 
 const topologyData = topologyRaw as IovTopologyData;
 
@@ -73,14 +78,39 @@ interface PendingEmpowerState {
   activationCount: number;
 }
 
+const TOPOLOGY_REGION_ACTIONS: ReadonlyArray<{
+  regionId: RegionId;
+  label: string;
+  cue: string;
+}> = [
+  { regionId: "community", label: "Community", cue: "Build pillar" },
+  { regionId: "state", label: "State", cue: "Build pillar" },
+  { regionId: "market", label: "Market", cue: "Build pillar" },
+  { regionId: "crony_bridge", label: "Bridge", cue: "Lay bridge" },
+];
+
+const TOPOLOGY_BUILD_SEQUENCE: ReadonlyArray<RegionId> = [
+  "community",
+  "state",
+  "market",
+  "crony_bridge",
+];
+const DOUBLE_TAP_WINDOW_MS = 340;
+
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const topologyActionCardRef = useRef<HTMLDivElement | null>(null);
+  const topologyRegionActionRefs = useRef<Record<RegionId, HTMLButtonElement | null>>({
+    market: null,
+    state: null,
+    community: null,
+    crony_bridge: null,
+  });
   const sceneRef = useRef<IovTopologyScene | null>(null);
-  const blockSceneRef = useRef<BlockInteriorScene | null>(null);
-  const personSceneRef = useRef<PersonIdentityScene | null>(null);
-  const impactSceneRef = useRef<PersonImpactScene | null>(null);
-  const valueLogSceneRef = useRef<ValueLogScene | null>(null);
+  const blockSceneRef = useRef<BlockInteriorSceneRuntime | null>(null);
+  const personSceneRef = useRef<PersonIdentitySceneRuntime | null>(null);
+  const impactSceneRef = useRef<PersonImpactSceneRuntime | null>(null);
+  const valueLogSceneRef = useRef<ValueLogSceneRuntime | null>(null);
+  const ensureSecondaryScenesRef = useRef<(() => Promise<void>) | null>(null);
   const cameraDirectorRef = useRef(new IovCameraDirector());
   const transitionBusyRef = useRef(false);
   const zoomControllerRef = useRef(new IovSemanticZoomController());
@@ -95,12 +125,18 @@ const IovTopologyCanvas = () => {
   });
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const selectedBrickInfoRef = useRef<SelectedBrickInfo | null>(null);
+  const selectedPersonIdRef = useRef<string | null>(null);
+  const topologyBuildStepRef = useRef(0);
+  const lastSceneTapRef = useRef<{
+    level: "topology" | "block" | "person" | "valuelog";
+    key: string;
+    at: number;
+  } | null>(null);
   const isMobileRef = useRef(window.innerWidth <= 900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
   const [selectedRegionId, setSelectedRegionId] = useState<RegionId>("community");
   const [selectedBrickInfo, setSelectedBrickInfo] = useState<SelectedBrickInfo | null>(null);
-  const [interactionMode, setInteractionMode] = useState<BrickInteractionMode>("inspect");
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
   const [hoveredPersonId, setHoveredPersonId] = useState<string | null>(null);
   const [blockSummary, setBlockSummary] = useState<BlockPeopleSummary | null>(null);
@@ -112,14 +148,13 @@ const IovTopologyCanvas = () => {
   const [valueLogSummary, setValueLogSummary] = useState<ValueLogSummary | null>(null);
   const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
-  const [hoveredRegionId, setHoveredRegionId] = useState<RegionId | null>(null);
   const [transferredCount, setTransferredCount] = useState(0);
   const [semanticLevel, setSemanticLevel] = useState<SemanticZoomLevel>("topology");
   const [values, setValues] = useState(DEFAULT_IOV_VALUES);
   const [valueLogData, setValueLogData] = useState(DEFAULT_IOV_VALUELOGS);
   const [presentationMode, setPresentationMode] = useState(false);
   const [phaseHeadline, setPhaseHeadline] = useState(
-    "Empty ground - press Market to begin."
+    "Empty ground - press Community to begin."
   );
   const [toggles, setToggles] = useState<Record<ToggleId, boolean>>(() =>
     buildInitialToggles(topologyData)
@@ -129,12 +164,8 @@ const IovTopologyCanvas = () => {
   const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
-
-  const hoveredRegion = useMemo(
-    () => topologyData.regions.find((region) => region.id === hoveredRegionId),
-    [hoveredRegionId]
-  );
+  const [topologyActivated, setTopologyActivated] = useState(false);
+  const [topologyBuildStep, setTopologyBuildStep] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -149,7 +180,6 @@ const IovTopologyCanvas = () => {
     container.appendChild(renderer.domElement);
 
     const scene = new IovTopologyScene(renderer.domElement, topologyData, {
-      onHoverChange: (regionId) => setHoveredRegionId(regionId),
       onSelectChange: (regionId) => setSelectedRegionId(regionId),
       onTransferCountChange: (count) => setTransferredCount(count),
       onBrickSelectionChange: (selection) => setSelectedBrickInfo(selection),
@@ -157,26 +187,78 @@ const IovTopologyCanvas = () => {
     sceneRef.current = scene;
     setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
     scene.setValues(values);
-    scene.setBrickInteractionMode(interactionMode);
-    const blockScene = new BlockInteriorScene(renderer.domElement, {
-      onHoverPersonChange: (personId) => setHoveredPersonId(personId),
-      onSelectPersonChange: (personId) => setSelectedPersonId(personId),
-    });
-    blockSceneRef.current = blockScene;
-    const personScene = new PersonIdentityScene(renderer.domElement, {
-      onHoverFacetChange: (facet) => setHoveredFacet(facet),
-      onSelectFacetChange: () => {
-        setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-      },
-    });
-    personSceneRef.current = personScene;
-    
-    // Impact Scene - Visualization only, no interaction
-    const impactScene = new PersonImpactScene();
-    impactSceneRef.current = impactScene;
+    scene.setBrickInteractionMode("inspect");
+    let blockScene: BlockInteriorSceneRuntime | null = null;
+    let personScene: PersonIdentitySceneRuntime | null = null;
+    let impactScene: PersonImpactSceneRuntime | null = null;
+    let valueLogScene: ValueLogSceneRuntime | null = null;
+    let secondaryScenesInitPromise: Promise<void> | null = null;
 
-    const valueLogScene = new ValueLogScene(renderer.domElement);
-    valueLogSceneRef.current = valueLogScene;
+    const ensureSecondaryScenes = async () => {
+      if (blockScene && personScene && impactScene && valueLogScene) return;
+      if (secondaryScenesInitPromise) {
+        await secondaryScenesInitPromise;
+        return;
+      }
+
+      secondaryScenesInitPromise = (async () => {
+        const [blockModule, personModule, impactModule, valueLogModule] = await Promise.all([
+          loadBlockInteriorSceneModule(),
+          loadPersonIdentitySceneModule(),
+          loadPersonImpactSceneModule(),
+          loadValueLogSceneModule(),
+        ]);
+
+        if (!blockScene) {
+          blockScene = new blockModule.BlockInteriorScene(renderer.domElement, {
+            onHoverPersonChange: (personId) => setHoveredPersonId(personId),
+            onSelectPersonChange: (personId) => setSelectedPersonId(personId),
+          });
+          blockSceneRef.current = blockScene;
+        }
+
+        if (!personScene) {
+          personScene = new personModule.PersonIdentityScene(renderer.domElement, {
+            onHoverFacetChange: (facet) => setHoveredFacet(facet),
+            onSelectFacetChange: () => {
+              setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+            },
+          });
+          personSceneRef.current = personScene;
+        }
+
+        if (!impactScene) {
+          impactScene = new impactModule.PersonImpactScene();
+          impactSceneRef.current = impactScene;
+        }
+
+        if (!valueLogScene) {
+          valueLogScene = new valueLogModule.ValueLogScene(renderer.domElement);
+          valueLogSceneRef.current = valueLogScene;
+        }
+
+        const { clientWidth, clientHeight } = container;
+        const nextIsMobile = clientWidth <= 900;
+        blockScene.setViewportProfile(nextIsMobile);
+        personScene.setViewportProfile(nextIsMobile);
+        impactScene.resize(clientWidth, clientHeight);
+        valueLogScene.setViewportProfile(nextIsMobile);
+        blockScene.resize(clientWidth, clientHeight);
+        personScene.resize(clientWidth, clientHeight);
+        valueLogScene.resize(clientWidth, clientHeight);
+
+        setBlockSummary(blockScene.getSummary());
+        setPersonSummary(personScene.getSummary());
+        setValueLogSummary(valueLogScene.getSummary());
+      })();
+
+      try {
+        await secondaryScenesInitPromise;
+      } finally {
+        secondaryScenesInitPromise = null;
+      }
+    };
+    ensureSecondaryScenesRef.current = ensureSecondaryScenes;
 
     let composer: EffectComposer | null = null;
     let ssaoPass: SSAOPass | null = null;
@@ -206,14 +288,14 @@ const IovTopologyCanvas = () => {
       isMobileRef.current = nextIsMobile;
       renderer.setSize(clientWidth, clientHeight);
       scene.setViewportProfile(nextIsMobile);
-      blockScene.setViewportProfile(nextIsMobile);
-      personScene.setViewportProfile(nextIsMobile);
-      impactScene.resize(clientWidth, clientHeight);
-      valueLogScene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
-      blockScene.resize(clientWidth, clientHeight);
-      personScene.resize(clientWidth, clientHeight);
-      valueLogScene.resize(clientWidth, clientHeight);
+      blockScene?.setViewportProfile(nextIsMobile);
+      personScene?.setViewportProfile(nextIsMobile);
+      impactScene?.resize(clientWidth, clientHeight);
+      valueLogScene?.setViewportProfile(nextIsMobile);
+      blockScene?.resize(clientWidth, clientHeight);
+      personScene?.resize(clientWidth, clientHeight);
+      valueLogScene?.resize(clientWidth, clientHeight);
       composer?.setSize(clientWidth, clientHeight);
       if (ssaoPass) {
         ssaoPass.setSize(clientWidth, clientHeight);
@@ -231,13 +313,30 @@ const IovTopologyCanvas = () => {
     };
     resize();
 
+    type IdleWindow = Window & {
+      requestIdleCallback?: (
+        callback: IdleRequestCallback,
+        options?: IdleRequestOptions
+      ) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const idleWindow = window as IdleWindow;
+    const preloadModules = () => {
+      void preloadDeferredIovSceneModules();
+    };
+    const idleHandle =
+      idleWindow.requestIdleCallback?.(() => preloadModules(), { timeout: 1600 }) ?? null;
+    const timeoutHandle =
+      idleHandle === null ? window.setTimeout(() => preloadModules(), 700) : null;
+
     const clock = new THREE.Clock();
+    const projectedAnchor = new THREE.Vector3();
     let frame = 0;
     let personSummaryAccumulator = 0;
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
       cameraDirectorRef.current.update(delta);
-      updateTopologyActionCardAnchor();
+      updateTopologyRegionActionAnchors();
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -252,26 +351,49 @@ const IovTopologyCanvas = () => {
         semanticLevelRef.current === "block" ||
         semanticLevelRef.current === "orgimpact"
       ) {
-        blockScene.update(delta);
-        blockScene.render(renderer);
+        if (blockScene) {
+          blockScene.update(delta);
+          blockScene.render(renderer);
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
+        }
       } else if (semanticLevelRef.current === "person") {
-        personScene.update(delta);
-        personScene.render(renderer);
-        personSummaryAccumulator += delta;
-        if (personSummaryAccumulator >= 0.2) {
-          personSummaryAccumulator = 0;
-          setPersonSummary(personScene.getSummary());
+        if (personScene) {
+          personScene.update(delta);
+          personScene.render(renderer);
+          personSummaryAccumulator += delta;
+          if (personSummaryAccumulator >= 0.2) {
+            personSummaryAccumulator = 0;
+            setPersonSummary(personScene.getSummary());
+          }
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
         }
       } else if (semanticLevelRef.current === "impact") {
-        impactSceneRef.current?.update(delta);
-        renderer.render(impactSceneRef.current!.scene, impactSceneRef.current!.camera);
+        if (impactScene) {
+          impactScene.update(delta);
+          renderer.render(impactScene.scene, impactScene.camera);
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
+        }
       } else {
-        valueLogScene.update(delta);
-        valueLogScene.render(renderer);
-        personSummaryAccumulator += delta;
-        if (personSummaryAccumulator >= 0.2) {
-          personSummaryAccumulator = 0;
-          setValueLogSummary(valueLogScene.getSummary());
+        if (valueLogScene) {
+          valueLogScene.update(delta);
+          valueLogScene.render(renderer);
+          personSummaryAccumulator += delta;
+          if (personSummaryAccumulator >= 0.2) {
+            personSummaryAccumulator = 0;
+            const summary = valueLogScene.getSummary();
+            setValueLogSummary(summary);
+            setValueLogStep(summary.step);
+            setValueLogDraft(summary.draft);
+          }
+        } else {
+          scene.update(delta);
+          scene.render(renderer);
         }
       }
       frame = window.requestAnimationFrame(tick);
@@ -288,40 +410,70 @@ const IovTopologyCanvas = () => {
       dragStartX = event.clientX;
       dragStartY = event.clientY;
       dragDistance = 0;
+      if (semanticLevelRef.current === "valuelog" && valueLogScene) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        valueLogScene.setPointerFromCanvas(
+          event.clientX - rect.left,
+          event.clientY - rect.top,
+          rect.width,
+          rect.height
+        );
+        valueLogScene.beginPointerInteraction();
+      }
     };
 
-    function updateTopologyActionCardAnchor() {
-      const card = topologyActionCardRef.current;
-      if (!card) return;
-      if (semanticLevelRef.current !== "topology") return;
-      const selected = selectedBrickInfoRef.current;
-      if (!selected) return;
+    function updateTopologyRegionActionAnchors() {
       const host = containerRef.current;
-      if (!host) return;
-      const anchor = scene.getBrickAnchor(selected.regionId, selected.instanceId);
-      if (!anchor) return;
+      const sceneRuntime = sceneRef.current;
+      if (!host || !sceneRuntime) return;
 
-      const target = anchor.clone();
-      target.y += 0.42;
-      target.project(scene.camera);
+      const isTopologyLevel = semanticLevelRef.current === "topology";
       const { clientWidth, clientHeight } = host;
-      const cardWidth = Math.max(220, card.offsetWidth || 220);
-      const cardHeight = Math.max(120, card.offsetHeight || 120);
-      const halfWidth = cardWidth * 0.5;
+      const safeTop = isMobileRef.current ? 58 : 72;
+      const safeBottom = clientHeight - (isMobileRef.current ? 86 : 24);
 
-      let x = (target.x * 0.5 + 0.5) * clientWidth;
-      let y = (-target.y * 0.5 + 0.5) * clientHeight - 16;
+      for (const action of TOPOLOGY_REGION_ACTIONS) {
+        const button = topologyRegionActionRefs.current[action.regionId];
+        if (!button) continue;
 
-      const safeLeft = isMobileRef.current ? halfWidth + 12 : 320 + halfWidth;
-      const safeRight = clientWidth - halfWidth - 12;
-      const safeTop = cardHeight + 72;
-      const safeBottom = clientHeight - 22;
+        if (!isTopologyLevel) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
 
-      x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
-      y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
+        const anchor = sceneRuntime.getRegionAnchor(action.regionId);
+        if (!anchor) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
 
-      card.style.left = `${x}px`;
-      card.style.top = `${y}px`;
+        projectedAnchor.copy(anchor).project(sceneRuntime.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
+
+        const buttonWidth = Math.max(108, button.offsetWidth || 108);
+        const buttonHeight = Math.max(48, button.offsetHeight || 48);
+        const safeLeft = isMobileRef.current ? buttonWidth * 0.5 + 12 : buttonWidth * 0.5 + 16;
+        const safeRight = clientWidth - buttonWidth * 0.5 - 16;
+
+        let x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        let y = (-projectedAnchor.y * 0.5 + 0.5) * clientHeight;
+
+        y -= action.regionId === "crony_bridge" ? buttonHeight * 0.8 : buttonHeight * 0.62;
+
+        x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
+        y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
+
+        button.style.left = `${x}px`;
+        button.style.top = `${y}px`;
+        button.style.opacity = "1";
+        button.style.pointerEvents = "auto";
+      }
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -335,57 +487,135 @@ const IovTopologyCanvas = () => {
         Math.hypot(event.clientX - dragStartX, event.clientY - dragStartY)
       );
 
-      setTooltipPosition({ x: event.clientX, y: event.clientY });
       if (semanticLevelRef.current === "topology") {
         scene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        blockScene.clearPointer();
-        personScene.clearPointer();
-        valueLogScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "block") {
-        blockScene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        personScene.clearPointer();
+        blockScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
+        personScene?.clearPointer();
         scene.clearPointer();
-        valueLogScene.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "person") {
-        personScene.setPointerFromCanvas(x, y, rect.width, rect.height);
-        blockScene.clearPointer();
+        personScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
+        blockScene?.clearPointer();
         scene.clearPointer();
-        valueLogScene.clearPointer();
+        valueLogScene?.clearPointer();
       } else if (semanticLevelRef.current === "valuelog") {
-        valueLogScene.setPointerFromCanvas(x, y, rect.width, rect.height);
+        valueLogScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
         scene.clearPointer();
-        blockScene.clearPointer();
-        personScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
       } else {
         scene.clearPointer();
-        blockScene.clearPointer();
-        personScene.clearPointer();
-        valueLogScene.clearPointer();
+        blockScene?.clearPointer();
+        personScene?.clearPointer();
+        valueLogScene?.clearPointer();
       }
     };
 
     const onPointerLeave = () => {
       scene.clearPointer();
-      blockScene.clearPointer();
-      personScene.clearPointer();
-      valueLogScene.clearPointer();
-      setHoveredRegionId(null);
+      blockScene?.clearPointer();
+      personScene?.clearPointer();
+      valueLogScene?.clearPointer();
       setHoveredPersonId(null);
       setHoveredFacet(null);
     };
 
-    const onPointerUp = () => {
+  const onPointerUp = () => {
+      if (semanticLevelRef.current === "valuelog" && valueLogScene) {
+        valueLogScene.endPointerInteraction();
+      }
       if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
       if (dragDistance <= 4) {
         if (semanticLevelRef.current === "topology") {
-          // Click selection maps the hovered brick instance back to region id.
           scene.selectFromPointer();
+          const selected = scene.getSelectedBrickInfo();
+          if (!selected) return;
+          const key = `${selected.regionId}:${selected.instanceId}`;
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "topology" &&
+            lastTap.key === key &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "topology", key, at: now };
+          if (isDoubleTap) {
+            onOpenBrick(selected);
+          }
         } else if (semanticLevelRef.current === "block") {
+          if (!blockScene) return;
           blockScene.selectFromPointer();
+          const selected = blockScene.getSummary().selectedPersonId;
+          if (!selected) return;
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "block" &&
+            lastTap.key === selected &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "block", key: selected, at: now };
+          if (isDoubleTap) {
+            handleOpenPersonStub(selected);
+          }
         } else if (semanticLevelRef.current === "person") {
-          personScene.selectFromPointer();
+          if (!personScene) return;
+          const summaryBefore = personScene.getSummary();
+          const selectionKind = personScene.selectFromPointer();
+          const summary = personScene.getSummary();
+          const focusKey =
+            selectionKind === "core"
+              ? "__person_core__"
+              : summary.selectedFacet ?? summary.selectedLayer ?? "__person__";
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "person" &&
+            lastTap.key === focusKey &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "person", key: focusKey, at: now };
+
+          const reselectedFocus =
+            selectionKind !== null &&
+            summaryBefore.selectedFacet === summary.selectedFacet &&
+            summaryBefore.selectedLayer === summary.selectedLayer;
+
+          if (selectionKind === "core" && isDoubleTap && summary.identityBuildComplete) {
+            handleOpenValueLog();
+            return;
+          }
+
+          if (
+            (selectionKind === null || isDoubleTap || reselectedFocus) &&
+            summary.identityBuildMode &&
+            !summary.identityBuildComplete
+          ) {
+            handleNextIdentityLayer();
+          }
         } else if (semanticLevelRef.current === "valuelog") {
-          valueLogScene.selectFromPointer();
+          if (!valueLogScene) return;
+          const selection = valueLogScene.selectFromPointer(false);
+          const key = selection.key ?? "__empty__";
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "valuelog" &&
+            lastTap.key === key &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "valuelog", key, at: now };
+          if (isDoubleTap) {
+            valueLogScene.selectFromPointer(true);
+          }
+          const summary = valueLogScene.getSummary();
+          setValueLogSummary(summary);
+          setValueLogStep(summary.step);
+          setValueLogDraft(summary.draft);
         }
       }
     };
@@ -401,9 +631,9 @@ const IovTopologyCanvas = () => {
       }
 
       const keyMap: Partial<Record<string, RegionId>> = {
-        "1": "market",
+        "1": "community",
         "2": "state",
-        "3": "community",
+        "3": "market",
         "4": "crony_bridge",
       };
 
@@ -411,8 +641,7 @@ const IovTopologyCanvas = () => {
       if (!regionId) return;
       if (semanticLevelRef.current !== "topology") return;
 
-      sceneRef.current.triggerFormation(regionId);
-      setPhaseHeadline(getPhaseHeadline(regionId));
+      handleBuild(regionId);
     };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -425,17 +654,24 @@ const IovTopologyCanvas = () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onKeyDown);
+      if (idleHandle !== null && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleHandle);
+      }
+      if (timeoutHandle !== null) {
+        window.clearTimeout(timeoutHandle);
+      }
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
       renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
 
       scene.dispose();
-      blockScene.dispose();
-      personScene.dispose();
-      valueLogScene.dispose();
+      blockScene?.dispose();
+      personScene?.dispose();
+      valueLogScene?.dispose();
       transitionBusyRef.current = false;
       cameraDirectorRef.current.cancelShot();
+      ensureSecondaryScenesRef.current = null;
       composer?.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
@@ -449,6 +685,25 @@ const IovTopologyCanvas = () => {
   useEffect(() => {
     selectedBrickInfoRef.current = selectedBrickInfo;
   }, [selectedBrickInfo]);
+
+  useEffect(() => {
+    selectedPersonIdRef.current = selectedPersonId;
+  }, [selectedPersonId]);
+
+  useEffect(() => {
+    topologyBuildStepRef.current = topologyBuildStep;
+  }, [topologyBuildStep]);
+
+  useEffect(() => {
+    lastSceneTapRef.current = null;
+  }, [semanticLevel]);
+
+  useEffect(() => {
+    if (semanticLevel !== "topology") return;
+    if (selectedBrickInfo) {
+      setTopologyActivated(true);
+    }
+  }, [semanticLevel, selectedBrickInfo]);
 
   useEffect(() => {
     let mounted = true;
@@ -487,34 +742,66 @@ const IovTopologyCanvas = () => {
   const empowerLabel = pendingEmpower
     ? `Empower Community Pillar (${pendingEmpower.activationCount})`
     : "Empower Community Pillar";
-  const valueLogStepIndex = valueLogSummary
-    ? WIZARD_STEP_ORDER.indexOf(valueLogSummary.step)
-    : WIZARD_STEP_ORDER.indexOf(valueLogStep);
-  const canValueLogPrev = valueLogStepIndex > 0;
-  const canValueLogNext = valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
-  const canValueLogCommit = valueLogSummary?.step === "show_outcome";
+  const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
+  const nextTopologyBuildRegion =
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild &&
+    topologyBuildStep < TOPOLOGY_BUILD_SEQUENCE.length
+      ? (TOPOLOGY_BUILD_SEQUENCE[topologyBuildStep] ?? null)
+      : null;
+  const visibleTopologyActions =
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild && nextTopologyBuildRegion
+      ? TOPOLOGY_REGION_ACTIONS.filter((action) => action.regionId === nextTopologyBuildRegion)
+      : IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild
+        ? []
+        : TOPOLOGY_REGION_ACTIONS;
+
+  const getNextBuildRegion = (step = topologyBuildStepRef.current) =>
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild && step < TOPOLOGY_BUILD_SEQUENCE.length
+      ? (TOPOLOGY_BUILD_SEQUENCE[step] ?? null)
+      : null;
+
+  const getBuildOrderHint = (nextRegion: RegionId) =>
+    `Build order: Community -> State -> Market -> Bridge. Next: ${getRegionLabel(nextRegion)}.`;
 
   const handleToggle = (toggleId: ToggleId) => {
     setToggles((prev) => {
       const next = { ...prev, [toggleId]: !prev[toggleId] };
       sceneRef.current?.setToggle(toggleId, next[toggleId]);
+      setTopologyActivated(true);
       return next;
     });
   };
 
   const handleBuild = (regionId: RegionId) => {
-    sceneRef.current?.triggerFormation(regionId);
-    setPhaseHeadline(getPhaseHeadline(regionId));
-  };
+    const scene = sceneRef.current;
+    if (!scene) return;
 
-  const handleInteractionModeChange = (mode: BrickInteractionMode) => {
-    setInteractionMode(mode);
-    sceneRef.current?.setBrickInteractionMode(mode);
+    const expectedRegion = getNextBuildRegion();
+    if (expectedRegion && regionId !== expectedRegion) {
+      setPhaseHeadline(getBuildOrderHint(expectedRegion));
+      return;
+    }
+
+    scene.triggerFormation(regionId);
+    setTopologyActivated(true);
+
+    if (!expectedRegion) {
+      setPhaseHeadline(getPhaseHeadline(regionId));
+      return;
+    }
+
+    const nextStep = Math.min(TOPOLOGY_BUILD_SEQUENCE.length, topologyBuildStepRef.current + 1);
+    topologyBuildStepRef.current = nextStep;
+    setTopologyBuildStep(nextStep);
+    const upcoming = getNextBuildRegion(nextStep);
+    if (upcoming) {
+      setPhaseHeadline(`${getPhaseHeadline(regionId)} Next: ${getRegionLabel(upcoming)}.`);
+      return;
+    }
+
     setPhaseHeadline(
-      mode === "inspect"
-        ? "Inspect mode: click an organization unit to select and open."
-        : "Reclaim mode: click upper Market/State/Bridge units to move into Community."
+      "Bridge laid. Select an organization unit to continue the story from system to organization."
     );
   };
 
@@ -523,7 +810,8 @@ const IovTopologyCanvas = () => {
     semanticLevelRef.current = level;
     setSemanticLevel(level);
     if (level === "topology") {
-      setPhaseHeadline("Returned to system layer.");
+      const nextRegion = getNextBuildRegion();
+      setPhaseHeadline(nextRegion ? getBuildOrderHint(nextRegion) : "Returned to system layer.");
     } else if (level === "block") {
       setPhaseHeadline(
         selectedBrickLabel
@@ -545,12 +833,23 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("System impact: Community grows and applies pressure into the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
-        "Time Slice mode: click the clock, context nodes, and L/E/O nodes directly. Next is optional."
+        "Time Slice mode: define time, choose wellbeing context, then commit the causal signal."
       );
       personSceneRef.current?.setDetailMode("valuelog");
-      valueLogSceneRef.current?.setDraft(valueLogDraft);
-      valueLogSceneRef.current?.setStep(valueLogStep);
-      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+      const valueLogScene = valueLogSceneRef.current;
+      if (!valueLogScene) {
+        void (ensureSecondaryScenesRef.current?.() ?? Promise.resolve()).then(() => {
+          const loadedScene = valueLogSceneRef.current;
+          if (!loadedScene) return;
+          loadedScene.setDraft(valueLogDraft);
+          loadedScene.setStep(valueLogStep);
+          setValueLogSummary(loadedScene.getSummary());
+        });
+        return;
+      }
+      valueLogScene.setDraft(valueLogDraft);
+      valueLogScene.setStep(valueLogStep);
+      setValueLogSummary(valueLogScene.getSummary());
     } else {
       setPhaseHeadline("Transitioning...");
     }
@@ -558,11 +857,16 @@ const IovTopologyCanvas = () => {
 
   const getPhaseHeadline = (regionId?: RegionId) => {
     switch (regionId) {
-      case "market": return "This is the Market. It accumulates wealth.";
-      case "state": return "This is the State. It captures and redistributes.";
-      case "community": return "This is the Community. It holds the foundation.";
-      case "crony_bridge": return "The Bridge connects the top layers.";
-      default: return "Select a region to explore.";
+      case "market":
+        return "Market pillar built. Financial scale now sits on top of the foundation.";
+      case "state":
+        return "State pillar built. Governance capacity now rises from the foundation.";
+      case "community":
+        return "Community foundation built. Now stack institutions on top of people.";
+      case "crony_bridge":
+        return "Crony Bridge laid across top layers.";
+      default:
+        return "Build sequence: Community -> State -> Market -> Bridge.";
     }
   };
 
@@ -594,34 +898,42 @@ const IovTopologyCanvas = () => {
       window.setTimeout(resolve, ms);
     });
 
-  const onOpenBrick = async () => {
-    if (!selectedBrickInfo) return;
+  const onOpenBrick = async (selectionOverride?: SelectedBrickInfo) => {
+    const targetSelection =
+      selectionOverride ??
+      selectedBrickInfoRef.current ??
+      sceneRef.current?.getSelectedBrickInfo() ??
+      null;
+    if (!targetSelection) return;
     if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    const mobile = isMobileRef.current;
+    setTopologyActivated(true);
     transitionBusyRef.current = true;
 
     const scene = sceneRef.current;
-    const blockScene = blockSceneRef.current;
+    const ensureSecondaryScenes = ensureSecondaryScenesRef.current;
+    const secondaryScenesReadyPromise = ensureSecondaryScenes?.() ?? Promise.resolve();
     try {
-      if (scene && blockScene) {
+      if (scene) {
         const anchor = scene.getBrickAnchor(
-          selectedBrickInfo.regionId,
-          selectedBrickInfo.instanceId
+          targetSelection.regionId,
+          targetSelection.instanceId
         );
         if (anchor) {
           await scene.playBrickFocusCue(
-            selectedBrickInfo.regionId,
-            selectedBrickInfo.instanceId,
-            isMobile ? 210 : 180
+            targetSelection.regionId,
+            targetSelection.instanceId,
+            mobile ? 210 : 180
           );
           cameraDirectorRef.current.captureLevelPose("topology", {
             camera: scene.camera,
             controls: scene.controls,
           });
           const target = anchor.clone();
-          target.y += isMobile ? 1.05 : 0.95;
+          target.y += mobile ? 1.05 : 0.95;
           const position = target
             .clone()
-            .add(new THREE.Vector3(0, isMobile ? 7.2 : 6.5, isMobile ? 12.8 : 11.5));
+            .add(new THREE.Vector3(0, mobile ? 7.2 : 6.5, mobile ? 12.8 : 11.5));
           await cameraDirectorRef.current.playShot({
             id: "SYSTEM_TO_ORGANIZATION",
             rig: {
@@ -631,20 +943,22 @@ const IovTopologyCanvas = () => {
             endPose: {
               position,
               target,
-              fov: isMobile ? 46 : 38,
+              fov: mobile ? 46 : 38,
             },
-            durationMs: isMobile ? 1200 : 1100,
-            fovOvershoot: isMobile ? 0.9 : 1.1,
+            durationMs: mobile ? 1200 : 1100,
+            fovOvershoot: mobile ? 0.9 : 1.1,
           });
-          await waitMs(isMobile ? 150 : 120);
+          await waitMs(mobile ? 150 : 120);
         }
       }
 
+      await secondaryScenesReadyPromise;
+      const blockScene = blockSceneRef.current;
       const next = zoomControllerRef.current.dispatch({ type: "OPEN_BLOCK" });
       applySemanticTransition(next.level);
       if (blockScene) {
-        blockScene.setSourceBrick(selectedBrickInfo);
-        applyBlockActivationState(selectedBrickInfo);
+        blockScene.setSourceBrick(targetSelection);
+        applyBlockActivationState(targetSelection);
         cameraDirectorRef.current.captureLevelPose("block", {
           camera: blockScene.camera,
           controls: blockScene.controls,
@@ -653,16 +967,6 @@ const IovTopologyCanvas = () => {
     } finally {
       transitionBusyRef.current = false;
     }
-  };
-
-  const onValueLogNext = () => {
-      valueLogSceneRef.current?.nextStep();
-      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
-  };
-
-  const onValueLogPrev = () => {
-      valueLogSceneRef.current?.prevStep();
-      setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
   const handleBackSemantic = () => {
@@ -677,25 +981,33 @@ const IovTopologyCanvas = () => {
     }
   };
 
-  const handleOpenPersonStub = async () => {
-    if (!selectedPersonId) return;
+  const handleOpenPersonStub = async (personIdOverride?: string) => {
+    const targetPersonId = personIdOverride ?? selectedPersonIdRef.current ?? selectedPersonId;
+    if (!targetPersonId) return;
     if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    await (ensureSecondaryScenesRef.current?.() ?? Promise.resolve());
+    const mobile = isMobileRef.current;
     transitionBusyRef.current = true;
     const blockScene = blockSceneRef.current;
+    const personScene = personSceneRef.current;
+    if (!personScene) {
+      transitionBusyRef.current = false;
+      return;
+    }
     try {
       if (blockScene) {
-        const anchor = blockScene.getPersonAnchor(selectedPersonId);
+        const anchor = blockScene.getPersonAnchor(targetPersonId);
         if (anchor) {
-          await blockScene.playPersonFocusCue(selectedPersonId, isMobile ? 190 : 160);
+          await blockScene.playPersonFocusCue(targetPersonId, mobile ? 190 : 160);
           cameraDirectorRef.current.captureLevelPose("block", {
             camera: blockScene.camera,
             controls: blockScene.controls,
           });
           const target = anchor.clone();
-          target.y += isMobile ? 0.26 : 0.2;
+          target.y += mobile ? 0.26 : 0.2;
           const position = target
             .clone()
-            .add(new THREE.Vector3(0, isMobile ? 3.0 : 2.6, isMobile ? 5.6 : 4.8));
+            .add(new THREE.Vector3(0, mobile ? 3.0 : 2.6, mobile ? 5.6 : 4.8));
           await cameraDirectorRef.current.playShot({
             id: "ORGANIZATION_TO_PERSON",
             rig: {
@@ -705,42 +1017,48 @@ const IovTopologyCanvas = () => {
             endPose: {
               position,
               target,
-              fov: isMobile ? 40 : 33,
+              fov: mobile ? 40 : 33,
             },
-            durationMs: isMobile ? 980 : 900,
-            fovOvershoot: isMobile ? 0.7 : 0.9,
+            durationMs: mobile ? 980 : 900,
+            fovOvershoot: mobile ? 0.7 : 0.9,
           });
-          await waitMs(isMobile ? 130 : 110);
+          await waitMs(mobile ? 130 : 110);
         }
       }
       const sourceRegion = blockSummary?.regionId ?? selectedBrickInfo?.regionId ?? "community";
-      personSceneRef.current?.setPersonContext(selectedPersonId, sourceRegion);
-      const logs = resolvePersonValuelogs(valueLogData, selectedPersonId, sourceRegion);
+      personScene.setPersonContext(targetPersonId, sourceRegion);
+      const logs = resolvePersonValuelogs(valueLogData, targetPersonId, sourceRegion);
       setActivePersonLogs(logs);
-      personSceneRef.current?.setTimelineLogs(logs);
-      personSceneRef.current?.setDetailMode("identity");
-      setPersonSummary(personSceneRef.current?.getSummary() ?? null);
+      personScene.setTimelineLogs(logs);
+      personScene.setDetailMode("identity");
+      setPersonSummary(personScene.getSummary());
       const next = zoomControllerRef.current.dispatch({
         type: "OPEN_PERSON",
-        personId: selectedPersonId,
+        personId: targetPersonId,
       });
       applySemanticTransition(next.level);
-      if (personSceneRef.current) {
-        cameraDirectorRef.current.captureLevelPose("person", {
-          camera: personSceneRef.current.camera,
-          controls: personSceneRef.current.controls,
-        });
-      }
+      cameraDirectorRef.current.captureLevelPose("person", {
+        camera: personScene.camera,
+        controls: personScene.controls,
+      });
     } finally {
       transitionBusyRef.current = false;
     }
   };
 
-  const handleOpenValueLog = () => {
+  const handleOpenValueLog = async () => {
+    await (ensureSecondaryScenesRef.current?.() ?? Promise.resolve());
+    const valueLogScene = valueLogSceneRef.current;
+    if (!valueLogScene) return;
+    const summary = personSceneRef.current?.getSummary() ?? personSummary;
+    if (summary && !summary.identityBuildComplete) {
+      setPhaseHeadline("Complete identity layers before opening Time Slice.");
+      return;
+    }
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
-    valueLogSceneRef.current?.setDraft(valueLogDraft);
-    valueLogSceneRef.current?.setStep(valueLogStep);
-    setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+    valueLogScene.setDraft(valueLogDraft);
+    valueLogScene.setStep(valueLogStep);
+    setValueLogSummary(valueLogScene.getSummary());
     applySemanticTransition(next.level);
   };
 
@@ -805,21 +1123,11 @@ const IovTopologyCanvas = () => {
 
   const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
     setValueLogDraft((prev) => ({ ...prev, ...patch }));
-    if (valueLogStep === "select_wellbeing" && patch.wellbeingNode) {
+    if (patch.wellbeingNode) {
       setValueLogStep(
-        patch.wellbeingNode === "~~Performance" ? "select_performance" : "show_outcome"
+        patch.wellbeingNode === "~~Performance" ? "select_performance" : "select_intensity"
       );
     }
-  };
-
-  const handleValueLogNext = () => {
-    valueLogSceneRef.current?.nextStep();
-    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
-  };
-
-  const handleValueLogPrev = () => {
-    valueLogSceneRef.current?.prevStep();
-    setValueLogStep(valueLogSceneRef.current?.getSummary().step ?? "select_time");
   };
 
   const startSystemImpactSequence = (
@@ -989,19 +1297,28 @@ const IovTopologyCanvas = () => {
     });
   };
 
-  const handleValueLogCommit = () => {
+  const handleValueLogCommit = async () => {
     if (!selectedPersonId) return;
-    const entry = valueLogSceneRef.current?.commit(selectedPersonId);
+    if (transitionBusyRef.current) return;
+    const valueLogScene = valueLogSceneRef.current;
+    if (!valueLogScene) return;
+    const entry = valueLogScene.commit(selectedPersonId);
     // Grab the draft before resetting or moving on
-    const finalDraft = valueLogSceneRef.current?.getDraft();
+    const finalDraft = valueLogScene.getDraft();
     if (!entry || !finalDraft) return;
+    transitionBusyRef.current = true;
+    try {
+      await valueLogScene.playCommitDrop(320);
+    } finally {
+      transitionBusyRef.current = false;
+    }
 
     const finalizeAfterPersonImpact = () => {
       const nextLogs = [...activePersonLogs, entry];
       setActivePersonLogs(nextLogs);
       personSceneRef.current?.setTimelineLogs(nextLogs);
       setPersonSummary(personSceneRef.current?.getSummary() ?? null);
-      setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
+      setValueLogSummary(valueLogScene.getSummary());
       setValueLogStep("select_time");
       setLastImpactedPersonId(selectedPersonId);
       setLastImpactedBrick(
@@ -1011,7 +1328,7 @@ const IovTopologyCanvas = () => {
       );
 
       if (IOV_FEATURE_FLAGS.enableImpactEscalation && selectedBrickInfo) {
-        const auraDelta = valueLogSceneRef.current?.getSummary().outcome.auraDelta ?? 0;
+        const auraDelta = valueLogScene.getSummary().outcome.auraDelta;
         const personImpactResult: PersonImpactResult = {
           personId: selectedPersonId,
           sourceRegionId: selectedBrickInfo.regionId,
@@ -1034,7 +1351,12 @@ const IovTopologyCanvas = () => {
 
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_IMPACT" });
     applySemanticTransition(next.level);
-    setPhaseHeadline("Committing time slice: Impact visualization...");
+    const nodeLabel = finalDraft.wellbeingNode.replace("~~", "");
+    setPhaseHeadline(
+      `Photon drop: ${finalDraft.signalLabel} (${finalDraft.signalScore.toFixed(
+        2
+      )}) lands in ${nodeLabel}.`
+    );
 
     if (impactSceneRef.current) {
       impactSceneRef.current.playImpact(finalDraft, finalizeAfterPersonImpact);
@@ -1120,78 +1442,65 @@ function getRegionMeaning(regionId: RegionId) {
         ))}
       </div>
 
-      {semanticLevel === "topology" && selectedBrickInfo && (
-        <div
-          ref={topologyActionCardRef}
-          className="iov-scene-card"
-          style={{
-            width: "440px",
-            position: "absolute",
-            transform: "translate(-50%, -100%)",
-            zIndex: 16,
-          }}
-        >
-          <div className="iov-scene-card-header">
-            <h3>{selectedBrickLabel ?? "Selected Organization"}</h3>
-            <div className="iov-scene-card-sub">System Actions In Scene</div>
-          </div>
-          <div className="iov-scene-card-content">
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#cbd5e1",
-                marginBottom: "12px",
-                lineHeight: 1.45,
+      {semanticLevel === "topology" && (
+        <div className="iov-topology-scene-actions" aria-label="Topology scene actions">
+          {visibleTopologyActions.map((action) => (
+            <button
+              key={action.regionId}
+              type="button"
+              className={`iov-topology-scene-action is-${action.regionId} ${
+                selectedRegionId === action.regionId ? "is-selected" : ""
+              }`}
+              ref={(node) => {
+                topologyRegionActionRefs.current[action.regionId] = node;
               }}
+              onClick={() => handleBuild(action.regionId)}
             >
-              Toggle interaction mode directly in-scene, then continue into the selected
-              organization.
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <button
-                className={interactionMode === "inspect" ? "iov-btn-primary" : "iov-btn-secondary"}
-                onClick={() => handleInteractionModeChange("inspect")}
-              >
-                Inspect
-              </button>
-              <button
-                className={interactionMode === "reclaim" ? "iov-btn-primary" : "iov-btn-secondary"}
-                onClick={() => handleInteractionModeChange("reclaim")}
-              >
-                Reclaim
-              </button>
-            </div>
-            <div className="iov-scene-card-divider" />
-            <button className="iov-btn-action" onClick={onOpenBrick}>
-              Open Organization
+              <span className="iov-topology-scene-action-label">{action.label}</span>
+              <span className="iov-topology-scene-action-cue">{action.cue}</span>
             </button>
-            {canReplayImpact && (
-              <button className="iov-btn-secondary" style={{ marginTop: "8px" }} onClick={handleReplaySystemImpact}>
-                Replay System Impact
-              </button>
-            )}
-          </div>
+          ))}
         </div>
       )}
 
-      {semanticLevel === "block" && blockSummary && blockSummary.selectedPersonId && (
-        <div className="iov-scene-card iov-scene-card-center" style={{ width: '420px' }}>
-          <div className="iov-scene-card-header">
-            <h3>{blockSummary.brickLabel || "Organization Interior"}</h3>
-            <div className="iov-scene-card-sub">Organization Interior</div>
+      {semanticLevel === "topology" && selectedBrickInfo && (
+        <>
+          <div className="iov-scene-chip">
+            <strong>{selectedBrickLabel ?? "Organization selected"}</strong>
+            <span>Double-click to open organization.</span>
           </div>
-          <div className="iov-scene-card-content">
-            <div style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '12px', lineHeight: 1.5 }}>
-              {blockSummary.brickLabel} contains {blockSummary.peopleCount} people proxies.
-              Selected <strong>{blockSummary.selectedPersonId}</strong>. Continue to view their wellbeing identity.
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <button className="iov-btn-primary" onClick={handleOpenPersonStub}>
-                Open Person
+          <div className="iov-scene-dock">
+            <button
+              className={`${presentationMode ? "iov-btn-action" : "iov-btn-secondary"} iov-btn-inline`}
+              onClick={() => onOpenBrick()}
+            >
+              Open Organization
+            </button>
+            {!presentationMode && canReplayImpact && (
+              <button className="iov-btn-secondary iov-btn-inline" onClick={handleReplaySystemImpact}>
+                Replay Impact
               </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {semanticLevel === "block" && blockSummary && blockSummary.selectedPersonId && (
+        <>
+          <div className="iov-scene-chip iov-scene-chip-top">
+            <strong>{blockSummary.selectedPersonId}</strong>
+            <span> selected. Double-click to open person.</span>
+          </div>
+          <div className="iov-scene-dock">
+            <button
+              className={`${presentationMode ? "iov-btn-action" : "iov-btn-secondary"} iov-btn-inline`}
+              onClick={() => handleOpenPersonStub()}
+            >
+              Open Person
+            </button>
+            {!presentationMode && (
               <button
-                className="iov-btn-secondary"
-                style={{ marginTop: 0 }}
+                className="iov-btn-secondary iov-btn-inline"
                 onClick={() => {
                   const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
                   applySemanticTransition(back.level);
@@ -1199,114 +1508,107 @@ function getRegionMeaning(regionId: RegionId) {
               >
                 Back to System
               </button>
-            </div>
+            )}
           </div>
-        </div>
+        </>
       )}
 
       {semanticLevel === "person" && personSummary && (
-        <div className="iov-scene-card iov-scene-card-center">
-          <div className="iov-scene-card-header">
-            <h3>{personSummary.personId}</h3>
-            <div className="iov-scene-card-sub">Identity Stack</div>
+        <>
+          <div className="iov-scene-chip iov-scene-chip-top">
+            <strong>{personSummary.personId}</strong>
+            <span>
+              {personSummary.identityBuildMode
+                ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
+                : " Identity stack ready. Reveal layers to begin."}
+              {presentationMode
+                ? " Follow the highlighted action to progress."
+                : " Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person to open Time Slice."}
+            </span>
           </div>
-          <div className="iov-scene-card-content">
-            {!personSummary.identityBuildMode ? (
-              <button className="iov-btn-primary" onClick={handleStartIdentityBuild}>
-                Reveal Identity Layers
-              </button>
+          {!presentationMode && personSummary.selectedContextTitle && personSummary.selectedContextBody && (
+            <div className="iov-scene-chip iov-scene-chip-context">
+              <strong>{personSummary.selectedContextTitle}</strong>
+              <span>{personSummary.selectedContextBody}</span>
+            </div>
+          )}
+          <div className="iov-scene-dock iov-scene-dock-person">
+            {presentationMode ? (
+              !personSummary.identityBuildMode ? (
+                <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>
+                  Reveal Layers
+                </button>
+              ) : !personSummary.identityBuildComplete ? (
+                <button className="iov-btn-primary iov-btn-inline" onClick={handleNextIdentityLayer}>
+                  Next Layer ({personSummary.identityBuildLayerIndex + 1}/
+                  {personSummary.identityBuildLayerCount})
+                </button>
+              ) : (
+                <button className="iov-btn-action iov-btn-inline" onClick={handleOpenValueLog}>
+                  Open Time Slice
+                </button>
+              )
             ) : (
               <>
-                <div className="iov-scene-card-stat">
-                  Layer: {personSummary.identityBuildLayerLabel ?? "Initializing..."}
-                </div>
-                {!personSummary.identityBuildComplete && (
-                  <button className="iov-btn-primary" onClick={handleNextIdentityLayer}>
-                    Next Layer ({personSummary.identityBuildLayerIndex + 1}/
-                    {personSummary.identityBuildLayerCount})
+                {!personSummary.identityBuildMode ? (
+                  <button className="iov-btn-primary iov-btn-inline" onClick={handleStartIdentityBuild}>
+                    Reveal Layers
                   </button>
+                ) : (
+                  <>
+                    {!personSummary.identityBuildComplete && (
+                      <button className="iov-btn-primary iov-btn-inline" onClick={handleNextIdentityLayer}>
+                        Next Layer ({personSummary.identityBuildLayerIndex + 1}/
+                        {personSummary.identityBuildLayerCount})
+                      </button>
+                    )}
+                    <button
+                      className="iov-btn-secondary iov-btn-inline"
+                      onClick={handleReplayIdentityLayer}
+                      disabled={personSummary.identityBuildLayerIndex < 0}
+                    >
+                      Replay
+                    </button>
+                  </>
                 )}
                 <button
-                  className="iov-btn-secondary"
-                  onClick={handleReplayIdentityLayer}
-                  disabled={personSummary.identityBuildLayerIndex < 0}
+                  className="iov-btn-action iov-btn-inline"
+                  onClick={handleOpenValueLog}
+                  disabled={!personSummary.identityBuildComplete}
                 >
-                  Replay Animation
+                  {personSummary.identityBuildComplete
+                    ? "Open Time Slice"
+                    : "Complete Layers to Open Time Slice"}
+                </button>
+                <button
+                  className="iov-btn-secondary iov-btn-inline"
+                  onClick={() => {
+                    const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
+                    applySemanticTransition(back.level);
+                  }}
+                >
+                  Back to Org
                 </button>
               </>
             )}
-            <div className="iov-scene-card-divider" />
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button className="iov-btn-action" onClick={handleOpenValueLog}>
-                Open Time Slice
-                </button>
-                <button 
-                className="iov-btn-secondary"
-                style={{ marginTop: 0 }}
-                onClick={() => {
-                    const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
-                    applySemanticTransition(back.level);
-                }}
-                >
-                Back to Org
-                </button>
-            </div>
           </div>
-        </div>
+        </>
       )}
 
       {semanticLevel === "valuelog" && valueLogSummary && (
-        <div className="iov-scene-card iov-scene-card-center" style={{ width: "440px" }}>
-          <div className="iov-scene-card-header">
-            <h3>Time Slice Composer</h3>
-            <div className="iov-scene-card-sub">
-              Step {Math.max(1, valueLogStepIndex + 1)} / {WIZARD_STEP_ORDER.length}
-            </div>
+        <>
+          <div className="iov-scene-chip iov-scene-chip-top">
+            <strong>Time Slice</strong>
+            <span>{valueLogSummary.sceneActionHint}</span>
           </div>
-          <div className="iov-scene-card-content">
-            <div className="iov-scene-card-stat">
-              Active step: {valueLogSummary.step.replace("select_", "").replace("_", " ")}
-            </div>
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#cbd5e1",
-                marginBottom: "12px",
-                lineHeight: 1.45,
-              }}
-            >
-              Scene clicks are primary. Use these controls only when needed.
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
-              <button
-                className="iov-btn-secondary"
-                onClick={handleValueLogPrev}
-                disabled={!canValueLogPrev}
-              >
-                Prev
-              </button>
-              <button
-                className="iov-btn-secondary"
-                onClick={handleValueLogNext}
-                disabled={!canValueLogNext}
-              >
-                Next
-              </button>
-              <button className="iov-btn-secondary" onClick={handleBackSemantic}>
-                Back
+          {canValueLogCommit && (
+            <div className="iov-scene-dock">
+              <button className="iov-btn-action iov-btn-inline" onClick={handleValueLogCommit}>
+                Commit Time Slice
               </button>
             </div>
-            <div className="iov-scene-card-divider" />
-            <button
-              className="iov-btn-action"
-              onClick={handleValueLogCommit}
-              disabled={!canValueLogCommit}
-            >
-              Commit Time Slice
-            </button>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       <IovTopologyPanel
@@ -1320,6 +1622,8 @@ function getRegionMeaning(regionId: RegionId) {
         transferredCount={transferredCount}
         isMobile={isMobile}
         semanticLevel={semanticLevel}
+        topologyActivated={topologyActivated}
+        nextTopologyBuildRegion={nextTopologyBuildRegion}
         selectedBrickLabel={
           selectedBrickInfo
             ? `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`
@@ -1331,20 +1635,13 @@ function getRegionMeaning(regionId: RegionId) {
         valueLogDraft={valueLogDraft}
         valueLogSummary={valueLogSummary}
         valueLogStep={valueLogStep}
-        interactionMode={interactionMode}
         onToggle={handleToggle}
-        onBuild={(id) => sceneRef.current?.build(id)}
+        onBuild={handleBuild}
         onOpenBrick={onOpenBrick}
         onOpenPerson={handleOpenPersonStub}
         onBackSemantic={handleBackSemantic}
-        onInteractionModeChange={(mode) => {
-          setInteractionMode(mode);
-          sceneRef.current?.setBrickInteractionMode(mode);
-        }}
         onTogglePresentationMode={() => setPresentationMode((p) => !p)}
         onValueLogDraftChange={handleValueLogDraftChange}
-        onValueLogNext={onValueLogNext}
-        onValueLogPrev={onValueLogPrev}
         onValueLogCommit={handleValueLogCommit}
         onOpenValueLog={handleOpenValueLog}
         canEmpowerCommunity={canEmpowerCommunity}

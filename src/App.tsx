@@ -1,9 +1,13 @@
-import IovTopologyCanvas from "@/components/IovTopologyCanvas";
+import { Suspense, lazy } from "react";
+
+const IovTopologyCanvas = lazy(() => import("@/components/IovTopologyCanvas"));
 
 const App = () => {
   return (
     <div className="app">
-      <IovTopologyCanvas />
+      <Suspense fallback={<div className="iov-app-loading">Loading Internet of Value topology...</div>}>
+        <IovTopologyCanvas />
+      </Suspense>
     </div>
   );
 };

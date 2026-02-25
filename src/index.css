@@ -900,6 +900,11 @@ body {
     background: rgba(48, 74, 116, 0.94);
   }
 
+  .iov-mobile-build-row button:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+  }
+
   .iov-mobile-semantic-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

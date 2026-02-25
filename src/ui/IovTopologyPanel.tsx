@@ -33,6 +33,7 @@ interface IovTopologyPanelProps {
   isMobile: boolean;
   semanticLevel: SemanticZoomLevel;
   topologyActivated: boolean;
+  nextTopologyBuildRegion: RegionId | null;
   selectedBrickLabel: string | null;
   canOpenBrick: boolean;
   blockSummary: BlockPeopleSummary | null;
@@ -72,6 +73,7 @@ const IovTopologyPanel = ({
   isMobile,
   semanticLevel,
   topologyActivated,
+  nextTopologyBuildRegion,
   selectedBrickLabel,
   canOpenBrick,
   blockSummary,
@@ -134,6 +136,8 @@ const IovTopologyPanel = ({
       : "System"
     : formatSemanticLevel(semanticLevel);
   const sceneContext = formatSemanticContext(semanticLevel);
+  const isBuildOptionEnabled = (regionId: RegionId) =>
+    !nextTopologyBuildRegion || nextTopologyBuildRegion === regionId;
   const bridgeCoupledValue =
     marketWithDerivatives !== null && values.state.total !== null
       ? marketWithDerivatives + values.state.total
@@ -273,16 +277,32 @@ const IovTopologyPanel = ({
         </div>
       )}
       {showTopologyDetails && <div className="iov-mobile-build-row">
-        <button type="button" onClick={() => onBuild("market")}>
-          Market
-        </button>
-        <button type="button" onClick={() => onBuild("state")}>
-          State
-        </button>
-        <button type="button" onClick={() => onBuild("community")}>
+        <button
+          type="button"
+          onClick={() => onBuild("community")}
+          disabled={!isBuildOptionEnabled("community")}
+        >
           Community
         </button>
-        <button type="button" onClick={() => onBuild("crony_bridge")}>
+        <button
+          type="button"
+          onClick={() => onBuild("state")}
+          disabled={!isBuildOptionEnabled("state")}
+        >
+          State
+        </button>
+        <button
+          type="button"
+          onClick={() => onBuild("market")}
+          disabled={!isBuildOptionEnabled("market")}
+        >
+          Market
+        </button>
+        <button
+          type="button"
+          onClick={() => onBuild("crony_bridge")}
+          disabled={!isBuildOptionEnabled("crony_bridge")}
+        >
           Bridge
         </button>
       </div>}
@@ -366,6 +386,11 @@ const IovTopologyPanel = ({
             Tip: click upper bricks on Market, State, or Bridge to reclaim them into Community.
           </div>
           <div className="iov-panel-transfer-count">Reclaimed bricks: {transferredCount}</div>
+          {nextTopologyBuildRegion && (
+            <div className="iov-panel-value-subline">
+              Guided build next: <strong>{formatRegionShortLabel(nextTopologyBuildRegion)}</strong>
+            </div>
+          )}
 
           <div className="iov-panel-section-label">Legend</div>
           <div className="iov-panel-legend">
@@ -408,16 +433,32 @@ const IovTopologyPanel = ({
 
             <div className="iov-panel-section-label">Build Formation</div>
             <div className="iov-panel-focus-buttons">
-              <button type="button" onClick={() => onBuild("market")}>
-                Market
-              </button>
-              <button type="button" onClick={() => onBuild("state")}>
-                State
-              </button>
-              <button type="button" onClick={() => onBuild("community")}>
+              <button
+                type="button"
+                onClick={() => onBuild("community")}
+                disabled={!isBuildOptionEnabled("community")}
+              >
                 Community
               </button>
-              <button type="button" onClick={() => onBuild("crony_bridge")}>
+              <button
+                type="button"
+                onClick={() => onBuild("state")}
+                disabled={!isBuildOptionEnabled("state")}
+              >
+                State
+              </button>
+              <button
+                type="button"
+                onClick={() => onBuild("market")}
+                disabled={!isBuildOptionEnabled("market")}
+              >
+                Market
+              </button>
+              <button
+                type="button"
+                onClick={() => onBuild("crony_bridge")}
+                disabled={!isBuildOptionEnabled("crony_bridge")}
+              >
                 Bridge
               </button>
             </div>
@@ -783,7 +824,7 @@ const IovTopologyPanel = ({
       )}
 
       {showTopologyDetails && (
-        <div className="iov-panel-shortcuts">Shortcuts: 1 Market, 2 State, 3 Community, 4 Bridge</div>
+        <div className="iov-panel-shortcuts">Shortcuts: 1 Community, 2 State, 3 Market, 4 Bridge</div>
       )}
       </div>
     </div>
@@ -793,6 +834,21 @@ const IovTopologyPanel = ({
 const formatSigned = (value: number) => {
   const rounded = value.toFixed(3);
   return value > 0 ? `+${rounded}` : rounded;
+};
+
+const formatRegionShortLabel = (regionId: RegionId) => {
+  switch (regionId) {
+    case "community":
+      return "Community";
+    case "state":
+      return "State";
+    case "market":
+      return "Market";
+    case "crony_bridge":
+      return "Bridge";
+    default:
+      return regionId;
+  }
 };
 
 const formatSemanticLevel = (level: SemanticZoomLevel) => {

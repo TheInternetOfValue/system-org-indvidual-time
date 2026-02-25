@@ -85,10 +85,17 @@ const TOPOLOGY_REGION_ACTIONS: ReadonlyArray<{
   label: string;
   cue: string;
 }> = [
-  { regionId: "market", label: "Market", cue: "Build pillar" },
   { regionId: "community", label: "Community", cue: "Build pillar" },
   { regionId: "state", label: "State", cue: "Build pillar" },
-  { regionId: "crony_bridge", label: "Bridge", cue: "Build span" },
+  { regionId: "market", label: "Market", cue: "Build pillar" },
+  { regionId: "crony_bridge", label: "Bridge", cue: "Lay bridge" },
+];
+
+const TOPOLOGY_BUILD_SEQUENCE: ReadonlyArray<RegionId> = [
+  "community",
+  "state",
+  "market",
+  "crony_bridge",
 ];
 
 const IovTopologyCanvas = () => {
@@ -119,6 +126,7 @@ const IovTopologyCanvas = () => {
   });
   const semanticLevelRef = useRef<SemanticZoomLevel>("topology");
   const selectedBrickInfoRef = useRef<SelectedBrickInfo | null>(null);
+  const topologyBuildStepRef = useRef(0);
   const isMobileRef = useRef(window.innerWidth <= 900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -142,7 +150,7 @@ const IovTopologyCanvas = () => {
   const [valueLogData, setValueLogData] = useState(DEFAULT_IOV_VALUELOGS);
   const [presentationMode, setPresentationMode] = useState(false);
   const [phaseHeadline, setPhaseHeadline] = useState(
-    "Empty ground - press Market to begin."
+    "Empty ground - press Community to begin."
   );
   const [toggles, setToggles] = useState<Record<ToggleId, boolean>>(() =>
     buildInitialToggles(topologyData)
@@ -153,6 +161,7 @@ const IovTopologyCanvas = () => {
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
   const [topologyActivated, setTopologyActivated] = useState(false);
+  const [topologyBuildStep, setTopologyBuildStep] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -472,9 +481,9 @@ const IovTopologyCanvas = () => {
       }
 
       const keyMap: Partial<Record<string, RegionId>> = {
-        "1": "market",
+        "1": "community",
         "2": "state",
-        "3": "community",
+        "3": "market",
         "4": "crony_bridge",
       };
 
@@ -482,9 +491,7 @@ const IovTopologyCanvas = () => {
       if (!regionId) return;
       if (semanticLevelRef.current !== "topology") return;
 
-      sceneRef.current.triggerFormation(regionId);
-      setTopologyActivated(true);
-      setPhaseHeadline(getPhaseHeadline(regionId));
+      handleBuild(regionId);
     };
 
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -521,6 +528,10 @@ const IovTopologyCanvas = () => {
   useEffect(() => {
     selectedBrickInfoRef.current = selectedBrickInfo;
   }, [selectedBrickInfo]);
+
+  useEffect(() => {
+    topologyBuildStepRef.current = topologyBuildStep;
+  }, [topologyBuildStep]);
 
   useEffect(() => {
     if (semanticLevel !== "topology") return;
@@ -573,6 +584,25 @@ const IovTopologyCanvas = () => {
   const canValueLogNext = valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
   const canValueLogCommit = valueLogSummary?.step === "show_outcome";
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
+  const nextTopologyBuildRegion =
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild &&
+    topologyBuildStep < TOPOLOGY_BUILD_SEQUENCE.length
+      ? (TOPOLOGY_BUILD_SEQUENCE[topologyBuildStep] ?? null)
+      : null;
+  const visibleTopologyActions =
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild && nextTopologyBuildRegion
+      ? TOPOLOGY_REGION_ACTIONS.filter((action) => action.regionId === nextTopologyBuildRegion)
+      : IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild
+        ? []
+        : TOPOLOGY_REGION_ACTIONS;
+
+  const getNextBuildRegion = (step = topologyBuildStepRef.current) =>
+    IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild && step < TOPOLOGY_BUILD_SEQUENCE.length
+      ? (TOPOLOGY_BUILD_SEQUENCE[step] ?? null)
+      : null;
+
+  const getBuildOrderHint = (nextRegion: RegionId) =>
+    `Build order: Community -> State -> Market -> Bridge. Next: ${getRegionLabel(nextRegion)}.`;
 
   const handleToggle = (toggleId: ToggleId) => {
     setToggles((prev) => {
@@ -584,9 +614,35 @@ const IovTopologyCanvas = () => {
   };
 
   const handleBuild = (regionId: RegionId) => {
-    sceneRef.current?.triggerFormation(regionId);
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    const expectedRegion = getNextBuildRegion();
+    if (expectedRegion && regionId !== expectedRegion) {
+      setPhaseHeadline(getBuildOrderHint(expectedRegion));
+      return;
+    }
+
+    scene.triggerFormation(regionId);
     setTopologyActivated(true);
-    setPhaseHeadline(getPhaseHeadline(regionId));
+
+    if (!expectedRegion) {
+      setPhaseHeadline(getPhaseHeadline(regionId));
+      return;
+    }
+
+    const nextStep = Math.min(TOPOLOGY_BUILD_SEQUENCE.length, topologyBuildStepRef.current + 1);
+    topologyBuildStepRef.current = nextStep;
+    setTopologyBuildStep(nextStep);
+    const upcoming = getNextBuildRegion(nextStep);
+    if (upcoming) {
+      setPhaseHeadline(`${getPhaseHeadline(regionId)} Next: ${getRegionLabel(upcoming)}.`);
+      return;
+    }
+
+    setPhaseHeadline(
+      "Bridge laid. Select an organization unit to continue the story from system to organization."
+    );
   };
 
   const handleInteractionModeChange = (mode: BrickInteractionMode) => {
@@ -605,7 +661,8 @@ const IovTopologyCanvas = () => {
     semanticLevelRef.current = level;
     setSemanticLevel(level);
     if (level === "topology") {
-      setPhaseHeadline("Returned to system layer.");
+      const nextRegion = getNextBuildRegion();
+      setPhaseHeadline(nextRegion ? getBuildOrderHint(nextRegion) : "Returned to system layer.");
     } else if (level === "block") {
       setPhaseHeadline(
         selectedBrickLabel
@@ -640,11 +697,16 @@ const IovTopologyCanvas = () => {
 
   const getPhaseHeadline = (regionId?: RegionId) => {
     switch (regionId) {
-      case "market": return "This is the Market. It accumulates wealth.";
-      case "state": return "This is the State. It captures and redistributes.";
-      case "community": return "This is the Community. It holds the foundation.";
-      case "crony_bridge": return "The Bridge connects the top layers.";
-      default: return "Select a region to explore.";
+      case "market":
+        return "Market pillar built. Financial scale now sits on top of the foundation.";
+      case "state":
+        return "State pillar built. Governance capacity now rises from the foundation.";
+      case "community":
+        return "Community foundation built. Now stack institutions on top of people.";
+      case "crony_bridge":
+        return "Crony Bridge laid across top layers.";
+      default:
+        return "Build sequence: Community -> State -> Market -> Bridge.";
     }
   };
 
@@ -1210,7 +1272,7 @@ function getRegionMeaning(regionId: RegionId) {
 
       {semanticLevel === "topology" && (
         <div className="iov-topology-scene-actions" aria-label="Topology scene actions">
-          {TOPOLOGY_REGION_ACTIONS.map((action) => (
+          {visibleTopologyActions.map((action) => (
             <button
               key={action.regionId}
               type="button"
@@ -1452,6 +1514,7 @@ function getRegionMeaning(regionId: RegionId) {
         isMobile={isMobile}
         semanticLevel={semanticLevel}
         topologyActivated={topologyActivated}
+        nextTopologyBuildRegion={nextTopologyBuildRegion}
         selectedBrickLabel={
           selectedBrickInfo
             ? `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`

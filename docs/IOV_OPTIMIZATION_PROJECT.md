@@ -164,6 +164,36 @@ Delivered:
 
 ---
 
+### Phase 7: Guided Build Sequence + Deferred Bridge Action
+Status: `COMPLETED`
+
+Tasks:
+- Enforce a guided build order in topology storytelling.
+- Keep bridge action hidden until prerequisite pillars are built.
+- Reposition bridge scene affordance so it appears near the elevated bridge zone.
+
+Acceptance:
+- Build flow is guided as `Community -> State -> Market -> Bridge`.
+- Bridge action is not visible before the first three structures are built.
+- Clicking bridge lays it, then the bridge label/action disappears.
+- Tests/build pass.
+
+Delivered:
+- Sequenced topology interaction:
+  - Added explicit guided build sequence state in `IovTopologyCanvas`.
+  - Scene build actions now reveal one-at-a-time in narrative order.
+  - Out-of-order attempts are blocked with clear guidance copy.
+- Bridge gating behavior:
+  - Bridge scene action is now deferred until Community/State/Market are built.
+  - After the bridge action is triggered, it disappears from scene controls.
+- Bridge anchor placement:
+  - Updated `getRegionAnchor("crony_bridge")` to use an elevated bridge-support area anchor, preventing overlap with Community.
+- UX consistency updates:
+  - Updated shortcut ordering and panel hint copy to match guided sequence.
+  - Build controls in panel are now disabled when out-of-sequence.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -183,6 +213,9 @@ Delivered:
 - Phase 6:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 7:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -191,3 +224,4 @@ Delivered:
 - Phase 4: `perf: phase 4 mobile interaction polish`
 - Phase 5: `perf: phase 5 contextual panel and mobile scene-first mode`
 - Phase 6: `perf: phase 6 scene-first topology actions and progressive context`
+- Phase 7: `perf: phase 7 guided topology build order and bridge gating`

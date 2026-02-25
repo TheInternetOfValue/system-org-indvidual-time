@@ -236,6 +236,12 @@ export class ValueLogScene {
   private isCommitting = false; // New flag to control the drop animation
 
   private readonly stringsGroup = new THREE.Group();
+  private readonly stringsMaterial = new THREE.LineBasicMaterial({
+    color: "#ffffff",
+    transparent: true,
+    opacity: 0.15,
+  });
+  private readonly clockCenter = new THREE.Vector3(0, 4, 0);
   private onCompleteCallback?: (outcome: ValueLogOutcome) => void;
   private domElement: HTMLElement;
 
@@ -675,6 +681,8 @@ export class ValueLogScene {
 
   dispose() {
     this.controls.dispose();
+    this.disposeStringsGroup();
+    this.stringsMaterial.dispose();
     this.disposeGroup(this.root);
   }
 
@@ -1022,20 +1030,13 @@ export class ValueLogScene {
   }
 
   private updateStrings() {
-    this.stringsGroup.clear();
-
-    const material = new THREE.LineBasicMaterial({
-      color: "#ffffff",
-      transparent: true,
-      opacity: 0.15,
-    });
+    this.disposeStringsGroup();
 
     // Connect Clock to Wellbeing Nodes
-    const clockCenter = new THREE.Vector3(0, 4, 0);
     this.contextNodes.forEach((node) => {
-      const points = [clockCenter, node.mesh.position];
+      const points = [this.clockCenter, node.mesh.position];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry, material);
+      const line = new THREE.Line(geometry, this.stringsMaterial);
       this.stringsGroup.add(line);
     });
 
@@ -1045,7 +1046,7 @@ export class ValueLogScene {
       this.domainNodes.forEach((domain) => {
         const points = [performanceNode.mesh.position, domain.mesh.position];
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const line = new THREE.Line(geometry, material);
+        const line = new THREE.Line(geometry, this.stringsMaterial);
         this.stringsGroup.add(line);
       });
     }
@@ -1403,6 +1404,14 @@ export class ValueLogScene {
       }
     });
     group.clear();
+  }
+
+  private disposeStringsGroup() {
+    this.stringsGroup.children.forEach((child) => {
+      const line = child as THREE.Line;
+      line.geometry?.dispose?.();
+    });
+    this.stringsGroup.clear();
   }
 }
 

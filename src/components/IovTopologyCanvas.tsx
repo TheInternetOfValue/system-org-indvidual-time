@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
@@ -112,7 +112,6 @@ const IovTopologyCanvas = () => {
   const [valueLogSummary, setValueLogSummary] = useState<ValueLogSummary | null>(null);
   const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
-  const [hoveredRegionId, setHoveredRegionId] = useState<RegionId | null>(null);
   const [transferredCount, setTransferredCount] = useState(0);
   const [semanticLevel, setSemanticLevel] = useState<SemanticZoomLevel>("topology");
   const [values, setValues] = useState(DEFAULT_IOV_VALUES);
@@ -129,12 +128,6 @@ const IovTopologyCanvas = () => {
   const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
-  const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
-
-  const hoveredRegion = useMemo(
-    () => topologyData.regions.find((region) => region.id === hoveredRegionId),
-    [hoveredRegionId]
-  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -149,7 +142,6 @@ const IovTopologyCanvas = () => {
     container.appendChild(renderer.domElement);
 
     const scene = new IovTopologyScene(renderer.domElement, topologyData, {
-      onHoverChange: (regionId) => setHoveredRegionId(regionId),
       onSelectChange: (regionId) => setSelectedRegionId(regionId),
       onTransferCountChange: (count) => setTransferredCount(count),
       onBrickSelectionChange: (selection) => setSelectedBrickInfo(selection),
@@ -335,7 +327,6 @@ const IovTopologyCanvas = () => {
         Math.hypot(event.clientX - dragStartX, event.clientY - dragStartY)
       );
 
-      setTooltipPosition({ x: event.clientX, y: event.clientY });
       if (semanticLevelRef.current === "topology") {
         scene.setPointerFromCanvas(x, y, rect.width, rect.height);
         blockScene.clearPointer();
@@ -369,7 +360,6 @@ const IovTopologyCanvas = () => {
       blockScene.clearPointer();
       personScene.clearPointer();
       valueLogScene.clearPointer();
-      setHoveredRegionId(null);
       setHoveredPersonId(null);
       setHoveredFacet(null);
     };

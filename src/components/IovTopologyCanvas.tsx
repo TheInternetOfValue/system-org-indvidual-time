@@ -80,9 +80,26 @@ interface PendingEmpowerState {
   activationCount: number;
 }
 
+const TOPOLOGY_REGION_ACTIONS: ReadonlyArray<{
+  regionId: RegionId;
+  label: string;
+  cue: string;
+}> = [
+  { regionId: "market", label: "Market", cue: "Build pillar" },
+  { regionId: "community", label: "Community", cue: "Build pillar" },
+  { regionId: "state", label: "State", cue: "Build pillar" },
+  { regionId: "crony_bridge", label: "Bridge", cue: "Build span" },
+];
+
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const topologyActionCardRef = useRef<HTMLDivElement | null>(null);
+  const topologyRegionActionRefs = useRef<Record<RegionId, HTMLButtonElement | null>>({
+    market: null,
+    state: null,
+    community: null,
+    crony_bridge: null,
+  });
   const sceneRef = useRef<IovTopologyScene | null>(null);
   const blockSceneRef = useRef<BlockInteriorScene | null>(null);
   const personSceneRef = useRef<PersonIdentityScene | null>(null);
@@ -135,6 +152,7 @@ const IovTopologyCanvas = () => {
   const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
+  const [topologyActivated, setTopologyActivated] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -231,11 +249,13 @@ const IovTopologyCanvas = () => {
     resize();
 
     const clock = new THREE.Clock();
+    const projectedAnchor = new THREE.Vector3();
     let frame = 0;
     let personSummaryAccumulator = 0;
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
       cameraDirectorRef.current.update(delta);
+      updateTopologyRegionActionAnchors();
       updateTopologyActionCardAnchor();
       if (
         semanticLevelRef.current === "topology" ||
@@ -288,6 +308,60 @@ const IovTopologyCanvas = () => {
       dragStartY = event.clientY;
       dragDistance = 0;
     };
+
+    function updateTopologyRegionActionAnchors() {
+      const host = containerRef.current;
+      const sceneRuntime = sceneRef.current;
+      if (!host || !sceneRuntime) return;
+
+      const isTopologyLevel = semanticLevelRef.current === "topology";
+      const { clientWidth, clientHeight } = host;
+      const safeTop = isMobileRef.current ? 58 : 72;
+      const safeBottom = clientHeight - (isMobileRef.current ? 86 : 24);
+
+      for (const action of TOPOLOGY_REGION_ACTIONS) {
+        const button = topologyRegionActionRefs.current[action.regionId];
+        if (!button) continue;
+
+        if (!isTopologyLevel) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
+
+        const anchor = sceneRuntime.getRegionAnchor(action.regionId);
+        if (!anchor) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
+
+        projectedAnchor.copy(anchor).project(sceneRuntime.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          button.style.opacity = "0";
+          button.style.pointerEvents = "none";
+          continue;
+        }
+
+        const buttonWidth = Math.max(108, button.offsetWidth || 108);
+        const buttonHeight = Math.max(48, button.offsetHeight || 48);
+        const safeLeft = isMobileRef.current ? buttonWidth * 0.5 + 12 : buttonWidth * 0.5 + 16;
+        const safeRight = clientWidth - buttonWidth * 0.5 - 16;
+
+        let x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        let y = (-projectedAnchor.y * 0.5 + 0.5) * clientHeight;
+
+        y -= action.regionId === "crony_bridge" ? buttonHeight * 0.8 : buttonHeight * 0.62;
+
+        x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
+        y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
+
+        button.style.left = `${x}px`;
+        button.style.top = `${y}px`;
+        button.style.opacity = "1";
+        button.style.pointerEvents = "auto";
+      }
+    }
 
     function updateTopologyActionCardAnchor() {
       const card = topologyActionCardRef.current;
@@ -409,6 +483,7 @@ const IovTopologyCanvas = () => {
       if (semanticLevelRef.current !== "topology") return;
 
       sceneRef.current.triggerFormation(regionId);
+      setTopologyActivated(true);
       setPhaseHeadline(getPhaseHeadline(regionId));
     };
 
@@ -446,6 +521,13 @@ const IovTopologyCanvas = () => {
   useEffect(() => {
     selectedBrickInfoRef.current = selectedBrickInfo;
   }, [selectedBrickInfo]);
+
+  useEffect(() => {
+    if (semanticLevel !== "topology") return;
+    if (selectedBrickInfo) {
+      setTopologyActivated(true);
+    }
+  }, [semanticLevel, selectedBrickInfo]);
 
   useEffect(() => {
     let mounted = true;
@@ -496,18 +578,21 @@ const IovTopologyCanvas = () => {
     setToggles((prev) => {
       const next = { ...prev, [toggleId]: !prev[toggleId] };
       sceneRef.current?.setToggle(toggleId, next[toggleId]);
+      setTopologyActivated(true);
       return next;
     });
   };
 
   const handleBuild = (regionId: RegionId) => {
     sceneRef.current?.triggerFormation(regionId);
+    setTopologyActivated(true);
     setPhaseHeadline(getPhaseHeadline(regionId));
   };
 
   const handleInteractionModeChange = (mode: BrickInteractionMode) => {
     setInteractionMode(mode);
     sceneRef.current?.setBrickInteractionMode(mode);
+    setTopologyActivated(true);
     setPhaseHeadline(
       mode === "inspect"
         ? "Inspect mode: click an organization unit to select and open."
@@ -594,6 +679,7 @@ const IovTopologyCanvas = () => {
   const onOpenBrick = async () => {
     if (!selectedBrickInfo) return;
     if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
+    setTopologyActivated(true);
     transitionBusyRef.current = true;
 
     const scene = sceneRef.current;
@@ -1122,6 +1208,27 @@ function getRegionMeaning(regionId: RegionId) {
         ))}
       </div>
 
+      {semanticLevel === "topology" && (
+        <div className="iov-topology-scene-actions" aria-label="Topology scene actions">
+          {TOPOLOGY_REGION_ACTIONS.map((action) => (
+            <button
+              key={action.regionId}
+              type="button"
+              className={`iov-topology-scene-action is-${action.regionId} ${
+                selectedRegionId === action.regionId ? "is-selected" : ""
+              }`}
+              ref={(node) => {
+                topologyRegionActionRefs.current[action.regionId] = node;
+              }}
+              onClick={() => handleBuild(action.regionId)}
+            >
+              <span className="iov-topology-scene-action-label">{action.label}</span>
+              <span className="iov-topology-scene-action-cue">{action.cue}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {semanticLevel === "topology" && selectedBrickInfo && (
         <div
           ref={topologyActionCardRef}
@@ -1344,6 +1451,7 @@ function getRegionMeaning(regionId: RegionId) {
         transferredCount={transferredCount}
         isMobile={isMobile}
         semanticLevel={semanticLevel}
+        topologyActivated={topologyActivated}
         selectedBrickLabel={
           selectedBrickInfo
             ? `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`
@@ -1357,7 +1465,7 @@ function getRegionMeaning(regionId: RegionId) {
         valueLogStep={valueLogStep}
         interactionMode={interactionMode}
         onToggle={handleToggle}
-        onBuild={(id) => sceneRef.current?.build(id)}
+        onBuild={handleBuild}
         onOpenBrick={onOpenBrick}
         onOpenPerson={handleOpenPersonStub}
         onBackSemantic={handleBackSemantic}

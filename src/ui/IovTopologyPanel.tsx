@@ -32,6 +32,7 @@ interface IovTopologyPanelProps {
   transferredCount: number;
   isMobile: boolean;
   semanticLevel: SemanticZoomLevel;
+  topologyActivated: boolean;
   selectedBrickLabel: string | null;
   canOpenBrick: boolean;
   blockSummary: BlockPeopleSummary | null;
@@ -70,6 +71,7 @@ const IovTopologyPanel = ({
   transferredCount,
   isMobile,
   semanticLevel,
+  topologyActivated,
   selectedBrickLabel,
   canOpenBrick,
   blockSummary,
@@ -125,10 +127,99 @@ const IovTopologyPanel = ({
     valueLogStepIndex >= 0 && valueLogStepIndex < WIZARD_STEP_ORDER.length - 1;
   const canValueLogCommit = valueLogSummary?.step === "show_outcome";
   const isTopologyContext = semanticLevel === "topology";
+  const showTopologyDetails = isTopologyContext && topologyActivated;
   const panelTitle = isTopologyContext
-    ? selected?.label ?? "Region"
+    ? topologyActivated
+      ? selected?.label ?? "System"
+      : "System"
     : formatSemanticLevel(semanticLevel);
   const sceneContext = formatSemanticContext(semanticLevel);
+  const bridgeCoupledValue =
+    marketWithDerivatives !== null && values.state.total !== null
+      ? marketWithDerivatives + values.state.total
+      : null;
+
+  const renderTopologyValues = () => {
+    switch (selectedRegionId) {
+      case "market":
+        return (
+          <>
+            <div className="iov-panel-value-line">
+              <strong>Market total:</strong> {formatIovValue(values.market.total, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Cash equities: {formatIovValue(values.market.cash_equities, values.units)}
+            </div>
+            {!presentationMode && (
+              <div className="iov-panel-value-subline">
+                Bonds: {formatIovValue(values.market.bonds, values.units)}
+              </div>
+            )}
+            <div className="iov-panel-value-subline">
+              Derivatives notional:{" "}
+              {formatIovValue(values.market.derivatives_notional, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Visual market scale (cash + derivatives):{" "}
+              {formatIovValue(marketWithDerivatives, values.units)}
+            </div>
+          </>
+        );
+      case "state":
+        return (
+          <>
+            <div className="iov-panel-value-line">
+              <strong>State total (GDP):</strong> {formatIovValue(values.state.total, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Global GDP: {formatIovValue(values.state.global_gdp, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Compare against market scale:{" "}
+              {formatIovValue(marketWithDerivatives, values.units)}
+            </div>
+          </>
+        );
+      case "community":
+        return (
+          <>
+            <div className="iov-panel-value-line">
+              <strong>Community total:</strong> {formatIovValue(values.community.total, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Nonprofit sector:{" "}
+              {formatIovValue(values.community.nonprofit_sector_estimate, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Co-ops / mutuals:{" "}
+              {formatIovValue(values.community.coops_mutuals_estimate, values.units)}
+            </div>
+            {!presentationMode && (
+              <div className="iov-panel-value-subline">
+                Household unpaid:{" "}
+                {formatIovValue(values.community.household_unpaid_estimate, values.units)}
+              </div>
+            )}
+          </>
+        );
+      case "crony_bridge":
+      default:
+        return (
+          <>
+            <div className="iov-panel-value-line">
+              <strong>Bridge coupled scale:</strong>{" "}
+              {formatIovValue(bridgeCoupledValue, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Market visual scale: {formatIovValue(marketWithDerivatives, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              State total (GDP): {formatIovValue(values.state.total, values.units)}
+            </div>
+          </>
+        );
+    }
+  };
 
   if (isMobile && !mobileExpanded) {
     return (
@@ -150,7 +241,9 @@ const IovTopologyPanel = ({
     <div
       className={`iov-panel iov-level-${semanticLevel} ${
         presentationMode ? "is-presentation" : ""
-      } ${isMobile ? "is-mobile" : ""} ${isMobile && !mobileExpanded ? "is-collapsed" : ""}`}
+      } ${isMobile ? "is-mobile" : ""} ${
+        isTopologyContext && !topologyActivated ? "is-topology-idle" : ""
+      } ${isMobile && !mobileExpanded ? "is-collapsed" : ""}`}
     >
       <div className="iov-panel-header">
         <div className="iov-panel-kicker">What is the System and its Value?</div>
@@ -175,11 +268,11 @@ const IovTopologyPanel = ({
       </div>
       {isMobile && isTopologyContext && (
         <div className="iov-mobile-summary">
-          <strong>{selected?.label ?? "Region"}</strong>
+          <strong>{topologyActivated ? selected?.label ?? "System" : "System"}</strong>
           <span>Reclaimed bricks: {transferredCount}</span>
         </div>
       )}
-      {isTopologyContext && <div className="iov-mobile-build-row">
+      {showTopologyDetails && <div className="iov-mobile-build-row">
         <button type="button" onClick={() => onBuild("market")}>
           Market
         </button>
@@ -193,7 +286,7 @@ const IovTopologyPanel = ({
           Bridge
         </button>
       </div>}
-      {isMobile && semanticLevel === "topology" && (
+      {isMobile && semanticLevel === "topology" && showTopologyDetails && (
         <div className="iov-mobile-semantic-row">
           <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
             Open Organization
@@ -251,9 +344,22 @@ const IovTopologyPanel = ({
       <div className="iov-phase-headline">{phaseHeadline}</div>
       <div className="iov-panel-title">{panelTitle}</div>
       <div className="iov-panel-definition">
-        {isTopologyContext ? selected?.notes : sceneContext}
+        {isTopologyContext
+          ? showTopologyDetails
+            ? selected?.notes
+            : "System map: choose a region in-scene to begin."
+          : sceneContext}
       </div>
-      {isTopologyContext && (
+      {isTopologyContext && !showTopologyDetails && (
+        <>
+          <div className="iov-panel-meaning">
+            Scene-first mode: click the in-scene labels (Market, Community, State, Bridge) to
+            start the story. Detailed context appears after your first interaction.
+          </div>
+          <div className="iov-panel-transfer-count">Reclaimed bricks: {transferredCount}</div>
+        </>
+      )}
+      {showTopologyDetails && (
         <>
           <div className="iov-panel-meaning">{meaningText}</div>
           <div className="iov-panel-transfer-tip">
@@ -276,144 +382,106 @@ const IovTopologyPanel = ({
           </div>
 
           <div className="iov-panel-section-label">Values ({values.units})</div>
-          <div className="iov-panel-values">
-            <div className="iov-panel-value-line">
-              <strong>Market total:</strong> {formatIovValue(values.market.total, values.units)}
-            </div>
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Cash equities: {formatIovValue(values.market.cash_equities, values.units)}
-              </div>
-            )}
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Bonds: {formatIovValue(values.market.bonds, values.units)}
-              </div>
-            )}
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Derivatives notional: {formatIovValue(values.market.derivatives_notional, values.units)}
-              </div>
-            )}
-            <div className="iov-panel-value-subline">
-              Visual market scale (cash + derivatives): {formatIovValue(marketWithDerivatives, values.units)}
-            </div>
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Market split guide: below white band = cash, above white band = derivatives.
-              </div>
-            )}
-            <div className="iov-panel-value-line">
-              <strong>State total (GDP):</strong> {formatIovValue(values.state.total, values.units)}
-            </div>
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Global GDP: {formatIovValue(values.state.global_gdp, values.units)}
-              </div>
-            )}
-            <div className="iov-panel-value-line">
-              <strong>Community total:</strong> {formatIovValue(values.community.total, values.units)}
-            </div>
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Nonprofit sector: {formatIovValue(values.community.nonprofit_sector_estimate, values.units)}
-              </div>
-            )}
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Co-ops / mutuals: {formatIovValue(values.community.coops_mutuals_estimate, values.units)}
-              </div>
-            )}
-            {!presentationMode && (
-              <div className="iov-panel-value-subline">
-                Household unpaid: {formatIovValue(values.community.household_unpaid_estimate, values.units)}
-              </div>
-            )}
-          </div>
+          <div className="iov-panel-values">{renderTopologyValues()}</div>
 
-          <div className="iov-panel-section-label">Active Toggles</div>
-          <div className="iov-panel-tags">
-            {data.toggles.map((toggle) => (
-              <span
-                key={toggle.id}
-                className={`iov-tag ${toggles[toggle.id] ? "is-active" : ""}`}
-              >
-                {toggle.label}
-              </span>
-            ))}
-          </div>
+          <details className="iov-panel-advanced">
+            <summary>Advanced controls</summary>
+            <div className="iov-panel-section-label">Active Toggles</div>
+            <div className="iov-panel-tags">
+              {data.toggles.map((toggle) => (
+                <span
+                  key={toggle.id}
+                  className={`iov-tag ${toggles[toggle.id] ? "is-active" : ""}`}
+                >
+                  {toggle.label}
+                </span>
+              ))}
+            </div>
 
-          <div className="iov-panel-buttons">
-            {data.toggles.map((toggle) => (
-              <button key={toggle.id} type="button" onClick={() => onToggle(toggle.id)}>
-                {toggles[toggle.id] ? "Disable" : "Enable"} {toggle.label}
+            <div className="iov-panel-buttons">
+              {data.toggles.map((toggle) => (
+                <button key={toggle.id} type="button" onClick={() => onToggle(toggle.id)}>
+                  {toggles[toggle.id] ? "Disable" : "Enable"} {toggle.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="iov-panel-section-label">Build Formation</div>
+            <div className="iov-panel-focus-buttons">
+              <button type="button" onClick={() => onBuild("market")}>
+                Market
               </button>
-            ))}
-          </div>
-
-          <div className="iov-panel-section-label">Build Formation</div>
-          <div className="iov-panel-focus-buttons">
-            <button type="button" onClick={() => onBuild("market")}>
-              Market
-            </button>
-            <button type="button" onClick={() => onBuild("state")}>
-              State
-            </button>
-            <button type="button" onClick={() => onBuild("community")}>
-              Community
-            </button>
-            <button type="button" onClick={() => onBuild("crony_bridge")}>
-              Bridge
-            </button>
-          </div>
+              <button type="button" onClick={() => onBuild("state")}>
+                State
+              </button>
+              <button type="button" onClick={() => onBuild("community")}>
+                Community
+              </button>
+              <button type="button" onClick={() => onBuild("crony_bridge")}>
+                Bridge
+              </button>
+            </div>
+          </details>
         </>
       )}
 
       <div className="iov-panel-section-label">
-        {isTopologyContext ? "Semantic Zoom" : "Scene Context"}
+        {isTopologyContext
+          ? showTopologyDetails
+            ? "System Controls"
+            : "Scene Context"
+          : "Scene Context"}
       </div>
       <div className="iov-panel-value-subline">
         Level: <strong>{formatSemanticLevel(semanticLevel)}</strong>
       </div>
-      {semanticLevel === "topology" && (
+      {semanticLevel === "topology" && showTopologyDetails && (
         <div className="iov-panel-value-subline">
           Organization mode: <strong>{interactionMode}</strong>
         </div>
       )}
       {semanticLevel === "topology" ? (
         <>
-          <div className="iov-panel-value-subline">
-            Selected organization unit: {selectedBrickLabel ?? "None"}
-          </div>
-          <div className="iov-panel-buttons">
-            <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
-              Open Organization
-            </button>
-            <button
-              type="button"
-              className={interactionMode === "inspect" ? "is-active" : ""}
-              onClick={() => onInteractionModeChange("inspect")}
-            >
-              Inspect
-            </button>
-            <button
-              type="button"
-              className={interactionMode === "reclaim" ? "is-active" : ""}
-              onClick={() => onInteractionModeChange("reclaim")}
-            >
-              Reclaim
-            </button>
-            {canEmpowerCommunity && (
-              <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
-                {empowerLabel}
-              </button>
-            )}
-            {canReplaySystemImpact && (
-              <button type="button" onClick={onReplaySystemImpact}>
-                Replay Impact
-              </button>
-            )}
-          </div>
+          {showTopologyDetails ? (
+            <>
+              <div className="iov-panel-value-subline">
+                Selected organization unit: {selectedBrickLabel ?? "None"}
+              </div>
+              <div className="iov-panel-buttons">
+                <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
+                  Open Organization
+                </button>
+                <button
+                  type="button"
+                  className={interactionMode === "inspect" ? "is-active" : ""}
+                  onClick={() => onInteractionModeChange("inspect")}
+                >
+                  Inspect
+                </button>
+                <button
+                  type="button"
+                  className={interactionMode === "reclaim" ? "is-active" : ""}
+                  onClick={() => onInteractionModeChange("reclaim")}
+                >
+                  Reclaim
+                </button>
+                {canEmpowerCommunity && (
+                  <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
+                    {empowerLabel}
+                  </button>
+                )}
+                {canReplaySystemImpact && (
+                  <button type="button" onClick={onReplaySystemImpact}>
+                    Replay Impact
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="iov-panel-value-subline">
+              Use in-scene labels as the primary controls. Context expands after the first build.
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -714,7 +782,7 @@ const IovTopologyPanel = ({
         </>
       )}
 
-      {isTopologyContext && (
+      {showTopologyDetails && (
         <div className="iov-panel-shortcuts">Shortcuts: 1 Market, 2 State, 3 Community, 4 Bridge</div>
       )}
       </div>

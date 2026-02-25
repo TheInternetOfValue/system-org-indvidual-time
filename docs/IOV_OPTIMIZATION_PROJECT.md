@@ -134,6 +134,36 @@ Delivered:
 
 ---
 
+### Phase 6: Scene-First Topology Actions + Progressive Context Reveal
+Status: `COMPLETED`
+
+Tasks:
+- Put primary topology interactions directly in the scene (not only in the left panel).
+- Reduce left-panel density before first interaction, then reveal context progressively.
+- Keep mobile panel strictly on-demand while preserving all controls in a secondary path.
+
+Acceptance:
+- User can discover and trigger Market/Community/State/Bridge directly from the scene.
+- Topology panel stays minimal until the first meaningful interaction.
+- Existing narrative loop and controls remain intact.
+- Tests/build pass.
+
+Delivered:
+- In-scene topology action anchors:
+  - Added floating, camera-anchored region action buttons (`Market`, `Community`, `State`, `Bridge`) in `IovTopologyCanvas`.
+  - Buttons are projected from world anchors and update per-frame to remain aligned with scene regions on desktop/mobile.
+- Progressive topology context:
+  - Added `topologyActivated` state and wired it to first meaningful interactions (build, mode change, selection/toggle/open flow).
+  - Topology panel now starts in a compact scene-first state and only reveals legend/value/control density after activation.
+- Contextual value storytelling:
+  - Topology value section now focuses on the currently selected region, instead of dumping all region totals at once.
+  - Added bridge-specific coupled-scale readout for bridge context.
+- Control preservation with less clutter:
+  - Kept advanced toggles/build controls accessible under an `Advanced controls` disclosure section.
+  - Kept mobile panel default collapsed/on-demand while preserving semantic quick actions once activated.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -150,6 +180,9 @@ Delivered:
 - Phase 5:
   - `npm test -- --run` passed (3 files, 7 tests).
   - `npm run build` passed (production bundle generated).
+- Phase 6:
+  - `npm test -- --run` passed (3 files, 7 tests).
+  - `npm run build` passed (production bundle generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -157,3 +190,4 @@ Delivered:
 - Phase 3: `perf: phase 3 time-slice storytelling and impact polish`
 - Phase 4: `perf: phase 4 mobile interaction polish`
 - Phase 5: `perf: phase 5 contextual panel and mobile scene-first mode`
+- Phase 6: `perf: phase 6 scene-first topology actions and progressive context`

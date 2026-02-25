@@ -437,6 +437,21 @@ export class IovTopologyScene {
     return DEFAULT_MEANING_BY_REGION[regionId];
   }
 
+  getRegionAnchor(regionId: RegionId) {
+    const runtime = this.regions.get(regionId);
+    if (!runtime) return null;
+
+    const anchor = runtime.center.clone();
+    if (regionId === "market" || regionId === "state") {
+      anchor.y = runtime.topY + HALF_H * 1.5;
+    } else if (regionId === "community") {
+      anchor.y = runtime.topY + HALF_H * 1.2;
+    } else {
+      anchor.y = runtime.topY + HALF_H * 1.1;
+    }
+    return anchor;
+  }
+
   getSelectedBrickInfo() {
     return this.selectedBrickInfo;
   }

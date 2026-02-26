@@ -209,6 +209,7 @@ const IovTopologyCanvas = () => {
     key: string;
     at: number;
   } | null>(null);
+  const valueLogActionStageRef = useRef<ValueLogActionStage>("time_capture");
   const viewportSafeInsetsRef = useRef({
     top: 12,
     right: 12,
@@ -622,14 +623,6 @@ const IovTopologyCanvas = () => {
         return;
       }
 
-      valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
-      projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
-      if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
-        dock.style.opacity = "0";
-        dock.style.pointerEvents = "none";
-        return;
-      }
-
       const { clientWidth, clientHeight } = host;
       const viewportSafe = viewportSafeInsetsRef.current;
       const buttonWidth = Math.max(220, dock.offsetWidth || 220);
@@ -638,17 +631,35 @@ const IovTopologyCanvas = () => {
       const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
       const safeTop = viewportSafe.top + (isMobileRef.current ? 72 : 86);
       const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 84 : 36);
+      const stage = valueLogActionStageRef.current;
 
-      const x = THREE.MathUtils.clamp(
-        (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
-        safeLeft,
-        safeRight
-      );
-      const y = THREE.MathUtils.clamp(
-        (-projectedAnchor.y * 0.5 + 0.5) * clientHeight + (isMobileRef.current ? 76 : 64),
-        safeTop,
-        safeBottom
-      );
+      let x = clientWidth * 0.5;
+      let y = safeTop + buttonHeight * 0.62;
+
+      if (stage === "time_capture") {
+        x = clientWidth * (isMobileRef.current ? 0.5 : 0.38);
+        y = safeTop + buttonHeight * 0.72;
+      } else if (stage === "performance_domains" || stage === "performance_intensity") {
+        x = clientWidth - viewportSafe.right - buttonWidth * 0.54;
+        y = safeTop + buttonHeight * 0.7;
+      } else {
+        valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
+        projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          dock.style.opacity = "0";
+          dock.style.pointerEvents = "none";
+          return;
+        }
+        x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        y =
+          (-projectedAnchor.y * 0.5 + 0.5) * clientHeight +
+          (stage === "ready_capture"
+            ? (isMobileRef.current ? 68 : 60)
+            : (isMobileRef.current ? 76 : 64));
+      }
+
+      x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
+      y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
 
       dock.style.opacity = "1";
       dock.style.pointerEvents = "auto";
@@ -952,6 +963,10 @@ const IovTopologyCanvas = () => {
   useEffect(() => {
     lastSceneTapRef.current = null;
   }, [semanticLevel]);
+
+  useEffect(() => {
+    valueLogActionStageRef.current = valueLogActionStage;
+  }, [valueLogActionStage]);
 
   useEffect(() => {
     if (semanticLevel !== "topology") return;

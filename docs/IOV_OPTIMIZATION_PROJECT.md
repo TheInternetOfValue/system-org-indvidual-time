@@ -653,6 +653,38 @@ Delivered:
 
 ---
 
+### Phase 24: Interaction Reliability Fine-Tuning (Identity Tooltip + Dock Collision Fixes)
+Status: `COMPLETED`
+
+Tasks:
+- Add in-scene facet tooltip feedback in Person identity view.
+- Remove unintended persistent GivenIdentity visual prominence while navigating later layers.
+- Keep Time Slice confirm action reliably clickable during time selection.
+- Prevent performance-stage guide dock from covering Learning/Earning/OrgBuilding targets.
+
+Acceptance:
+- Hovering a facet shows an in-scene tooltip near the hovered orb.
+- Prior identity layers no longer visually "blink" as active when later layers are in focus.
+- Time-selection action dock stays stable and easy to click.
+- Performance-stage action dock avoids SAOcommons domain overlap.
+- Tests/build pass.
+
+Delivered:
+- `PersonIdentityScene`:
+  - Added dynamic in-scene facet tooltip sprite (title + contextual facet hint) anchored near hovered facet.
+  - Updated tooltip lifecycle to hide on pointer leave/non-facet hover and track camera-facing orientation.
+  - Adjusted ring/facet emphasis logic during staged identity build so prior layers are de-emphasized.
+  - Removed steady-state rule that always surfaced the first layer label.
+- `ValueLogScene`:
+  - Tuned time-stage photon orbit to stay closer to the clock center and avoid wide excursions.
+- `IovTopologyCanvas`:
+  - Added stage-aware action dock anchoring for Value Log:
+    - `time_capture`: fixed stable top position (no chasing photon).
+    - `performance_domains`/`performance_intensity`: top-right safe placement to avoid SAOcommons node overlap.
+    - other stages retain contextual token anchoring.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -723,6 +755,9 @@ Delivered:
 - Phase 23:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 24:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -748,3 +783,4 @@ Delivered:
 - Phase 21: `feat: phase 21 scene-first time-slice causal capture flow`
 - Phase 22: `feat: phase 22 person-centered impact continuity and aura propagation`
 - Phase 23: `style: phase 23 impact timing cadence polish`
+- Phase 24: `fix: phase 24 interaction reliability and overlay placement tuning`

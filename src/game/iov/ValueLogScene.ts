@@ -641,12 +641,13 @@ export class ValueLogScene {
     const targetPos = new THREE.Vector3();
     
     if (this.step === "select_time") {
-      const orbitRadius = 2.58;
-      const phase = (Math.sin(this.elapsedSeconds * 0.9) + 1) * 0.5;
-      const tokenAngle = this.startAngle + this.sliceLength * phase;
+      const orbitRadius = 1.68;
+      const midAngle = this.startAngle + this.sliceLength * 0.5;
+      const swing = Math.min(this.sliceLength * 0.36, Math.PI / 4);
+      const tokenAngle = midAngle + Math.sin(this.elapsedSeconds * 1.05) * swing;
       targetPos.set(
         Math.cos(tokenAngle) * orbitRadius,
-        4.58 + Math.sin(this.elapsedSeconds * 1.4) * 0.06, // Clock is at Y=4
+        4.52 + Math.sin(this.elapsedSeconds * 1.35) * 0.05,
         Math.sin(tokenAngle) * orbitRadius
       );
     } else if (this.step === "select_wellbeing") {

@@ -149,6 +149,8 @@ export class PersonIdentityScene {
       opacity: 0.95,
     })
   );
+  private facetTooltip: THREE.Sprite | null = null;
+  private facetTooltipFacet: string | null = null;
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -175,6 +177,9 @@ export class PersonIdentityScene {
     this.hoveredMarker.visible = false;
     this.selectedMarker.visible = false;
     this.root.add(this.hoveredMarker, this.selectedMarker);
+    this.facetTooltip = this.createFacetTooltipSprite("Facet", "Tap to focus this identity signal.");
+    this.facetTooltip.visible = false;
+    this.root.add(this.facetTooltip);
 
     this.camera.position.set(0, 5.5, 10.2);
     this.controls.target.set(0, 1.8, 0);
@@ -384,6 +389,7 @@ export class PersonIdentityScene {
     this.hoveredMarker.visible = false;
     this.hoveredFacet = null;
     this.hoveredLayerKey = null;
+    this.hideFacetTooltip();
     this.callbacks.onHoverFacetChange?.(null);
   }
 
@@ -712,7 +718,7 @@ export class PersonIdentityScene {
           const isSteadyState = this.pulseEnergy < 0.1;
           const showLabel = focusLayerKey
             ? ringNode.key === focusLayerKey
-            : (waveImpact > 0.1) || isDirect || (isSteadyState && (isDerived || ringLayerIndex === 0));
+            : waveImpact > 0.1 || isDirect || (isSteadyState && isDerived);
           label.visible = showLabel;
           // Fade label based on impact
            ((label as THREE.Sprite).material as THREE.SpriteMaterial).opacity = focusLayerKey
@@ -736,6 +742,9 @@ export class PersonIdentityScene {
 
       // Flash on wave impact
       let ringOpacity = Math.min(1, baseline + boost + waveImpact * 0.5);
+      if (buildModeActive && ringLayerIndex < this.buildLayerIndex) {
+        ringOpacity *= 0.45;
+      }
       if (focusLayerKey && ringNode.key !== focusLayerKey) {
         ringOpacity *= 0.12;
       }
@@ -748,6 +757,9 @@ export class PersonIdentityScene {
       let ringScale =
         1 + (isDirect ? 0.02 : isDerived ? 0.01 : 0) + this.pulseEnergy * (isDirect ? 0.06 : 0.03) + waveImpact * 0.08
       ;
+      if (buildModeActive && ringLayerIndex < this.buildLayerIndex) {
+        ringScale = THREE.MathUtils.lerp(ringScale, 1, 0.88);
+      }
       if (focusLayerKey && ringNode.key === focusLayerKey) {
         ringScale += 0.03;
       } else if (focusLayerKey) {
@@ -808,6 +820,10 @@ export class PersonIdentityScene {
           : 0.05) * dropBlend + this.pulseEnergy * 0.15 + impactGlow;
 
       let nodeOpacity = Math.max(0.06, dropBlend);
+      if (buildModeActive && node.layerIndex < this.buildLayerIndex) {
+        nodeOpacity *= 0.48;
+        material.emissiveIntensity *= 0.36;
+      }
       if (focusLayerKey && node.layer.key !== focusLayerKey) {
         nodeOpacity *= 0.08;
         material.emissiveIntensity *= 0.12;
@@ -832,6 +848,15 @@ export class PersonIdentityScene {
         this.selectedMarker.visible = true;
       } else {
         this.selectedMarker.visible = false;
+      }
+    }
+
+    if (this.hoveredFacet && this.facetTooltip) {
+      const hovered = this.facetNodes.find((node) => node.facet === this.hoveredFacet);
+      if (hovered?.mesh.visible) {
+        this.positionFacetTooltip(hovered.mesh.position);
+      } else {
+        this.hideFacetTooltip();
       }
     }
   }
@@ -884,6 +909,7 @@ export class PersonIdentityScene {
       this.hoveredLayerKey = node.layer.key;
       this.hoveredMarker.visible = true;
       this.hoveredMarker.position.copy(node.mesh.position);
+      this.showFacetTooltip(node.facet, node.mesh.position);
       if (this.hoveredFacet !== node.facet) {
         this.hoveredFacet = node.facet;
         this.callbacks.onHoverFacetChange?.(node.facet);
@@ -896,6 +922,7 @@ export class PersonIdentityScene {
       const ring = this.layerRings[ringHit];
       this.hoveredLayerKey = ring?.key ?? null;
       this.hoveredMarker.visible = false;
+      this.hideFacetTooltip();
       if (this.hoveredFacet !== null) {
         this.hoveredFacet = null;
         this.callbacks.onHoverFacetChange?.(null);
@@ -905,6 +932,7 @@ export class PersonIdentityScene {
 
     this.hoveredMarker.visible = false;
     this.hoveredLayerKey = null;
+    this.hideFacetTooltip();
     if (this.hoveredFacet !== null) {
       this.hoveredFacet = null;
       this.callbacks.onHoverFacetChange?.(null);
@@ -1024,6 +1052,74 @@ export class PersonIdentityScene {
     );
     sprite.scale.set(2.2, 0.55, 1);
     return sprite;
+  }
+
+  private createFacetTooltipSprite(title: string, body: string) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = 460;
+    canvas.height = 130;
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(8,18,34,0.94)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(159,194,244,0.62)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+      ctx.fillStyle = "#f8d67b";
+      ctx.font = "700 30px Avenir Next";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(title, 18, 38);
+      ctx.fillStyle = "rgba(226,238,255,0.95)";
+      ctx.font = "500 20px Avenir Next";
+      const maxBody = body.length > 78 ? `${body.slice(0, 75)}...` : body;
+      ctx.fillText(maxBody, 18, 88);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.96,
+        depthWrite: false,
+      })
+    );
+    sprite.scale.set(3.8, 1.08, 1);
+    return sprite;
+  }
+
+  private showFacetTooltip(facet: string, position: THREE.Vector3) {
+    const cleanFacet = cleanToken(facet) ?? "Facet";
+    const body = FACET_HINTS[cleanFacet] ?? `${cleanFacet} is part of this identity layer.`;
+    if (!this.facetTooltip || this.facetTooltipFacet !== facet) {
+      if (this.facetTooltip) {
+        this.root.remove(this.facetTooltip);
+        const material = this.facetTooltip.material as THREE.SpriteMaterial;
+        material.map?.dispose();
+        material.dispose();
+      }
+      this.facetTooltip = this.createFacetTooltipSprite(cleanFacet, body);
+      this.root.add(this.facetTooltip);
+      this.facetTooltipFacet = facet;
+    }
+    this.positionFacetTooltip(position);
+    if (this.facetTooltip) this.facetTooltip.visible = true;
+  }
+
+  private positionFacetTooltip(position: THREE.Vector3) {
+    if (!this.facetTooltip) return;
+    this.facetTooltip.position.copy(position);
+    this.facetTooltip.position.x += 0.9;
+    this.facetTooltip.position.y += 0.58;
+    this.facetTooltip.position.z += 0.08;
+    this.facetTooltip.lookAt(this.camera.position);
+  }
+
+  private hideFacetTooltip() {
+    if (this.facetTooltip) this.facetTooltip.visible = false;
+    this.facetTooltipFacet = null;
   }
 
   private disposeGroup(group: THREE.Group) {

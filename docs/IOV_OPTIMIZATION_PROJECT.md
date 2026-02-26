@@ -537,6 +537,154 @@ Delivered:
 
 ---
 
+### Phase 20: Unified Mobile Safe-Viewport Overlay Clamping
+Status: `COMPLETED`
+
+Tasks:
+- Replace per-element bottom/top hacks with a shared mobile-safe viewport model.
+- Keep all scene overlays and panel affordances inside a consistent visible interaction zone.
+- Preserve contextual anchors (photon/community) while preventing clipping under mobile browser chrome.
+
+Acceptance:
+- `Show context`, scene chips/docks, `Commit Time Slice`, and `Empower Community` remain visible across mobile viewport/chrome changes.
+- Anchored CTA projection clamps against shared safe bounds.
+- Tests/build pass.
+
+Delivered:
+- Added shared safe viewport plumbing in `IovTopologyCanvas`:
+  - Computes safe top/right/bottom/left using `window.visualViewport` + layout viewport deltas.
+  - Stores values in CSS vars on the stage (`--iov-safe-*`) and updates on resize + visual viewport scroll/resize.
+  - Updates `--iov-app-height` to dynamic visible height for mobile browser chrome changes.
+- Reworked anchor clamping in scene projection loops to use shared safe insets:
+  - Topology action anchors.
+  - Time Slice commit floating dock.
+  - System empower floating dock.
+- Updated global CSS to consume safe vars for layout-critical overlays:
+  - Root/app height uses `--iov-app-height` fallback to `100dvh`.
+  - Breadcrumb, panel, mobile peek, scene chips, and scene docks use shared safe offsets.
+  - Presentation and mobile variants now inherit safe-zone positioning instead of raw fixed offsets.
+
+---
+
+### Phase 21: Scene-First Time Slice Causal Capture Flow
+Status: `COMPLETED`
+
+Tasks:
+- Replace ambiguous Time Slice commit-only overlay with a strict one-action-at-a-time scene flow.
+- Keep interactions in-scene (photon-context dock), not dependent on side-panel sequencing.
+- Support contextual progression: time -> activity -> proof -> wellbeing -> intensity -> SAOcommons (for Performance) -> capture.
+
+Acceptance:
+- Time Slice flow is understandable on first pass with one primary action visible per stage.
+- Performance node selection opens SAOcommons domain handling in-scene, including domain intensity tuning.
+- Final CTA uses `Capture Value` language and preserves existing impact drop transition.
+- Tests/build pass.
+
+Delivered:
+- Added explicit scene action-stage contract in `IovTopologyCanvas`:
+  - `time_capture -> activity_capture -> proof_capture -> wellbeing_select -> intensity_select|performance_domains -> performance_intensity -> ready_capture`.
+  - Stage-to-scene-step mapping keeps `ValueLogScene` visuals deterministic while allowing richer sequencing.
+- Added contextual floating Time Slice dock (anchored near photon) with stage-specific controls:
+  - Time confirmation from clock.
+  - Activity/proof templates plus editable text capture.
+  - Wellbeing intensity controls for non-performance contexts.
+  - SAOcommons domain selection and per-domain intensity controls for performance context.
+  - Final CTA renamed to `Capture Value`.
+- Removed fragile auto-step jumps in `ValueLogScene.selectFromPointer`:
+  - Pointer selection now updates meaningfully without forced hidden progression.
+  - Domain selection toggles on direct interaction, improving mobile reliability.
+- Updated ValueLog scene hint copy and panel CTA wording to align with the new capture narrative.
+
+---
+
+### Phase 22: Person-Centered Impact Continuity (Photon -> Human -> Aura)
+Status: `COMPLETED`
+
+Tasks:
+- Remove disjoint "bottom ocean" outcome clutter from Time Slice commit handoff.
+- Redesign Impact scene so the human remains visually present during photon impact.
+- Show identity propagation clearly: head/core hit -> rings expand -> IdentityState ring glow -> aura formation.
+
+Acceptance:
+- Commit handoff feels continuous into the person, not a separate abstract scene.
+- Impact scene includes visible human core and identity ring system.
+- IdentityState ring reads as the final energized layer before transition to org/system.
+- Tests/build pass.
+
+Delivered:
+- Time Slice handoff cleanup in `ValueLogScene`:
+  - Removed bottom-oriented outcome clutter from the visible commit state (no bottom bars/labels/aura bands shown).
+  - Changed commit token motion to stay near center for a tighter visual handoff into impact.
+  - Disabled in-scene ripple/ocean effect during commit handoff.
+- Impact continuity redesign in `PersonImpactScene`:
+  - Added visible human core (torso/head/base) styled consistently with Person scene.
+  - Added concentric identity rings around the person (using protocol layer colors).
+  - Changed photon trajectory to land on the head/core target.
+  - Added impact flash and outward ring propagation wave.
+  - Added sustained IdentityState ring glow and aura-band emergence to represent aura formation.
+  - Added responsive camera framing and explicit `dispose()` cleanup.
+- Narrative copy update:
+  - Updated impact phase headline in `IovTopologyCanvas` to describe photon landing in the person's identity core.
+
+---
+
+### Phase 23: Impact Timing Cadence Polish (Handoff + Contact + Glow Hold)
+Status: `COMPLETED`
+
+Tasks:
+- Refine pacing between Time Slice commit and Impact to improve readability of causal beats.
+- Add a brief "photon contact" moment at the person core before ripple expansion.
+- Smooth final glow hold so identity/aura formation is legible before scene transition.
+
+Acceptance:
+- Commit handoff no longer feels abrupt.
+- Head/core impact beat is visible before rings propagate.
+- Final ring/aura state has enough dwell time to be understood before returning to org/system.
+- Tests/build pass.
+
+Delivered:
+- Updated Time Slice handoff timing in `IovTopologyCanvas`:
+  - Increased `playCommitDrop` duration (`390ms` desktop, `340ms` mobile) for cleaner handoff pacing.
+- Updated Impact animation cadence in `PersonImpactScene`:
+  - Added `headContactDuration` phase between drop and ripple.
+  - Tuned drop/ripple/completion timing constants for clearer visual storytelling.
+  - Adjusted flash timing to align with contact -> propagation sequence.
+- Updated impact headline copy to match the new cadence language (`rings and aura light up`).
+
+---
+
+### Phase 24: Interaction Reliability Fine-Tuning (Identity Tooltip + Dock Collision Fixes)
+Status: `COMPLETED`
+
+Tasks:
+- Add in-scene facet tooltip feedback in Person identity view.
+- Remove unintended persistent GivenIdentity visual prominence while navigating later layers.
+- Keep Time Slice confirm action reliably clickable during time selection.
+- Prevent performance-stage guide dock from covering Learning/Earning/OrgBuilding targets.
+
+Acceptance:
+- Hovering a facet shows an in-scene tooltip near the hovered orb.
+- Prior identity layers no longer visually "blink" as active when later layers are in focus.
+- Time-selection action dock stays stable and easy to click.
+- Performance-stage action dock avoids SAOcommons domain overlap.
+- Tests/build pass.
+
+Delivered:
+- `PersonIdentityScene`:
+  - Added dynamic in-scene facet tooltip sprite (title + contextual facet hint) anchored near hovered facet.
+  - Updated tooltip lifecycle to hide on pointer leave/non-facet hover and track camera-facing orientation.
+  - Adjusted ring/facet emphasis logic during staged identity build so prior layers are de-emphasized.
+  - Removed steady-state rule that always surfaced the first layer label.
+- `ValueLogScene`:
+  - Tuned time-stage photon orbit to stay closer to the clock center and avoid wide excursions.
+- `IovTopologyCanvas`:
+  - Added stage-aware action dock anchoring for Value Log:
+    - `time_capture`: fixed stable top position (no chasing photon).
+    - `performance_domains`/`performance_intensity`: top-right safe placement to avoid SAOcommons node overlap.
+    - other stages retain contextual token anchoring.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -595,6 +743,21 @@ Delivered:
 - Phase 19:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 20:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 21:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 22:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 23:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 24:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -616,3 +779,8 @@ Delivered:
 - Phase 17: `fix: phase 17 lift mobile show-context peek above browser chrome`
 - Phase 18: `fix: phase 18 show empower community CTA in-system without opening panel`
 - Phase 19: `fix: phase 19 anchor empower community CTA near community base`
+- Phase 20: `fix: phase 20 unify mobile safe viewport overlay clamping`
+- Phase 21: `feat: phase 21 scene-first time-slice causal capture flow`
+- Phase 22: `feat: phase 22 person-centered impact continuity and aura propagation`
+- Phase 23: `style: phase 23 impact timing cadence polish`
+- Phase 24: `fix: phase 24 interaction reliability and overlay placement tuning`

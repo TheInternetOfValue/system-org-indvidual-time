@@ -27,6 +27,11 @@ import type { PersonImpactScene as PersonImpactSceneRuntime } from "@/game/iov/P
 import type { ValueLogScene as ValueLogSceneRuntime } from "@/game/iov/ValueLogScene";
 import {
   createInitialValueLogDraft,
+  SAOCOMMONS_DOMAIN_PROMPTS,
+  VALUE_CAPTURE_ACTIVITY_TEMPLATES,
+  VALUE_CAPTURE_PROOF_TEMPLATES,
+  WELLBEING_INTENSITY_PROMPTS,
+  type SaocommonsDomain,
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
@@ -97,6 +102,76 @@ const TOPOLOGY_BUILD_SEQUENCE: ReadonlyArray<RegionId> = [
 ];
 const DOUBLE_TAP_WINDOW_MS = 340;
 
+type ValueLogActionStage =
+  | "time_capture"
+  | "activity_capture"
+  | "proof_capture"
+  | "wellbeing_select"
+  | "intensity_select"
+  | "performance_domains"
+  | "performance_intensity"
+  | "ready_capture";
+
+const getSelectedPerformanceDomains = (draft: ValueLogDraft): SaocommonsDomain[] => {
+  const domains: SaocommonsDomain[] = [];
+  if (draft.learningTag) domains.push("~~Learning");
+  if (draft.earningTag) domains.push("~~Earning");
+  if (draft.orgBuildingTag) domains.push("~~OrgBuilding");
+  return domains;
+};
+
+const getDomainIntensityValue = (draft: ValueLogDraft, domain: SaocommonsDomain) => {
+  if (domain === "~~Learning") return draft.learningIntensity;
+  if (domain === "~~Earning") return draft.earningIntensity;
+  return draft.orgBuildingIntensity;
+};
+
+const toDomainIntensityPatch = (domain: SaocommonsDomain, value: number): Partial<ValueLogDraft> => {
+  if (domain === "~~Learning") return { learningIntensity: value };
+  if (domain === "~~Earning") return { earningIntensity: value };
+  return { orgBuildingIntensity: value };
+};
+
+const toDomainTagPatch = (domain: SaocommonsDomain, value: boolean): Partial<ValueLogDraft> => {
+  if (domain === "~~Learning") return { learningTag: value };
+  if (domain === "~~Earning") return { earningTag: value };
+  return { orgBuildingTag: value };
+};
+
+const minutesFromInput = (value: string) => {
+  const parsed = value.length > 0 ? new Date(value) : new Date();
+  if (Number.isNaN(parsed.getTime())) return 0;
+  return parsed.getHours() * 60 + parsed.getMinutes();
+};
+
+const isTimeRangeValid = (startTime: string, endTime: string) => {
+  const start = minutesFromInput(startTime);
+  const end = minutesFromInput(endTime);
+  const span = end > start ? end - start : end - start + 1440;
+  return span >= 15;
+};
+
+const formatShortClock = (input: string) => {
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return "--:--";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+
+const mapActionStageToWizardStep = (
+  stage: ValueLogActionStage,
+  wellbeingNode: ValueLogDraft["wellbeingNode"]
+): WizardStep => {
+  if (stage === "time_capture" || stage === "activity_capture" || stage === "proof_capture") {
+    return "select_time";
+  }
+  if (stage === "wellbeing_select") return "select_wellbeing";
+  if (stage === "intensity_select") return "select_intensity";
+  if (stage === "performance_domains" || stage === "performance_intensity") {
+    return wellbeingNode === "~~Performance" ? "select_performance" : "select_intensity";
+  }
+  return "show_outcome";
+};
+
 const IovTopologyCanvas = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const valueLogCommitDockRef = useRef<HTMLDivElement | null>(null);
@@ -134,6 +209,13 @@ const IovTopologyCanvas = () => {
     key: string;
     at: number;
   } | null>(null);
+  const valueLogActionStageRef = useRef<ValueLogActionStage>("time_capture");
+  const viewportSafeInsetsRef = useRef({
+    top: 12,
+    right: 12,
+    bottom: 12,
+    left: 12,
+  });
   const isMobileRef = useRef(window.innerWidth <= 900);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
@@ -147,6 +229,10 @@ const IovTopologyCanvas = () => {
     createInitialValueLogDraft()
   );
   const [valueLogStep, setValueLogStep] = useState<WizardStep>("select_time");
+  const [valueLogActionStage, setValueLogActionStage] =
+    useState<ValueLogActionStage>("time_capture");
+  const [activePerformanceDomain, setActivePerformanceDomain] =
+    useState<SaocommonsDomain | null>(null);
   const [valueLogSummary, setValueLogSummary] = useState<ValueLogSummary | null>(null);
   const [activePersonLogs, setActivePersonLogs] = useState<IovValueLogEntry[]>([]);
   const [hoveredFacet, setHoveredFacet] = useState<string | null>(null);
@@ -283,6 +369,45 @@ const IovTopologyCanvas = () => {
       scene.setToggle(toggleId as ToggleId, enabled);
     }
 
+    const applyViewportSafeLayout = () => {
+      const host = containerRef.current;
+      if (!host) return;
+
+      const visualViewport = window.visualViewport;
+      const layoutWidth = window.innerWidth;
+      const layoutHeight = window.innerHeight;
+      const visibleWidth = visualViewport?.width ?? layoutWidth;
+      const visibleHeight = visualViewport?.height ?? layoutHeight;
+      const visibleOffsetLeft = visualViewport?.offsetLeft ?? 0;
+      const visibleOffsetTop = visualViewport?.offsetTop ?? 0;
+      const hiddenRight = Math.max(0, layoutWidth - (visibleOffsetLeft + visibleWidth));
+      const hiddenBottom = Math.max(0, layoutHeight - (visibleOffsetTop + visibleHeight));
+
+      const widthScale = host.clientWidth / Math.max(layoutWidth, 1);
+      const heightScale = host.clientHeight / Math.max(layoutHeight, 1);
+      const padding = isMobileRef.current ? 10 : 12;
+      const safeTop = Math.max(8, visibleOffsetTop * heightScale + padding);
+      const safeRight = Math.max(8, hiddenRight * widthScale + padding);
+      const safeBottom = Math.max(8, hiddenBottom * heightScale + padding);
+      const safeLeft = Math.max(8, visibleOffsetLeft * widthScale + padding);
+
+      viewportSafeInsetsRef.current = {
+        top: safeTop,
+        right: safeRight,
+        bottom: safeBottom,
+        left: safeLeft,
+      };
+
+      host.style.setProperty("--iov-safe-top", `${Math.round(safeTop)}px`);
+      host.style.setProperty("--iov-safe-right", `${Math.round(safeRight)}px`);
+      host.style.setProperty("--iov-safe-bottom", `${Math.round(safeBottom)}px`);
+      host.style.setProperty("--iov-safe-left", `${Math.round(safeLeft)}px`);
+      document.documentElement.style.setProperty(
+        "--iov-app-height",
+        `${Math.max(320, Math.round(visibleHeight))}px`
+      );
+    };
+
     const resize = () => {
       const { clientWidth, clientHeight } = container;
       const nextIsMobile = clientWidth <= 900;
@@ -312,6 +437,7 @@ const IovTopologyCanvas = () => {
           );
         }
       }
+      applyViewportSafeLayout();
     };
     resize();
 
@@ -393,7 +519,6 @@ const IovTopologyCanvas = () => {
             personSummaryAccumulator = 0;
             const summary = valueLogScene.getSummary();
             setValueLogSummary(summary);
-            setValueLogStep(summary.step);
             setValueLogDraft(summary.draft);
           }
         } else {
@@ -406,6 +531,8 @@ const IovTopologyCanvas = () => {
 
     tick();
     window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", applyViewportSafeLayout);
+    window.visualViewport?.addEventListener("scroll", applyViewportSafeLayout);
 
     let dragStartX = 0;
     let dragStartY = 0;
@@ -433,9 +560,10 @@ const IovTopologyCanvas = () => {
       if (!host || !sceneRuntime) return;
 
       const isTopologyLevel = semanticLevelRef.current === "topology";
+      const viewportSafe = viewportSafeInsetsRef.current;
       const { clientWidth, clientHeight } = host;
-      const safeTop = isMobileRef.current ? 58 : 72;
-      const safeBottom = clientHeight - (isMobileRef.current ? 86 : 24);
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 46 : 54);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 80 : 20);
 
       for (const action of TOPOLOGY_REGION_ACTIONS) {
         const button = topologyRegionActionRefs.current[action.regionId];
@@ -463,8 +591,8 @@ const IovTopologyCanvas = () => {
 
         const buttonWidth = Math.max(108, button.offsetWidth || 108);
         const buttonHeight = Math.max(48, button.offsetHeight || 48);
-        const safeLeft = isMobileRef.current ? buttonWidth * 0.5 + 12 : buttonWidth * 0.5 + 16;
-        const safeRight = clientWidth - buttonWidth * 0.5 - 16;
+        const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+        const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
 
         let x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
         let y = (-projectedAnchor.y * 0.5 + 0.5) * clientHeight;
@@ -495,32 +623,43 @@ const IovTopologyCanvas = () => {
         return;
       }
 
-      valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
-      projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
-      if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
-        dock.style.opacity = "0";
-        dock.style.pointerEvents = "none";
-        return;
-      }
-
       const { clientWidth, clientHeight } = host;
+      const viewportSafe = viewportSafeInsetsRef.current;
       const buttonWidth = Math.max(220, dock.offsetWidth || 220);
       const buttonHeight = Math.max(52, dock.offsetHeight || 52);
-      const safeLeft = buttonWidth * 0.5 + 10;
-      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
-      const safeTop = isMobileRef.current ? 84 : 96;
-      const safeBottom = clientHeight - (isMobileRef.current ? 110 : 44);
+      const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+      const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 72 : 86);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 84 : 36);
+      const stage = valueLogActionStageRef.current;
 
-      const x = THREE.MathUtils.clamp(
-        (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
-        safeLeft,
-        safeRight
-      );
-      const y = THREE.MathUtils.clamp(
-        (-projectedAnchor.y * 0.5 + 0.5) * clientHeight + (isMobileRef.current ? 76 : 64),
-        safeTop,
-        safeBottom
-      );
+      let x = clientWidth * 0.5;
+      let y = safeTop + buttonHeight * 0.62;
+
+      if (stage === "time_capture") {
+        x = clientWidth * (isMobileRef.current ? 0.5 : 0.38);
+        y = safeTop + buttonHeight * 0.72;
+      } else if (stage === "performance_domains" || stage === "performance_intensity") {
+        x = clientWidth - viewportSafe.right - buttonWidth * 0.54;
+        y = safeTop + buttonHeight * 0.7;
+      } else {
+        valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
+        projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          dock.style.opacity = "0";
+          dock.style.pointerEvents = "none";
+          return;
+        }
+        x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        y =
+          (-projectedAnchor.y * 0.5 + 0.5) * clientHeight +
+          (stage === "ready_capture"
+            ? (isMobileRef.current ? 68 : 60)
+            : (isMobileRef.current ? 76 : 64));
+      }
+
+      x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
+      y = THREE.MathUtils.clamp(y, safeTop, safeBottom);
 
       dock.style.opacity = "1";
       dock.style.pointerEvents = "auto";
@@ -560,12 +699,13 @@ const IovTopologyCanvas = () => {
       }
 
       const { clientWidth, clientHeight } = host;
+      const viewportSafe = viewportSafeInsetsRef.current;
       const buttonWidth = Math.max(220, dock.offsetWidth || 220);
       const buttonHeight = Math.max(50, dock.offsetHeight || 50);
-      const safeLeft = buttonWidth * 0.5 + 10;
-      const safeRight = clientWidth - buttonWidth * 0.5 - 10;
-      const safeTop = isMobileRef.current ? 92 : 76;
-      const safeBottom = clientHeight - (isMobileRef.current ? 102 : 38);
+      const safeLeft = buttonWidth * 0.5 + viewportSafe.left;
+      const safeRight = clientWidth - buttonWidth * 0.5 - viewportSafe.right;
+      const safeTop = viewportSafe.top + (isMobileRef.current ? 86 : 70);
+      const safeBottom = clientHeight - viewportSafe.bottom - (isMobileRef.current ? 90 : 30);
 
       const x = THREE.MathUtils.clamp(
         (projectedAnchor.x * 0.5 + 0.5) * clientWidth,
@@ -718,12 +858,27 @@ const IovTopologyCanvas = () => {
             lastTap.key === key &&
             now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
           lastSceneTapRef.current = { level: "valuelog", key, at: now };
-          if (isDoubleTap) {
-            valueLogScene.selectFromPointer(true);
-          }
+          if (isDoubleTap) valueLogScene.selectFromPointer(true);
           const summary = valueLogScene.getSummary();
+          if (selection.kind === "context" && selection.key) {
+            if (selection.key === "~~Performance") {
+              setActivePerformanceDomain(null);
+              setValueLogStage("performance_domains", summary.draft);
+            } else {
+              setActivePerformanceDomain(null);
+              setValueLogStage("intensity_select", summary.draft);
+            }
+          } else if (selection.kind === "domain" && selection.key) {
+            const domain = selection.key as SaocommonsDomain;
+            const activeDomains = getSelectedPerformanceDomains(summary.draft);
+            setActivePerformanceDomain(activeDomains.includes(domain) ? domain : activeDomains[0] ?? null);
+            if (activeDomains.length > 0) {
+              setValueLogStage("performance_intensity", summary.draft);
+            } else {
+              setValueLogStage("performance_domains", summary.draft);
+            }
+          }
           setValueLogSummary(summary);
-          setValueLogStep(summary.step);
           setValueLogDraft(summary.draft);
         }
       }
@@ -762,6 +917,8 @@ const IovTopologyCanvas = () => {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      window.visualViewport?.removeEventListener("resize", applyViewportSafeLayout);
+      window.visualViewport?.removeEventListener("scroll", applyViewportSafeLayout);
       window.removeEventListener("keydown", onKeyDown);
       if (idleHandle !== null && idleWindow.cancelIdleCallback) {
         idleWindow.cancelIdleCallback(idleHandle);
@@ -808,6 +965,10 @@ const IovTopologyCanvas = () => {
   }, [semanticLevel]);
 
   useEffect(() => {
+    valueLogActionStageRef.current = valueLogActionStage;
+  }, [valueLogActionStage]);
+
+  useEffect(() => {
     if (semanticLevel !== "topology") return;
     if (selectedBrickInfo) {
       setTopologyActivated(true);
@@ -852,6 +1013,67 @@ const IovTopologyCanvas = () => {
     ? `Empower Community Pillar (${pendingEmpower.activationCount})`
     : "Empower Community Pillar";
   const canValueLogCommit = valueLogSummary?.canCommit ?? false;
+  const hasValidValueLogTime = isTimeRangeValid(valueLogDraft.startTime, valueLogDraft.endTime);
+  const hasValueLogActivity = valueLogDraft.activityLabel.trim().length > 0;
+  const hasValueLogProof = valueLogDraft.proofOfActivity.trim().length > 0;
+  const selectedPerformanceDomains = getSelectedPerformanceDomains(valueLogDraft);
+  const resolvedActivePerformanceDomain =
+    activePerformanceDomain && selectedPerformanceDomains.includes(activePerformanceDomain)
+      ? activePerformanceDomain
+      : (selectedPerformanceDomains[0] ?? null);
+  const isPerformanceContext = valueLogDraft.wellbeingNode === "~~Performance";
+  const canContinueTimeSliceFlow =
+    valueLogActionStage === "time_capture"
+      ? hasValidValueLogTime
+      : valueLogActionStage === "activity_capture"
+        ? hasValueLogActivity
+        : valueLogActionStage === "proof_capture"
+          ? hasValueLogProof
+          : valueLogActionStage === "wellbeing_select"
+            ? true
+            : valueLogActionStage === "intensity_select"
+              ? true
+              : valueLogActionStage === "performance_domains"
+                ? selectedPerformanceDomains.length > 0
+                : valueLogActionStage === "performance_intensity"
+                  ? selectedPerformanceDomains.length > 0
+                  : canValueLogCommit;
+
+  const valueLogTopline =
+    valueLogActionStage === "time_capture"
+      ? `Select time window: ${formatShortClock(valueLogDraft.startTime)} -> ${formatShortClock(valueLogDraft.endTime)}`
+      : valueLogActionStage === "activity_capture"
+        ? "What did you do in this time?"
+        : valueLogActionStage === "proof_capture"
+          ? "What is the proof of this activity?"
+          : valueLogActionStage === "wellbeing_select"
+            ? "Select personal wellbeing context."
+            : valueLogActionStage === "intensity_select"
+              ? WELLBEING_INTENSITY_PROMPTS[valueLogDraft.wellbeingNode]
+              : valueLogActionStage === "performance_domains"
+                ? "Select SAOcommons domain(s): Learning, Earning, OrgBuilding."
+                : valueLogActionStage === "performance_intensity"
+                  ? resolvedActivePerformanceDomain
+                    ? SAOCOMMONS_DOMAIN_PROMPTS[resolvedActivePerformanceDomain]
+                    : "Select a domain to set intensity."
+                  : "Capture value and drop the photon.";
+  const valueLogActionLabel =
+    valueLogActionStage === "time_capture"
+      ? "1. Select Time"
+      : valueLogActionStage === "activity_capture"
+        ? "2. Activity"
+        : valueLogActionStage === "proof_capture"
+          ? "3. Proof"
+          : valueLogActionStage === "wellbeing_select"
+            ? "4. Wellbeing Context"
+            : valueLogActionStage === "intensity_select"
+              ? "5. Context Intensity"
+              : valueLogActionStage === "performance_domains"
+                ? "5. SAOcommons Domain"
+                : valueLogActionStage === "performance_intensity"
+                  ? "6. Domain Intensity"
+                  : "7. Capture Value";
+
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
   const nextTopologyBuildRegion =
     IOV_TOPOLOGY_CONFIG.animation.enableStagedBuild &&
@@ -942,22 +1164,23 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("System impact: Community grows and applies pressure into the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
-        "Time Slice mode: define time, choose wellbeing context, then commit the causal signal."
+        "Time Slice mode: capture one action at a time, then capture value."
       );
       personSceneRef.current?.setDetailMode("valuelog");
+      const sceneStep = mapActionStageToWizardStep(valueLogActionStage, valueLogDraft.wellbeingNode);
       const valueLogScene = valueLogSceneRef.current;
       if (!valueLogScene) {
         void (ensureSecondaryScenesRef.current?.() ?? Promise.resolve()).then(() => {
           const loadedScene = valueLogSceneRef.current;
           if (!loadedScene) return;
           loadedScene.setDraft(valueLogDraft);
-          loadedScene.setStep(valueLogStep);
+          loadedScene.setStep(sceneStep);
           setValueLogSummary(loadedScene.getSummary());
         });
         return;
       }
       valueLogScene.setDraft(valueLogDraft);
-      valueLogScene.setStep(valueLogStep);
+      valueLogScene.setStep(sceneStep);
       setValueLogSummary(valueLogScene.getSummary());
     } else {
       setPhaseHeadline("Transitioning...");
@@ -1155,6 +1378,12 @@ const IovTopologyCanvas = () => {
     }
   };
 
+  const setValueLogStage = (stage: ValueLogActionStage, draftOverride?: ValueLogDraft) => {
+    setValueLogActionStage(stage);
+    const workingDraft = draftOverride ?? valueLogDraft;
+    setValueLogStep(mapActionStageToWizardStep(stage, workingDraft.wellbeingNode));
+  };
+
   const handleOpenValueLog = async () => {
     await (ensureSecondaryScenesRef.current?.() ?? Promise.resolve());
     const valueLogScene = valueLogSceneRef.current;
@@ -1164,9 +1393,11 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("Complete identity layers before opening Time Slice.");
       return;
     }
+    setActivePerformanceDomain(null);
+    setValueLogStage("time_capture");
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
     valueLogScene.setDraft(valueLogDraft);
-    valueLogScene.setStep(valueLogStep);
+    valueLogScene.setStep("select_time");
     setValueLogSummary(valueLogScene.getSummary());
     applySemanticTransition(next.level);
   };
@@ -1226,16 +1457,121 @@ const IovTopologyCanvas = () => {
   }, [valueLogDraft]);
 
   useEffect(() => {
+    const mapped = mapActionStageToWizardStep(valueLogActionStage, valueLogDraft.wellbeingNode);
+    if (valueLogStep !== mapped) {
+      setValueLogStep(mapped);
+    }
+  }, [valueLogActionStage, valueLogDraft.wellbeingNode, valueLogStep]);
+
+  useEffect(() => {
     valueLogSceneRef.current?.setStep(valueLogStep);
     setValueLogSummary(valueLogSceneRef.current?.getSummary() ?? null);
   }, [valueLogStep]);
 
   const handleValueLogDraftChange = (patch: Partial<ValueLogDraft>) => {
-    setValueLogDraft((prev) => ({ ...prev, ...patch }));
+    const nextDraft = { ...valueLogDraft, ...patch };
+    setValueLogDraft(nextDraft);
     if (patch.wellbeingNode) {
-      setValueLogStep(
-        patch.wellbeingNode === "~~Performance" ? "select_performance" : "select_intensity"
-      );
+      if (patch.wellbeingNode === "~~Performance") {
+        setValueLogStage("performance_domains", nextDraft);
+      } else {
+        setActivePerformanceDomain(null);
+        setValueLogStage("intensity_select", nextDraft);
+      }
+    }
+  };
+
+  const applyValueLogActivityTemplate = (templateId: string) => {
+    const template =
+      VALUE_CAPTURE_ACTIVITY_TEMPLATES.find((entry) => entry.id === templateId) ??
+      VALUE_CAPTURE_ACTIVITY_TEMPLATES[0];
+    if (!template) return;
+    handleValueLogDraftChange({
+      activityTemplateId: template.id,
+      activityLabel: template.activityLabel,
+      taskType: template.taskType,
+      intent: template.intent,
+    });
+  };
+
+  const applyValueLogProofTemplate = (templateId: string) => {
+    const template =
+      VALUE_CAPTURE_PROOF_TEMPLATES.find((entry) => entry.id === templateId) ??
+      VALUE_CAPTURE_PROOF_TEMPLATES[0];
+    if (!template) return;
+    handleValueLogDraftChange({
+      proofTemplateId: template.id,
+      proofOfActivity: template.proofOfActivity,
+      artifactType: template.artifactType,
+      evidenceLink: template.evidenceLink,
+    });
+  };
+
+  const setContextIntensity = (value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    const impactDirection: ValueLogDraft["impactDirection"] =
+      next > 0.55 ? "increase" : next < 0.45 ? "decrease" : "neutral";
+    handleValueLogDraftChange({
+      contextIntensity: next,
+      signalScore: next,
+      impactDirection,
+    });
+  };
+
+  const handlePerformanceDomainToggle = (domain: SaocommonsDomain) => {
+    const currentlySelected = selectedPerformanceDomains.includes(domain);
+    const patch = toDomainTagPatch(domain, !currentlySelected);
+    const nextDraft = { ...valueLogDraft, ...patch };
+    setValueLogDraft(nextDraft);
+    const nextDomains = getSelectedPerformanceDomains(nextDraft);
+    const nextActive = nextDomains.includes(domain) ? domain : (nextDomains[0] ?? null);
+    setActivePerformanceDomain(nextActive);
+    setValueLogStage(nextDomains.length > 0 ? "performance_intensity" : "performance_domains", nextDraft);
+  };
+
+  const setPerformanceDomainIntensity = (domain: SaocommonsDomain, value: number) => {
+    const next = Math.max(0, Math.min(1, value));
+    handleValueLogDraftChange(toDomainIntensityPatch(domain, next));
+  };
+
+  const advanceValueLogActionStage = () => {
+    if (valueLogActionStage === "time_capture") {
+      if (!hasValidValueLogTime) return;
+      setValueLogStage("activity_capture");
+      return;
+    }
+    if (valueLogActionStage === "activity_capture") {
+      if (!hasValueLogActivity) return;
+      setValueLogStage("proof_capture");
+      return;
+    }
+    if (valueLogActionStage === "proof_capture") {
+      if (!hasValueLogProof) return;
+      setValueLogStage("wellbeing_select");
+      return;
+    }
+    if (valueLogActionStage === "wellbeing_select") {
+      if (isPerformanceContext) {
+        setValueLogStage(
+          selectedPerformanceDomains.length > 0 ? "performance_intensity" : "performance_domains"
+        );
+      } else {
+        setValueLogStage("intensity_select");
+      }
+      return;
+    }
+    if (valueLogActionStage === "intensity_select") {
+      setValueLogStage("ready_capture");
+      return;
+    }
+    if (valueLogActionStage === "performance_domains") {
+      if (selectedPerformanceDomains.length === 0) return;
+      setValueLogStage("performance_intensity");
+      return;
+    }
+    if (valueLogActionStage === "performance_intensity") {
+      if (selectedPerformanceDomains.length === 0) return;
+      setValueLogStage("ready_capture");
     }
   };
 
@@ -1409,6 +1745,10 @@ const IovTopologyCanvas = () => {
   const handleValueLogCommit = async () => {
     if (!selectedPersonId) return;
     if (transitionBusyRef.current) return;
+    if (valueLogActionStage !== "ready_capture") {
+      setPhaseHeadline("Complete the in-scene Time Slice flow before capturing value.");
+      return;
+    }
     const valueLogScene = valueLogSceneRef.current;
     if (!valueLogScene) return;
     const entry = valueLogScene.commit(selectedPersonId);
@@ -1417,7 +1757,7 @@ const IovTopologyCanvas = () => {
     if (!entry || !finalDraft) return;
     transitionBusyRef.current = true;
     try {
-      await valueLogScene.playCommitDrop(320);
+      await valueLogScene.playCommitDrop(isMobileRef.current ? 340 : 390);
     } finally {
       transitionBusyRef.current = false;
     }
@@ -1428,7 +1768,8 @@ const IovTopologyCanvas = () => {
       personSceneRef.current?.setTimelineLogs(nextLogs);
       setPersonSummary(personSceneRef.current?.getSummary() ?? null);
       setValueLogSummary(valueLogScene.getSummary());
-      setValueLogStep("select_time");
+      setActivePerformanceDomain(null);
+      setValueLogStage("time_capture");
       setLastImpactedPersonId(selectedPersonId);
       setLastImpactedBrick(
         selectedBrickInfo
@@ -1462,9 +1803,9 @@ const IovTopologyCanvas = () => {
     applySemanticTransition(next.level);
     const nodeLabel = finalDraft.wellbeingNode.replace("~~", "");
     setPhaseHeadline(
-      `Photon drop: ${finalDraft.signalLabel} (${finalDraft.signalScore.toFixed(
+      `Photon lands in ${selectedPersonId}'s identity core (${nodeLabel}, ${finalDraft.signalScore.toFixed(
         2
-      )}) lands in ${nodeLabel}.`
+      )}), then identity rings and aura light up.`
     );
 
     if (impactSceneRef.current) {
@@ -1720,15 +2061,274 @@ function getRegionMeaning(regionId: RegionId) {
         <>
           <div className="iov-scene-chip iov-scene-chip-top">
             <strong>Time Slice</strong>
-            <span>{valueLogSummary.sceneActionHint}</span>
+            <span>{valueLogTopline}</span>
           </div>
-          {canValueLogCommit && (
-            <div ref={valueLogCommitDockRef} className="iov-scene-dock iov-scene-dock-commit-floating">
-              <button className="iov-btn-action iov-btn-inline" onClick={handleValueLogCommit}>
-                Commit Time Slice
-              </button>
+          <div
+            ref={valueLogCommitDockRef}
+            className="iov-scene-dock iov-scene-dock-commit-floating iov-valuelog-dock"
+          >
+            <div className="iov-valuelog-dock-header">
+              <strong>{valueLogActionLabel}</strong>
+              <span>{valueLogTopline}</span>
             </div>
-          )}
+
+            {valueLogActionStage === "time_capture" && (
+              <button
+                type="button"
+                className="iov-btn-primary iov-btn-inline"
+                onClick={advanceValueLogActionStage}
+                disabled={!hasValidValueLogTime}
+              >
+                Confirm Time Range
+              </button>
+            )}
+
+            {valueLogActionStage === "activity_capture" && (
+              <>
+                <div className="iov-valuelog-chip-row">
+                  {VALUE_CAPTURE_ACTIVITY_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      className={`iov-valuelog-chip ${
+                        valueLogDraft.activityTemplateId === template.id ? "is-active" : ""
+                      }`}
+                      onClick={() => applyValueLogActivityTemplate(template.id)}
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  className="iov-valuelog-input"
+                  value={valueLogDraft.activityLabel}
+                  onChange={(event) =>
+                    handleValueLogDraftChange({ activityLabel: event.target.value })
+                  }
+                  placeholder="Describe activity"
+                />
+                <button
+                  type="button"
+                  className="iov-btn-primary iov-btn-inline"
+                  onClick={advanceValueLogActionStage}
+                  disabled={!hasValueLogActivity}
+                >
+                  Confirm Activity
+                </button>
+              </>
+            )}
+
+            {valueLogActionStage === "proof_capture" && (
+              <>
+                <div className="iov-valuelog-chip-row">
+                  {VALUE_CAPTURE_PROOF_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      className={`iov-valuelog-chip ${
+                        valueLogDraft.proofTemplateId === template.id ? "is-active" : ""
+                      }`}
+                      onClick={() => applyValueLogProofTemplate(template.id)}
+                    >
+                      {template.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="iov-valuelog-input iov-valuelog-textarea"
+                  value={valueLogDraft.proofOfActivity}
+                  onChange={(event) =>
+                    handleValueLogDraftChange({ proofOfActivity: event.target.value })
+                  }
+                  placeholder="Add proof of activity"
+                />
+                <button
+                  type="button"
+                  className="iov-btn-primary iov-btn-inline"
+                  onClick={advanceValueLogActionStage}
+                  disabled={!hasValueLogProof}
+                >
+                  Confirm Proof
+                </button>
+              </>
+            )}
+
+            {valueLogActionStage === "wellbeing_select" && (
+              <button
+                type="button"
+                className="iov-btn-primary iov-btn-inline"
+                onClick={advanceValueLogActionStage}
+                disabled={!canContinueTimeSliceFlow}
+              >
+                Use {valueLogDraft.wellbeingNode.replace("~~", "")} Context
+              </button>
+            )}
+
+            {valueLogActionStage === "intensity_select" && (
+              <>
+                <div className="iov-valuelog-chip-row">
+                  <button
+                    type="button"
+                    className={`iov-valuelog-chip ${
+                      valueLogDraft.impactDirection === "decrease" ? "is-active" : ""
+                    }`}
+                    onClick={() => setContextIntensity(0.25)}
+                  >
+                    Negative
+                  </button>
+                  <button
+                    type="button"
+                    className={`iov-valuelog-chip ${
+                      valueLogDraft.impactDirection === "neutral" ? "is-active" : ""
+                    }`}
+                    onClick={() => setContextIntensity(0.5)}
+                  >
+                    Neutral
+                  </button>
+                  <button
+                    type="button"
+                    className={`iov-valuelog-chip ${
+                      valueLogDraft.impactDirection === "increase" ? "is-active" : ""
+                    }`}
+                    onClick={() => setContextIntensity(0.8)}
+                  >
+                    Positive
+                  </button>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  className="iov-valuelog-range"
+                  value={valueLogDraft.contextIntensity}
+                  onChange={(event) => setContextIntensity(Number(event.target.value))}
+                />
+                <button
+                  type="button"
+                  className="iov-btn-primary iov-btn-inline"
+                  onClick={advanceValueLogActionStage}
+                >
+                  Continue
+                </button>
+              </>
+            )}
+
+            {valueLogActionStage === "performance_domains" && (
+              <>
+                <div className="iov-valuelog-chip-row">
+                  {(["~~Learning", "~~Earning", "~~OrgBuilding"] as const).map((domain) => (
+                    <button
+                      key={domain}
+                      type="button"
+                      className={`iov-valuelog-chip ${
+                        selectedPerformanceDomains.includes(domain) ? "is-active" : ""
+                      }`}
+                      onClick={() => handlePerformanceDomainToggle(domain)}
+                    >
+                      {domain.replace("~~", "")}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="iov-btn-primary iov-btn-inline"
+                  onClick={advanceValueLogActionStage}
+                  disabled={selectedPerformanceDomains.length === 0}
+                >
+                  Continue
+                </button>
+              </>
+            )}
+
+            {valueLogActionStage === "performance_intensity" && (
+              <>
+                <div className="iov-valuelog-chip-row">
+                  {selectedPerformanceDomains.map((domain) => (
+                    <button
+                      key={domain}
+                      type="button"
+                      className={`iov-valuelog-chip ${
+                        resolvedActivePerformanceDomain === domain ? "is-active" : ""
+                      }`}
+                      onClick={() => setActivePerformanceDomain(domain)}
+                    >
+                      {domain.replace("~~", "")}
+                    </button>
+                  ))}
+                </div>
+                {resolvedActivePerformanceDomain && (
+                  <>
+                    <div className="iov-valuelog-chip-row">
+                      <button
+                        type="button"
+                        className="iov-valuelog-chip"
+                        onClick={() =>
+                          setPerformanceDomainIntensity(resolvedActivePerformanceDomain, 0.35)
+                        }
+                      >
+                        Low
+                      </button>
+                      <button
+                        type="button"
+                        className="iov-valuelog-chip"
+                        onClick={() =>
+                          setPerformanceDomainIntensity(resolvedActivePerformanceDomain, 0.6)
+                        }
+                      >
+                        Medium
+                      </button>
+                      <button
+                        type="button"
+                        className="iov-valuelog-chip"
+                        onClick={() =>
+                          setPerformanceDomainIntensity(resolvedActivePerformanceDomain, 0.85)
+                        }
+                      >
+                        High
+                      </button>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      className="iov-valuelog-range"
+                      value={getDomainIntensityValue(
+                        valueLogDraft,
+                        resolvedActivePerformanceDomain
+                      )}
+                      onChange={(event) =>
+                        setPerformanceDomainIntensity(
+                          resolvedActivePerformanceDomain,
+                          Number(event.target.value)
+                        )
+                      }
+                    />
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="iov-btn-primary iov-btn-inline"
+                  onClick={advanceValueLogActionStage}
+                  disabled={selectedPerformanceDomains.length === 0}
+                >
+                  Continue
+                </button>
+              </>
+            )}
+
+            {valueLogActionStage === "ready_capture" && (
+              <button
+                type="button"
+                className="iov-btn-action iov-btn-inline"
+                onClick={handleValueLogCommit}
+                disabled={!canValueLogCommit}
+              >
+                Capture Value
+              </button>
+            )}
+          </div>
         </>
       )}
 

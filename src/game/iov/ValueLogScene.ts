@@ -599,33 +599,17 @@ export class ValueLogScene {
     if (!hit) return { kind: null, key: null };
 
     if (hit.type === "clock") {
-      if (isDouble) {
-        this.setStep("select_wellbeing");
-      } else if (this.step !== "select_time") {
+      if (!isDouble && this.step !== "select_time") {
         this.setStep("select_time");
       }
       return { kind: "clock", key: "clock" };
     }
     if (hit.type === "clock_hand") {
-      if (isDouble) {
-        this.setStep("select_wellbeing");
-      }
       return { kind: "clock", key: "clock" };
     }
 
     if (hit.type === "context") {
       this.patchDraft({ wellbeingNode: hit.key });
-      if (isDouble) {
-        if (hit.key === "~~Performance") {
-          this.setStep("select_performance");
-        } else if (this.step === "select_intensity") {
-          this.setStep("show_outcome");
-        } else {
-          this.setStep("select_intensity");
-        }
-      } else if (this.step === "select_time") {
-        this.setStep("select_wellbeing");
-      }
       return { kind: "context", key: hit.key };
     }
 
@@ -633,19 +617,16 @@ export class ValueLogScene {
       if (this.draft.wellbeingNode !== "~~Performance") {
         return { kind: "domain", key: hit.domain };
       }
-      if (this.step !== "select_performance") {
+      if (this.step !== "select_performance" && this.step !== "show_outcome") {
         this.setStep("select_performance");
       }
-      if (isDouble && this.step === "select_performance") {
+      if (this.step === "select_performance" || this.step === "show_outcome") {
         if (hit.domain === "~~Learning") {
           this.patchDraft({ learningTag: !this.draft.learningTag });
         } else if (hit.domain === "~~Earning") {
           this.patchDraft({ earningTag: !this.draft.earningTag });
         } else {
           this.patchDraft({ orgBuildingTag: !this.draft.orgBuildingTag });
-        }
-        if (isValueLogCommitReady(this.draft)) {
-          this.setStep("show_outcome");
         }
       }
       return { kind: "domain", key: hit.domain };
@@ -660,12 +641,13 @@ export class ValueLogScene {
     const targetPos = new THREE.Vector3();
     
     if (this.step === "select_time") {
-      const orbitRadius = 2.58;
-      const phase = (Math.sin(this.elapsedSeconds * 0.9) + 1) * 0.5;
-      const tokenAngle = this.startAngle + this.sliceLength * phase;
+      const orbitRadius = 1.68;
+      const midAngle = this.startAngle + this.sliceLength * 0.5;
+      const swing = Math.min(this.sliceLength * 0.36, Math.PI / 4);
+      const tokenAngle = midAngle + Math.sin(this.elapsedSeconds * 1.05) * swing;
       targetPos.set(
         Math.cos(tokenAngle) * orbitRadius,
-        4.58 + Math.sin(this.elapsedSeconds * 1.4) * 0.06, // Clock is at Y=4
+        4.52 + Math.sin(this.elapsedSeconds * 1.35) * 0.05,
         Math.sin(tokenAngle) * orbitRadius
       );
     } else if (this.step === "select_wellbeing") {
@@ -708,31 +690,17 @@ export class ValueLogScene {
       }
     } else if (this.step === "show_outcome") {
       if (this.isCommitting) {
-          // Drop FAST into the Identity/Aura pool
-          const yPos = -5.0; 
-          targetPos.set(0, yPos, 0);
-
-          // Force very fast lerp when committing
-          this.token.position.lerp(targetPos, 12.0 * deltaSeconds);
+        // Keep commit motion near center so handoff to impact scene feels continuous.
+        targetPos.set(0, -0.25, 0);
+        this.token.position.lerp(targetPos, 12.0 * deltaSeconds);
       } else {
-          // Hover above the pool, waiting for commit
-          // Previous step was hanging around y ~ -1.2.
-          // Let's hover visibly above the bottom labels.
-          const yPos = -1.8 + Math.sin(this.elapsedSeconds * 2.0) * 0.15;
-          targetPos.set(0, yPos, 0);
-          
-          // Normal lerp for hover
-          this.token.position.lerp(targetPos, 4.0 * deltaSeconds);
+        const yPos = 0.55 + Math.sin(this.elapsedSeconds * 2.0) * 0.1;
+        targetPos.set(0, yPos, 0);
+        this.token.position.lerp(targetPos, 4.5 * deltaSeconds);
       }
 
-      // Trigger ripple if we hit bottom (only happens during commit drop)
-      if (this.isCommitting && this.token.position.y < -4.7) {
-          this.isRippling = true;
-          this.rippleMesh!.visible = true; // Force visible immediate
-      } else {
-        this.isRippling = false;
-        if (this.rippleMesh) this.rippleMesh.visible = false;
-      }
+      this.isRippling = false;
+      if (this.rippleMesh) this.rippleMesh.visible = false;
     } else {
       this.isRippling = false; // Reset if step changes
       
@@ -1250,7 +1218,7 @@ export class ValueLogScene {
     this.stringsGroup.visible = showWellbeing;
 
     // Outcome elements - only visible during outcome review
-    const showOutcome = this.step === "show_outcome";
+    const showOutcome = false;
     this.auraBands.forEach((band) => {
       band.visible = showOutcome;
     });
@@ -1779,19 +1747,19 @@ export const isValueLogCommitReady = (draft: ValueLogDraft) => {
 
 const getSceneActionHint = (step: WizardStep, draft: ValueLogDraft, canCommit: boolean) => {
   if (canCommit) {
-    return "Ready. Commit Time Slice below.";
+    return "Ready to capture value.";
   }
   if (step === "select_time") {
-    return "Double-click the clock to confirm time capture.";
+    return "Set start and end time with the clock hands.";
   }
   if (step === "select_wellbeing") {
-    return "Double-click a wellbeing node to select context.";
+    return "Select one wellbeing context node.";
   }
   if (step === "select_intensity") {
-    return `Set intensity in side panel, then double-click ${draft.wellbeingNode.replace("~~", "")} to continue.`;
+    return `Set intensity for ${draft.wellbeingNode.replace("~~", "")}.`;
   }
   if (step === "select_performance") {
-    return "Double-click Learning, Earning, or OrgBuilding to select domains.";
+    return "Select SAOcommons domains and set domain intensity.";
   }
-  return "Review details in side panel and commit when ready.";
+  return "Capture value to trigger the photon drop.";
 };

@@ -23,7 +23,7 @@ const clamp = (min: number, max: number, value: number) =>
 
 export class OrgImpactScene {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(46, 1, 0.1, 120);
+  readonly camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
   readonly controls: OrbitControls;
 
   private readonly root = new THREE.Group();
@@ -60,8 +60,8 @@ export class OrgImpactScene {
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 4.6;
-    this.controls.maxDistance = 12;
+    this.controls.minDistance = 5.2;
+    this.controls.maxDistance = 14;
     this.controls.minPolarAngle = 0.4;
     this.controls.maxPolarAngle = 1.4;
 
@@ -93,8 +93,8 @@ export class OrgImpactScene {
     this.brickGlow.position.set(0, 1.1, 0);
     this.root.add(this.brickGlow);
 
-    this.camera.position.set(0, 4.8, 10);
-    this.controls.target.set(0, 0.65, 0);
+    this.camera.position.set(0, 5.6, 12.6);
+    this.controls.target.set(0, 1.1, 0);
     this.controls.update();
 
     this.rebuildPeople(this.context.peopleCount);
@@ -154,17 +154,17 @@ export class OrgImpactScene {
     this.isMobileViewport = isMobile;
 
     if (isMobile) {
-      this.camera.fov = 52;
-      this.camera.position.set(0, 5.4, 11.4);
-      this.controls.target.set(0, 0.75, 0);
-      this.controls.minDistance = 5.2;
-      this.controls.maxDistance = 13.4;
+      this.camera.fov = 56;
+      this.camera.position.set(0, 6.3, 14.6);
+      this.controls.target.set(0, 1.2, 0);
+      this.controls.minDistance = 6.2;
+      this.controls.maxDistance = 16.2;
     } else {
-      this.camera.fov = 46;
-      this.camera.position.set(0, 4.8, 10);
-      this.controls.target.set(0, 0.65, 0);
-      this.controls.minDistance = 4.6;
-      this.controls.maxDistance = 12;
+      this.camera.fov = 50;
+      this.camera.position.set(0, 5.6, 12.6);
+      this.controls.target.set(0, 1.1, 0);
+      this.controls.minDistance = 5.2;
+      this.controls.maxDistance = 14;
     }
 
     this.camera.updateProjectionMatrix();

@@ -36,6 +36,10 @@ interface OrgContagionSummary {
   populationCount: number;
 }
 
+interface OrgContagionOptions {
+  requireManualAdvance?: boolean;
+}
+
 const PROFILE_BY_REGION: Record<RegionId, string[]> = {
   market: ["Trader", "Engineer", "Analyst", "Worker"],
   state: ["Civil Servant", "Nurse", "Teacher", "Operator"],
@@ -52,7 +56,7 @@ const PEOPLE_COUNT_BY_REGION: Record<RegionId, number> = {
 
 export class BlockInteriorScene {
   readonly scene = new THREE.Scene();
-  readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 120);
+  readonly camera = new THREE.PerspectiveCamera(50, 1, 0.1, 120);
   readonly controls: OrbitControls;
 
   private readonly raycaster = new THREE.Raycaster();
@@ -104,6 +108,7 @@ export class BlockInteriorScene {
   private activationMesh: THREE.Mesh | null = null;
   private readonly activationLight = new THREE.PointLight("#ffcd3c", 2, 4);
   private readonly orgActivationLight = new THREE.PointLight("#ffd26a", 0, 8);
+  private roomLabel: THREE.Sprite | null = null;
   private readonly orgAuraGeometry = new THREE.TorusGeometry(0.24, 0.02, 8, 24);
   private readonly orgAuraMaterial = new THREE.MeshBasicMaterial({
     color: "#ffe291",
@@ -121,6 +126,8 @@ export class BlockInteriorScene {
   private contagionStepT = 0;
   private contagionHoldSeconds = 0;
   private contagionOnComplete: ((summary: OrgContagionSummary) => void) | null = null;
+  private contagionRequiresManualAdvance = false;
+  private contagionAdvanceArmed = false;
   private readonly contagionPulseGeometry = new THREE.SphereGeometry(0.1, 16, 12);
   private readonly contagionPulseMaterial = new THREE.MeshBasicMaterial({
     color: "#ffd870",
@@ -146,8 +153,8 @@ export class BlockInteriorScene {
     this.controls = new OrbitControls(this.camera, this.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.08;
-    this.controls.minDistance = 3.4;
-    this.controls.maxDistance = 10;
+    this.controls.minDistance = 4.4;
+    this.controls.maxDistance = 12.6;
     this.controls.minPolarAngle = 0.25;
     this.controls.maxPolarAngle = 1.46;
 
@@ -168,8 +175,8 @@ export class BlockInteriorScene {
     this.contagionPulseLight.position.set(0, 0.32, 0);
     this.root.add(this.contagionPulse);
 
-    this.camera.position.set(0, 2.5, 6.8);
-    this.controls.target.set(0, 0.95, 0);
+    this.camera.position.set(0, 3.05, 8.8);
+    this.controls.target.set(0, 1.22, 0);
     this.controls.update();
   }
 
@@ -226,17 +233,17 @@ export class BlockInteriorScene {
     this.isMobileViewport = isMobile;
 
     if (isMobile) {
-      this.camera.fov = 52;
-      this.camera.position.set(0, 2.7, 7.8);
-      this.controls.target.set(0, 1.05, 0);
-      this.controls.minDistance = 4.2;
-      this.controls.maxDistance = 11;
+      this.camera.fov = 56;
+      this.camera.position.set(0, 3.25, 9.9);
+      this.controls.target.set(0, 1.28, 0);
+      this.controls.minDistance = 5.2;
+      this.controls.maxDistance = 13.8;
     } else {
-      this.camera.fov = 48;
-      this.camera.position.set(0, 2.5, 6.8);
-      this.controls.target.set(0, 0.95, 0);
-      this.controls.minDistance = 3.4;
-      this.controls.maxDistance = 10;
+      this.camera.fov = 50;
+      this.camera.position.set(0, 3.05, 8.8);
+      this.controls.target.set(0, 1.22, 0);
+      this.controls.minDistance = 4.4;
+      this.controls.maxDistance = 12.6;
     }
 
     this.camera.updateProjectionMatrix();
@@ -245,17 +252,17 @@ export class BlockInteriorScene {
 
   frameOrganizationOverview() {
     if (this.isMobileViewport) {
-      this.camera.fov = 52;
-      this.camera.position.set(0, 2.7, 7.8);
-      this.controls.target.set(0, 1.05, 0);
-      this.controls.minDistance = 4.2;
-      this.controls.maxDistance = 11;
+      this.camera.fov = 56;
+      this.camera.position.set(0, 3.25, 9.9);
+      this.controls.target.set(0, 1.28, 0);
+      this.controls.minDistance = 5.2;
+      this.controls.maxDistance = 13.8;
     } else {
-      this.camera.fov = 48;
-      this.camera.position.set(0, 2.5, 6.8);
-      this.controls.target.set(0, 0.95, 0);
-      this.controls.minDistance = 3.4;
-      this.controls.maxDistance = 10;
+      this.camera.fov = 50;
+      this.camera.position.set(0, 3.05, 8.8);
+      this.controls.target.set(0, 1.22, 0);
+      this.controls.minDistance = 4.4;
+      this.controls.maxDistance = 12.6;
     }
 
     this.camera.updateProjectionMatrix();
@@ -343,7 +350,8 @@ export class BlockInteriorScene {
 
   playOrgContagion(
     seedPersonId: string,
-    onComplete?: (summary: OrgContagionSummary) => void
+    onComplete?: (summary: OrgContagionSummary) => void,
+    options?: OrgContagionOptions
   ) {
     this.resetOrgActivationState();
     this.ensureOrgAuraTokens();
@@ -371,6 +379,8 @@ export class BlockInteriorScene {
     this.contagionStepT = 0;
     this.contagionHoldSeconds = 0;
     this.contagionRunning = true;
+    this.contagionRequiresManualAdvance = Boolean(options?.requireManualAdvance);
+    this.contagionAdvanceArmed = !this.contagionRequiresManualAdvance;
 
     this.orgActivationLight.visible = true;
     this.orgActivationLight.intensity = 1.4;
@@ -382,6 +392,14 @@ export class BlockInteriorScene {
         this.contagionPulse.position.set(from.position.x, 0.32, from.position.z);
       }
     }
+  }
+
+  requestOrgContagionAdvance() {
+    if (!this.contagionRunning) return false;
+    if (this.contagionToIndex === null || this.contagionFromIndex === null) return false;
+    if (this.contagionStepT > 0.001 && this.contagionStepT < 0.999) return false;
+    this.contagionAdvanceArmed = true;
+    return true;
   }
 
   update(deltaSeconds: number) {
@@ -459,6 +477,13 @@ export class BlockInteriorScene {
     (this.hoverMarker.material as THREE.Material).dispose();
     this.selectedMarker.geometry.dispose();
     (this.selectedMarker.material as THREE.Material).dispose();
+    if (this.roomLabel) {
+      this.root.remove(this.roomLabel);
+      const material = this.roomLabel.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+      this.roomLabel = null;
+    }
   }
 
   private setupSceneLook() {
@@ -500,6 +525,8 @@ export class BlockInteriorScene {
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = 0;
     this.root.add(floor);
+
+    this.updateRoomLabel(this.selectedBrickLabel);
   }
 
   private rebuildPeople(regionId: RegionId, label: string) {
@@ -513,6 +540,7 @@ export class BlockInteriorScene {
     this.hoverMarker.visible = false;
     this.selectedBrickLabel = label;
     this.sourceRegion = regionId;
+    this.updateRoomLabel(label);
 
     Object.keys(this.profileMix).forEach((key) => {
       delete this.profileMix[key];
@@ -765,6 +793,13 @@ export class BlockInteriorScene {
       return;
     }
 
+    if (this.contagionRequiresManualAdvance && !this.contagionAdvanceArmed && this.contagionStepT <= 0.001) {
+      this.contagionPulse.visible = true;
+      this.contagionPulseLight.visible = true;
+      this.contagionPulse.position.set(from.position.x, 0.32, from.position.z);
+      return;
+    }
+
     this.contagionStepT = Math.min(1, this.contagionStepT + deltaSeconds / stepDuration);
     this.contagionPulse.visible = true;
     this.contagionPulseLight.visible = true;
@@ -780,6 +815,7 @@ export class BlockInteriorScene {
           ? (this.contagionOrder[this.contagionCursor] ?? null)
           : null;
       this.contagionStepT = 0;
+      this.contagionAdvanceArmed = !this.contagionRequiresManualAdvance;
     }
   }
 
@@ -893,6 +929,8 @@ export class BlockInteriorScene {
     this.contagionStepT = 0;
     this.contagionHoldSeconds = 0;
     this.contagionOnComplete = null;
+    this.contagionRequiresManualAdvance = false;
+    this.contagionAdvanceArmed = false;
     this.orgActivatedIndices.clear();
     this.contagionPulse.visible = false;
     this.contagionPulseLight.visible = false;
@@ -948,6 +986,52 @@ export class BlockInteriorScene {
       const base = person.color.clone().multiplyScalar(0.74);
       return orgActivated ? base.lerp(highlight, 0.52) : base;
     });
+  }
+
+  private updateRoomLabel(label: string) {
+    if (this.roomLabel) {
+      this.root.remove(this.roomLabel);
+      const material = this.roomLabel.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+      this.roomLabel = null;
+    }
+
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = 680;
+    canvas.height = 180;
+
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(18, 34, 57, 0.72)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = "rgba(178, 204, 236, 0.62)";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(1.5, 1.5, canvas.width - 3, canvas.height - 3);
+      ctx.fillStyle = "rgba(246, 250, 255, 0.96)";
+      ctx.font = "700 52px Avenir Next";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, canvas.width / 2, 72);
+      ctx.fillStyle = "rgba(201, 220, 247, 0.9)";
+      ctx.font = "600 30px Avenir Next";
+      ctx.fillText("Organization Interior", canvas.width / 2, 132);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.78,
+        depthWrite: false,
+      })
+    );
+    sprite.scale.set(3.9, 1.02, 1);
+    sprite.position.set(0, 2.15, -2.56);
+    this.root.add(sprite);
+    this.roomLabel = sprite;
   }
 
   private disposePeopleMeshes() {

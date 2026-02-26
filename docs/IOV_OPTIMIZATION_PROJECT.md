@@ -685,6 +685,80 @@ Delivered:
 
 ---
 
+### Phase 25: Visual Hierarchy Scale Pass (Org Framing + Time Slice UI Weight)
+Status: `COMPLETED`
+
+Tasks:
+- Pull back org interior and org-impact framing so full scenes are visible on mobile and desktop.
+- Add subtle in-scene org wall context label (org type + number) for orientation.
+- Reduce identity facet tooltip footprint.
+- Remove oversized Time Slice scene label and reduce Value Log action-card visual weight.
+- Fix oversized mobile Value Log buttons caused by shared dock flex rules.
+- Keep commit CTA contextual to the photon while moving other step overlays to non-blocking positions.
+
+Acceptance:
+- Org interior reads as a full room, not cropped close-up.
+- Org-impact crowd is framed with better vertical balance.
+- Facet tooltip is readable but no longer scene-dominant.
+- Value Log cards/buttons are compact, and no giant blue action blocks appear.
+- Performance-stage action card no longer blocks SAOcommons interactions.
+- Tests/build pass.
+
+Delivered:
+- `BlockInteriorScene`:
+  - Reframed default/mobile camera and target for a wider organization overview.
+  - Added dynamic wall label sprite showing selected org label + `Organization Interior`.
+- `OrgImpactScene`:
+  - Pulled camera back and increased framing distance/FOV for cleaner group visibility.
+- `PersonIdentityScene`:
+  - Added viewport-aware tooltip sizing and positioning.
+  - Reduced tooltip canvas/sprite scale and copy length for tighter hierarchy.
+- `ValueLogScene`:
+  - Removed in-scene `Time Slice Clock` title sprite.
+  - Retuned step camera presets to reduce over-zoom in wellbeing/performance/outcome stages.
+- `IovTopologyCanvas` + `index.css`:
+  - Reworked Value Log dock anchoring:
+    - `ready_capture` remains photon-contextual.
+    - other stages use safer top anchors, with performance cards moved left/top to avoid domain overlap.
+  - Reduced dock/card widths, fonts, spacing, and button sizing.
+- Scoped mobile `flex: 1 1 140px` button rule away from Value Log dock to stop tall oversized buttons.
+
+---
+
+### Phase 26: Identity Scene Narrative Clarity Pass (De-Block + Layer-First Progression)
+Status: `COMPLETED`
+
+Tasks:
+- Remove “blocky placeholder” feel from identity ring labels and facet tooltip cards.
+- Reduce top-of-screen cognitive load in Person scene (eliminate overlapping context chips).
+- Enforce strict progression behavior:
+  - advancing `Next Layer` must clear previous facet selection,
+  - auto-focus the newly revealed layer ring.
+
+Acceptance:
+- In-scene identity labels feel lightweight and non-obstructive.
+- Facet tooltip is compact and contextual, not dominant.
+- Top overlay no longer stacks/overlaps with facet context labels.
+- After `Next Layer`, old selected facet is cleared and the new layer is the visual focus.
+- Tests/build pass.
+
+Delivered:
+- `PersonIdentityScene`:
+  - Reworked ring label sprite styling into compact pill-like labels (smaller canvas + scale + softer border).
+  - Further reduced facet tooltip footprint and moved it closer to the hovered facet.
+  - Added rounded-canvas shape rendering for both label/tooltip cards.
+  - Updated build progression state transitions:
+    - `setPersonContext` / `startIdentityBuild` initialize selected layer to current build layer.
+    - `nextIdentityLayer` now clears facet selection/tooltip/hover and auto-focuses the new ring.
+    - `replayIdentityLayer` now clears stale facet selection and re-focuses current layer.
+- `IovTopologyCanvas`:
+  - Removed secondary top context chip in Person scene to prevent overlap with headline chip.
+  - Shortened Person scene instruction copy for cleaner top hierarchy.
+- `index.css`:
+  - Added `.iov-scene-chip-person` sizing rules for tighter top-chip hierarchy on desktop and mobile.
+
+---
+
 ## Validation Log
 - Phase 1:
   - `npm test -- --run` passed (3 files, 7 tests).
@@ -758,6 +832,12 @@ Delivered:
 - Phase 24:
   - `npm test -- --run` passed (3 files, 8 tests).
   - `npm run build` passed (production build generated).
+- Phase 25:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
+- Phase 26:
+  - `npm test -- --run` passed (3 files, 8 tests).
+  - `npm run build` passed (production build generated).
 
 ## Commit Log
 - Phase 1: `perf: phase 1 runtime stability and ValueLog string cleanup`
@@ -784,3 +864,5 @@ Delivered:
 - Phase 22: `feat: phase 22 person-centered impact continuity and aura propagation`
 - Phase 23: `style: phase 23 impact timing cadence polish`
 - Phase 24: `fix: phase 24 interaction reliability and overlay placement tuning`
+- Phase 25: `style: phase 25 visual hierarchy scale pass for org and valuelog scenes`
+- Phase 26: `style: phase 26 identity scene narrative clarity and layer-focus progression`

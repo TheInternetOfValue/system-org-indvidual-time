@@ -177,9 +177,7 @@ export class PersonIdentityScene {
     this.hoveredMarker.visible = false;
     this.selectedMarker.visible = false;
     this.root.add(this.hoveredMarker, this.selectedMarker);
-    this.facetTooltip = this.createFacetTooltipSprite("Facet", "Tap to focus this identity signal.");
-    this.facetTooltip.visible = false;
-    this.root.add(this.facetTooltip);
+    this.resetFacetTooltipSprite();
 
     this.camera.position.set(0, 5.5, 10.2);
     this.controls.target.set(0, 1.8, 0);
@@ -194,7 +192,7 @@ export class PersonIdentityScene {
     this.buildLayerIndex = 0;
     this.buildLayerStartSeconds = performance.now() * 0.001;
     this.selectedFacet = null;
-    this.selectedLayerKey = null;
+    this.selectedLayerKey = WELLBEING_IDENTITY_LAYERS[0]?.key ?? null;
     this.selectedMarker.visible = false;
     this.hoveredFacet = null;
     this.hoveredLayerKey = null;
@@ -246,7 +244,7 @@ export class PersonIdentityScene {
     this.buildLayerIndex = 0;
     this.buildLayerStartSeconds = performance.now() * 0.001;
     this.selectedFacet = null;
-    this.selectedLayerKey = null;
+    this.selectedLayerKey = WELLBEING_IDENTITY_LAYERS[0]?.key ?? null;
     this.selectedMarker.visible = false;
     this.hoveredMarker.visible = false;
     this.hoveredFacet = null;
@@ -263,12 +261,26 @@ export class PersonIdentityScene {
     if (this.buildLayerIndex >= WELLBEING_IDENTITY_LAYERS.length - 1) return;
     this.buildLayerIndex += 1;
     this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.selectedFacet = null;
+    this.selectedLayerKey = WELLBEING_IDENTITY_LAYERS[this.buildLayerIndex]?.key ?? null;
+    this.selectedMarker.visible = false;
+    this.hoveredFacet = null;
+    this.hoveredLayerKey = null;
+    this.hoveredMarker.visible = false;
+    this.hideFacetTooltip();
+    this.callbacks.onHoverFacetChange?.(null);
+    this.callbacks.onSelectFacetChange?.(null);
     this.applyModeVisualState();
   }
 
   replayIdentityLayer() {
     if (!this.identityBuildMode || this.buildLayerIndex < 0) return;
     this.buildLayerStartSeconds = performance.now() * 0.001;
+    this.selectedFacet = null;
+    this.selectedLayerKey = WELLBEING_IDENTITY_LAYERS[this.buildLayerIndex]?.key ?? null;
+    this.selectedMarker.visible = false;
+    this.hideFacetTooltip();
+    this.callbacks.onSelectFacetChange?.(null);
     this.applyModeVisualState();
   }
 
@@ -373,6 +385,8 @@ export class PersonIdentityScene {
     }
 
     this.camera.updateProjectionMatrix();
+    this.resetFacetTooltipSprite();
+    this.hideFacetTooltip();
     this.applyModeVisualState();
     this.controls.update();
   }
@@ -516,7 +530,7 @@ export class PersonIdentityScene {
     this.ringsGroup.clear();
     this.labelsGroup.clear();
     this.layerRings.length = 0;
-    const labelOffsetSpan = (WELLBEING_IDENTITY_LAYERS.length - 1) * 0.16;
+    const labelOffsetSpan = (WELLBEING_IDENTITY_LAYERS.length - 1) * 0.12;
 
     WELLBEING_IDENTITY_LAYERS.forEach((layer, idx) => {
       const radius = 1.55 + idx * 0.62;
@@ -541,8 +555,8 @@ export class PersonIdentityScene {
 
       const label = this.createTextSprite(layer.label.replace("~~", ""));
       label.position.set(
-        radius + 0.42,
-        y + (labelOffsetSpan * 0.5 - idx * 0.16),
+        radius + 0.66,
+        y + (labelOffsetSpan * 0.5 - idx * 0.12),
         0
       );
       this.labelsGroup.add(label);
@@ -1023,19 +1037,21 @@ export class PersonIdentityScene {
   }
 
   private createTextSprite(text: string) {
+    const isMobile = this.isMobileViewport;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = 256;
-    canvas.height = 64;
+    canvas.width = isMobile ? 208 : 224;
+    canvas.height = isMobile ? 44 : 48;
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "rgba(10,24,44,0.88)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "rgba(227,213,132,0.55)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
-      ctx.fillStyle = "#f0f6ff";
-      ctx.font = "600 24px Avenir Next";
+      ctx.fillStyle = "rgba(12, 26, 46, 0.74)";
+      roundRect(ctx, 1.5, 1.5, canvas.width - 3, canvas.height - 3, 12);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(169, 196, 230, 0.42)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.fillStyle = "rgba(237, 246, 255, 0.94)";
+      ctx.font = isMobile ? "600 16px Avenir Next" : "600 17px Avenir Next";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -1046,35 +1062,52 @@ export class PersonIdentityScene {
       new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.84,
         depthWrite: false,
       })
     );
-    sprite.scale.set(2.2, 0.55, 1);
+    sprite.scale.set(isMobile ? 1.42 : 1.56, isMobile ? 0.3 : 0.33, 1);
     return sprite;
   }
 
+  private resetFacetTooltipSprite() {
+    if (this.facetTooltip) {
+      this.root.remove(this.facetTooltip);
+      const material = this.facetTooltip.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+      this.facetTooltip = null;
+    }
+    this.facetTooltip = this.createFacetTooltipSprite("Facet", "Tap to focus this identity signal.");
+    this.facetTooltip.visible = false;
+    this.root.add(this.facetTooltip);
+    this.facetTooltipFacet = null;
+  }
+
   private createFacetTooltipSprite(title: string, body: string) {
+    const isMobile = this.isMobileViewport;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = 460;
-    canvas.height = 130;
+    canvas.width = isMobile ? 260 : 300;
+    canvas.height = isMobile ? 66 : 72;
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "rgba(8,18,34,0.94)";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "rgba(159,194,244,0.62)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
+      ctx.fillStyle = "rgba(8, 19, 35, 0.9)";
+      roundRect(ctx, 1.5, 1.5, canvas.width - 3, canvas.height - 3, 10);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(159,194,244,0.55)";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
       ctx.fillStyle = "#f8d67b";
-      ctx.font = "700 30px Avenir Next";
+      ctx.font = isMobile ? "700 16px Avenir Next" : "700 18px Avenir Next";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(title, 18, 38);
+      ctx.fillText(title, 12, isMobile ? 22 : 24);
       ctx.fillStyle = "rgba(226,238,255,0.95)";
-      ctx.font = "500 20px Avenir Next";
-      const maxBody = body.length > 78 ? `${body.slice(0, 75)}...` : body;
-      ctx.fillText(maxBody, 18, 88);
+      ctx.font = isMobile ? "500 12px Avenir Next" : "500 13px Avenir Next";
+      const maxChars = isMobile ? 34 : 44;
+      const maxBody = body.length > maxChars ? `${body.slice(0, maxChars - 3)}...` : body;
+      ctx.fillText(maxBody, 12, isMobile ? 47 : 50);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -1082,11 +1115,11 @@ export class PersonIdentityScene {
       new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
-        opacity: 0.96,
+        opacity: 0.92,
         depthWrite: false,
       })
     );
-    sprite.scale.set(3.8, 1.08, 1);
+    sprite.scale.set(isMobile ? 1.46 : 1.68, isMobile ? 0.37 : 0.4, 1);
     return sprite;
   }
 
@@ -1111,8 +1144,8 @@ export class PersonIdentityScene {
   private positionFacetTooltip(position: THREE.Vector3) {
     if (!this.facetTooltip) return;
     this.facetTooltip.position.copy(position);
-    this.facetTooltip.position.x += 0.9;
-    this.facetTooltip.position.y += 0.58;
+    this.facetTooltip.position.x += this.isMobileViewport ? 0.42 : 0.48;
+    this.facetTooltip.position.y += this.isMobileViewport ? 0.22 : 0.26;
     this.facetTooltip.position.z += 0.08;
     this.facetTooltip.lookAt(this.camera.position);
   }
@@ -1174,6 +1207,28 @@ const FACET_HINTS: Record<string, string> = {
   ProtocolConvergence: "Alignment level across identity protocols.",
   DisclosurePolicy: "Rules defining what data can be revealed.",
   RevocationState: "Ability to retract prior disclosure permissions.",
+};
+
+const roundRect = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  const r = Math.max(0, Math.min(radius, Math.min(width, height) * 0.5));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  ctx.lineTo(x + r, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 };
 
 const cleanToken = (value: string | null) =>

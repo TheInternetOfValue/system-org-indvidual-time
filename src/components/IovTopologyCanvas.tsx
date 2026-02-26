@@ -1975,23 +1975,17 @@ function getRegionMeaning(regionId: RegionId) {
 
       {semanticLevel === "person" && personSummary && (
         <>
-          <div className="iov-scene-chip iov-scene-chip-top">
+          <div className="iov-scene-chip iov-scene-chip-top iov-scene-chip-person">
             <strong>{personSummary.personId}</strong>
             <span>
               {personSummary.identityBuildMode
                 ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
                 : " Identity stack ready. Reveal layers to begin."}
               {presentationMode
-                ? " Follow the highlighted action to progress."
-                : " Tap orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person to open Time Slice."}
+                ? " Follow the highlighted ring."
+                : " Tap ring or facet to focus meaning. Next Layer advances the stack. Double-click the person to open Time Slice."}
             </span>
           </div>
-          {!presentationMode && personSummary.selectedContextTitle && personSummary.selectedContextBody && (
-            <div className="iov-scene-chip iov-scene-chip-context">
-              <strong>{personSummary.selectedContextTitle}</strong>
-              <span>{personSummary.selectedContextBody}</span>
-            </div>
-          )}
           <div className="iov-scene-dock iov-scene-dock-person">
             {presentationMode ? (
               !personSummary.identityBuildMode ? (

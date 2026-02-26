@@ -177,9 +177,7 @@ export class PersonIdentityScene {
     this.hoveredMarker.visible = false;
     this.selectedMarker.visible = false;
     this.root.add(this.hoveredMarker, this.selectedMarker);
-    this.facetTooltip = this.createFacetTooltipSprite("Facet", "Tap to focus this identity signal.");
-    this.facetTooltip.visible = false;
-    this.root.add(this.facetTooltip);
+    this.resetFacetTooltipSprite();
 
     this.camera.position.set(0, 5.5, 10.2);
     this.controls.target.set(0, 1.8, 0);
@@ -373,6 +371,8 @@ export class PersonIdentityScene {
     }
 
     this.camera.updateProjectionMatrix();
+    this.resetFacetTooltipSprite();
+    this.hideFacetTooltip();
     this.applyModeVisualState();
     this.controls.update();
   }
@@ -1054,11 +1054,26 @@ export class PersonIdentityScene {
     return sprite;
   }
 
+  private resetFacetTooltipSprite() {
+    if (this.facetTooltip) {
+      this.root.remove(this.facetTooltip);
+      const material = this.facetTooltip.material as THREE.SpriteMaterial;
+      material.map?.dispose();
+      material.dispose();
+      this.facetTooltip = null;
+    }
+    this.facetTooltip = this.createFacetTooltipSprite("Facet", "Tap to focus this identity signal.");
+    this.facetTooltip.visible = false;
+    this.root.add(this.facetTooltip);
+    this.facetTooltipFacet = null;
+  }
+
   private createFacetTooltipSprite(title: string, body: string) {
+    const isMobile = this.isMobileViewport;
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = 460;
-    canvas.height = 130;
+    canvas.width = isMobile ? 320 : 380;
+    canvas.height = isMobile ? 90 : 102;
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = "rgba(8,18,34,0.94)";
@@ -1067,14 +1082,15 @@ export class PersonIdentityScene {
       ctx.lineWidth = 2;
       ctx.strokeRect(1, 1, canvas.width - 2, canvas.height - 2);
       ctx.fillStyle = "#f8d67b";
-      ctx.font = "700 30px Avenir Next";
+      ctx.font = isMobile ? "700 22px Avenir Next" : "700 24px Avenir Next";
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
-      ctx.fillText(title, 18, 38);
+      ctx.fillText(title, 14, isMobile ? 28 : 31);
       ctx.fillStyle = "rgba(226,238,255,0.95)";
-      ctx.font = "500 20px Avenir Next";
-      const maxBody = body.length > 78 ? `${body.slice(0, 75)}...` : body;
-      ctx.fillText(maxBody, 18, 88);
+      ctx.font = isMobile ? "500 15px Avenir Next" : "500 16px Avenir Next";
+      const maxChars = isMobile ? 46 : 60;
+      const maxBody = body.length > maxChars ? `${body.slice(0, maxChars - 3)}...` : body;
+      ctx.fillText(maxBody, 14, isMobile ? 65 : 71);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -1086,7 +1102,7 @@ export class PersonIdentityScene {
         depthWrite: false,
       })
     );
-    sprite.scale.set(3.8, 1.08, 1);
+    sprite.scale.set(isMobile ? 2.6 : 3.0, isMobile ? 0.72 : 0.82, 1);
     return sprite;
   }
 
@@ -1111,8 +1127,8 @@ export class PersonIdentityScene {
   private positionFacetTooltip(position: THREE.Vector3) {
     if (!this.facetTooltip) return;
     this.facetTooltip.position.copy(position);
-    this.facetTooltip.position.x += 0.9;
-    this.facetTooltip.position.y += 0.58;
+    this.facetTooltip.position.x += this.isMobileViewport ? 0.55 : 0.66;
+    this.facetTooltip.position.y += this.isMobileViewport ? 0.34 : 0.42;
     this.facetTooltip.position.z += 0.08;
     this.facetTooltip.lookAt(this.camera.position);
   }

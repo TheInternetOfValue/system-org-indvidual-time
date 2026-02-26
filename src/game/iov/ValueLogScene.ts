@@ -897,14 +897,6 @@ export class ValueLogScene {
     pivot.position.y = 0.49;
     this.clockGroup.add(pivot);
 
-    this.clockLabel = this.createTextSprite("Time Slice Clock", {
-      width: 360,
-      height: 92,
-      fontSize: 28,
-    });
-    this.clockLabel.position.set(0, 2.0, -4.9);
-    this.clockGroup.add(this.clockLabel);
-
     this.auraBands.forEach((band) => {
       band.rotation.x = -Math.PI / 2;
       band.position.y = -5.0; // Move aura to the bottom (Identity layer)
@@ -1197,7 +1189,7 @@ export class ValueLogScene {
     this.startHand.visible = showClock;
     this.endHand.visible = showClock;
     if (this.clockLabel) {
-      this.clockLabel.visible = showClock;
+      this.clockLabel.visible = false;
     }
 
     // Wellbeing nodes - visible from step 1 onwards
@@ -1247,40 +1239,40 @@ export class ValueLogScene {
 
     if (this.step === "select_time") {
       if (this.isMobileViewport) {
-        position.set(0, 6.5, 12.0);
+        position.set(0, 6.1, 12.6);
       } else {
-        position.set(0, 6.0, 10.0);
+        position.set(0, 5.6, 10.9);
       }
       lookAt.set(0, 4.0, 0);
     } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
-        position.set(0, 0.3, 17.2);
+        position.set(0, 0.85, 18.8);
       } else {
-        position.set(0, 0.15, 15.2);
+        position.set(0, 0.6, 16.6);
       }
-      lookAt.set(0, 0.0, 0);
+      lookAt.set(0, -0.2, 0);
     } else if (this.step === "select_intensity") {
       if (this.isMobileViewport) {
-        position.set(0, 0.4, 17.2);
+        position.set(0, 0.9, 18.4);
       } else {
-        position.set(0, 0.2, 15.0);
+        position.set(0, 0.65, 16.2);
       }
-      lookAt.set(0, 0, 0);
+      lookAt.set(0, -0.2, 0);
     } else if (this.step === "select_performance") {
       if (this.isMobileViewport) {
-        position.set(0, -0.5, 17.0);
+        position.set(0, -0.15, 18.6);
       } else {
-        position.set(0, -0.8, 14.8);
+        position.set(0, -0.35, 16.6);
       }
       lookAt.set(0, -1.9, 0);
     } else {
       // show_outcome: pull back to see the whole chandelier
       if (this.isMobileViewport) {
-        position.set(0, 3.0, 18.0);
+        position.set(0, 2.3, 19.2);
       } else {
-        position.set(0, 2.0, 16.0);
+        position.set(0, 1.8, 17.2);
       }
-      lookAt.set(0, 1.0, 0);
+      lookAt.set(0, 0.6, 0);
     }
 
     return { position, lookAt };

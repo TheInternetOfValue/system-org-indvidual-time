@@ -634,15 +634,9 @@ const IovTopologyCanvas = () => {
       const stage = valueLogActionStageRef.current;
 
       let x = clientWidth * 0.5;
-      let y = safeTop + buttonHeight * 0.62;
+      let y = safeTop + buttonHeight * 0.56;
 
-      if (stage === "time_capture") {
-        x = clientWidth * (isMobileRef.current ? 0.5 : 0.38);
-        y = safeTop + buttonHeight * 0.72;
-      } else if (stage === "performance_domains" || stage === "performance_intensity") {
-        x = clientWidth - viewportSafe.right - buttonWidth * 0.54;
-        y = safeTop + buttonHeight * 0.7;
-      } else {
+      if (stage === "ready_capture") {
         valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
         projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
         if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
@@ -653,9 +647,13 @@ const IovTopologyCanvas = () => {
         x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
         y =
           (-projectedAnchor.y * 0.5 + 0.5) * clientHeight +
-          (stage === "ready_capture"
-            ? (isMobileRef.current ? 68 : 60)
-            : (isMobileRef.current ? 76 : 64));
+          (isMobileRef.current ? 62 : 56);
+      } else if (stage === "performance_domains" || stage === "performance_intensity") {
+        x = viewportSafe.left + buttonWidth * (isMobileRef.current ? 0.6 : 0.58);
+        y = safeTop + buttonHeight * 0.56;
+      } else if (stage === "time_capture") {
+        x = clientWidth * 0.5;
+        y = safeTop + buttonHeight * 0.58;
       }
 
       x = THREE.MathUtils.clamp(x, safeLeft, safeRight);

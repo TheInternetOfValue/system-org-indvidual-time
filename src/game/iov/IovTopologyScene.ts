@@ -212,6 +212,7 @@ interface SystemImpactPlayback {
   bridgeStressBefore: number;
   bridgeStressThreshold: number;
   empowerSurge?: boolean;
+  deferBridgeBreak?: boolean;
   donorBricks?: SystemImpactDonorBrick[];
   replay?: boolean;
 }
@@ -357,6 +358,8 @@ export class IovTopologyScene {
   private systemImpactHitPulse = 0;
   private systemImpactCollapseLeadInActive = false;
   private systemImpactCollapseLeadInElapsed = 0;
+  private systemImpactManualBreakMode = false;
+  private manualBridgeBreakReady = false;
   private systemImpactOnComplete: ((result: SystemImpactResult) => void) | null = null;
   private systemImpactResult: SystemImpactResult | null = null;
   private lastSystemImpactReplayState: SystemImpactReplayState | null = null;
@@ -591,6 +594,10 @@ export class IovTopologyScene {
     this.systemImpactHitPulse = 0;
     this.systemImpactCollapseLeadInActive = false;
     this.systemImpactCollapseLeadInElapsed = 0;
+    this.systemImpactManualBreakMode = Boolean(
+      context.deferBridgeBreak && this.systemImpactStressThresholdCrossed
+    );
+    this.manualBridgeBreakReady = false;
     this.systemImpactCommunityScaleStart = this.systemImpactCommunityScale;
     this.systemImpactCommunityScaleEnd = baseScaleEnd;
     this.systemImpactBridgeStressStart = context.bridgeStressBefore;
@@ -603,6 +610,7 @@ export class IovTopologyScene {
         bridgeStressBefore: context.bridgeStressBefore,
         bridgeStressThreshold: context.bridgeStressThreshold,
         empowerSurge: context.empowerSurge,
+        deferBridgeBreak: context.deferBridgeBreak,
       },
       donorBricks: donorBricks.map((donor) => ({
         regionId: donor.regionId,
@@ -634,6 +642,32 @@ export class IovTopologyScene {
 
   hasReplayableSystemImpact() {
     return this.lastSystemImpactReplayState !== null;
+  }
+
+  isBridgeReadyForManualBreak() {
+    return this.manualBridgeBreakReady && !this.isBridgeCollapsed;
+  }
+
+  triggerManualBridgeBreak() {
+    if (!this.manualBridgeBreakReady || this.isBridgeCollapsed) return false;
+    this.manualBridgeBreakReady = false;
+    this.systemImpactCollapseTriggered = true;
+    this.systemImpactResult = this.systemImpactResult
+      ? { ...this.systemImpactResult, bridgeCollapsed: true }
+      : this.systemImpactResult;
+    this.shatterBridge();
+    this.updateCommunityFlagToBuildTop(0.22);
+    this.spawnLandingPulse(
+      new THREE.Vector3(COMMUNITY_X, this.getSystemImpactBuildTopY(this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)), TOPOLOGY_Z),
+      {
+        color: "#ffe79f",
+        duration: 1.05,
+        startScale: 1.2,
+        endScale: 2.6,
+        maxOpacity: 0.94,
+      }
+    );
+    return true;
   }
 
   replayLastSystemImpact(onComplete: (result: SystemImpactResult) => void) {
@@ -1002,6 +1036,7 @@ export class IovTopologyScene {
   shatterBridge() {
     if (this.isBridgeCollapsed) return;
     this.isBridgeCollapsed = true;
+    this.manualBridgeBreakReady = false;
     this.resetBridgeFailureForeshadow();
 
     // Support both instanced and mesh group approaches
@@ -1069,6 +1104,7 @@ export class IovTopologyScene {
     // Hide the static bridge support markers
     this.bridgeSupports.visible = false;
     this.cronyMarkers.visible = false;
+    this.updateCommunityFlagToBuildTop(0.22);
   }
 
   private updateBuildPhases(deltaSeconds: number) {
@@ -1117,6 +1153,7 @@ export class IovTopologyScene {
     const crackDuration = 0.9;
     const collapseLeadInDuration = hitHoldDuration + wobbleDuration + crackDuration;
     const postCollapseDuration = 1.1;
+    const manualBreakLeadInDuration = hitHoldDuration + wobbleDuration;
     const settleDuration = this.systemImpactStressThresholdCrossed ? 0.95 : 0.82;
     const buildCompletionTime = this.systemImpactBuildBricks.reduce(
       (maxTime, brick) => Math.max(maxTime, brick.revealAt + brick.flightDuration),
@@ -1126,7 +1163,9 @@ export class IovTopologyScene {
       buildCompletionTime +
       settleDuration +
       (this.systemImpactStressThresholdCrossed
-        ? collapseLeadInDuration + postCollapseDuration
+        ? this.systemImpactManualBreakMode
+          ? manualBreakLeadInDuration
+          : collapseLeadInDuration + postCollapseDuration
         : 0);
 
     const growT = Math.min(1, this.systemImpactElapsed / growDuration);
@@ -1136,6 +1175,7 @@ export class IovTopologyScene {
       easeOutCubic(growT)
     );
     this.setRegionReveal("community", this.regionReveal.community);
+    this.updateCommunityFlagToBuildTop();
     this.systemImpactBuildBricks.forEach((brick) => {
       if (this.systemImpactElapsed < brick.revealAt) return;
       brick.mesh.visible = true;
@@ -1155,11 +1195,6 @@ export class IovTopologyScene {
       stressT
     );
     this.applyBridgeStressVisual(bridgeStressNow);
-    if (!this.systemImpactContactReached && this.systemImpactStressThresholdCrossed) {
-      const warmup = Math.max(0, (stressT - 0.38) / 0.62);
-      this.applyBridgePreImpactShake(warmup);
-    }
-
     const topBuildY = this.getSystemImpactBuildTopY(
       this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)
     );
@@ -1211,25 +1246,42 @@ export class IovTopologyScene {
     ) {
       if (this.systemImpactCollapseLeadInActive) {
         this.systemImpactCollapseLeadInElapsed += deltaSeconds;
-        if (this.systemImpactCollapseLeadInElapsed <= hitHoldDuration) {
-          const bangT = this.systemImpactCollapseLeadInElapsed / hitHoldDuration;
-          this.applyBridgeImpactBang(bangT);
-        } else {
-          const postHitElapsed = this.systemImpactCollapseLeadInElapsed - hitHoldDuration;
-          const wobbleT = Math.min(1, postHitElapsed / wobbleDuration);
-          const crackT =
-            postHitElapsed <= wobbleDuration
-              ? 0
-              : Math.min(1, (postHitElapsed - wobbleDuration) / crackDuration);
-          this.applyBridgeFailureForeshadow(wobbleT, crackT);
-        }
+        if (this.systemImpactManualBreakMode) {
+          if (this.systemImpactCollapseLeadInElapsed <= hitHoldDuration) {
+            const bangT = this.systemImpactCollapseLeadInElapsed / hitHoldDuration;
+            this.applyBridgeImpactBang(bangT);
+          } else {
+            const postHitElapsed = this.systemImpactCollapseLeadInElapsed - hitHoldDuration;
+            const wobbleT = Math.min(1, postHitElapsed / wobbleDuration);
+            this.applyBridgeFailureForeshadow(wobbleT, 0);
+          }
 
-        if (this.systemImpactCollapseLeadInElapsed >= collapseLeadInDuration) {
-          this.systemImpactCollapseLeadInActive = false;
-          this.resetBridgeFailureForeshadow();
-          this.systemImpactCollapseTriggered = true;
-          this.systemImpactResult.bridgeCollapsed = true;
-          this.shatterBridge();
+          if (this.systemImpactCollapseLeadInElapsed >= manualBreakLeadInDuration) {
+            this.systemImpactCollapseLeadInActive = false;
+            this.resetBridgeFailureForeshadow();
+            this.manualBridgeBreakReady = true;
+          }
+        } else {
+          if (this.systemImpactCollapseLeadInElapsed <= hitHoldDuration) {
+            const bangT = this.systemImpactCollapseLeadInElapsed / hitHoldDuration;
+            this.applyBridgeImpactBang(bangT);
+          } else {
+            const postHitElapsed = this.systemImpactCollapseLeadInElapsed - hitHoldDuration;
+            const wobbleT = Math.min(1, postHitElapsed / wobbleDuration);
+            const crackT =
+              postHitElapsed <= wobbleDuration
+                ? 0
+                : Math.min(1, (postHitElapsed - wobbleDuration) / crackDuration);
+            this.applyBridgeFailureForeshadow(wobbleT, crackT);
+          }
+
+          if (this.systemImpactCollapseLeadInElapsed >= collapseLeadInDuration) {
+            this.systemImpactCollapseLeadInActive = false;
+            this.resetBridgeFailureForeshadow();
+            this.systemImpactCollapseTriggered = true;
+            this.systemImpactResult.bridgeCollapsed = true;
+            this.shatterBridge();
+          }
         }
       }
     } else if (!this.systemImpactContactReached) {
@@ -1589,6 +1641,8 @@ export class IovTopologyScene {
     this.systemImpactHitPulse = 0;
     this.systemImpactCollapseLeadInActive = false;
     this.systemImpactCollapseLeadInElapsed = 0;
+    this.systemImpactManualBreakMode = false;
+    this.manualBridgeBreakReady = false;
     this.systemImpactBuildGroup.position.y = 0;
     this.systemImpactBridgeContactY = 0;
     this.systemImpactBridgeTarget.set(0, 0, 0);
@@ -1722,6 +1776,8 @@ export class IovTopologyScene {
   private restoreBridgeForReplay() {
     this.fallingBricks = [];
     this.isBridgeCollapsed = false;
+    this.manualBridgeBreakReady = false;
+    this.systemImpactManualBreakMode = false;
     this.resetBridgeFailureForeshadow();
     const visible = this.regionReveal.crony_bridge > 0.01;
     this.bridgeSupports.visible = visible;
@@ -2667,11 +2723,30 @@ export class IovTopologyScene {
     runtime.topY = rebuilt.topY;
     runtime.topCapCenter = rebuilt.topCapCenter;
     runtime.accentColor = rebuilt.accentColor;
+    this.syncRegionFlagToRuntime(runtime);
 
     this.structureGroup.add(runtime.mesh, runtime.edgeGroup);
     if (runtime.studs) this.structureGroup.add(runtime.studs);
 
     this.applySelection(this.selectedRegionId);
+  }
+
+  private syncRegionFlagToRuntime(runtime: RegionRuntime) {
+    if (!runtime.flagPole || !runtime.flag) return;
+    runtime.flagPole.position.set(runtime.center.x, runtime.topY + 0.75, runtime.center.z);
+    runtime.flag.position.set(runtime.center.x + 0.7, runtime.topY + 1.4, runtime.center.z);
+  }
+
+  private updateCommunityFlagToBuildTop(extraLift = 0) {
+    const community = this.regions.get("community");
+    if (!community) return;
+    if (!community.flagPole || !community.flag) return;
+
+    const topY = this.getSystemImpactBuildTopY(
+      this.getCommunityTopSurfaceY(this.systemImpactCommunityScale)
+    );
+    community.flagPole.position.set(community.center.x, topY + 0.75 + extraLift, community.center.z);
+    community.flag.position.set(community.center.x + 0.7, topY + 1.4 + extraLift, community.center.z);
   }
 
   private updateHoverRegion() {

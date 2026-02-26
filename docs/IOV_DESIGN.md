@@ -36,9 +36,10 @@ Current semantic zoom chain:
 - Value commit flow uses explicit transition FX:
   - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
 - Time Slice interaction is centered on in-scene composer controls for desktop capture flow; panel controls are secondary/mobile-first.
+- Wellbeing context helper dock (including Performance domain/intensity) anchors near the infinity center to keep interaction focal and consistent.
 - Post-impact propagation:
   - impacted person activation ring in `BlockInteriorScene`.
-  - org-level contagion in `BlockInteriorScene` (all people remain visible while aura spreads).
+  - org-level contagion in `BlockInteriorScene` is user-paced in org impact mode (double-click to advance each aura spread step).
   - source organization brick activation in `IovTopologyScene`.
   - system impact runs from explicit `Empower Community Pillar` action.
 
@@ -47,13 +48,14 @@ Current semantic zoom chain:
 - Donor source holes remain visible (no fake duplicate spawn).
 - Community pillar build timing is intentionally staged (slower transfers, readable stack-up).
 - Bridge failure timing is gated in sequence:
-  - pre-impact stress shake,
-  - contact bang impulse,
-  - wobble/crack foreshadow,
-  - then collapse.
+  - donor bricks fly from Market/State into Community pillar growth,
+  - visible contact bang at bridge impact,
+  - post-contact stress/shake without immediate collapse,
+  - second user action (`Break Crony Bridge`) triggers collapse.
 - Bridge collapse is still gated by both:
   - stress threshold crossing,
   - visible geometric contact with bridge underside.
+- Community flag alignment is synchronized to the live community pillar top during/after system impact build.
 - Replay of latest system impact is available from topology controls for capture/demo workflows.
 
 ## Color Rendering

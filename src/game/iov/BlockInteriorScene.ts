@@ -36,6 +36,10 @@ interface OrgContagionSummary {
   populationCount: number;
 }
 
+interface OrgContagionOptions {
+  requireManualAdvance?: boolean;
+}
+
 const PROFILE_BY_REGION: Record<RegionId, string[]> = {
   market: ["Trader", "Engineer", "Analyst", "Worker"],
   state: ["Civil Servant", "Nurse", "Teacher", "Operator"],
@@ -122,6 +126,8 @@ export class BlockInteriorScene {
   private contagionStepT = 0;
   private contagionHoldSeconds = 0;
   private contagionOnComplete: ((summary: OrgContagionSummary) => void) | null = null;
+  private contagionRequiresManualAdvance = false;
+  private contagionAdvanceArmed = false;
   private readonly contagionPulseGeometry = new THREE.SphereGeometry(0.1, 16, 12);
   private readonly contagionPulseMaterial = new THREE.MeshBasicMaterial({
     color: "#ffd870",
@@ -344,7 +350,8 @@ export class BlockInteriorScene {
 
   playOrgContagion(
     seedPersonId: string,
-    onComplete?: (summary: OrgContagionSummary) => void
+    onComplete?: (summary: OrgContagionSummary) => void,
+    options?: OrgContagionOptions
   ) {
     this.resetOrgActivationState();
     this.ensureOrgAuraTokens();
@@ -372,6 +379,8 @@ export class BlockInteriorScene {
     this.contagionStepT = 0;
     this.contagionHoldSeconds = 0;
     this.contagionRunning = true;
+    this.contagionRequiresManualAdvance = Boolean(options?.requireManualAdvance);
+    this.contagionAdvanceArmed = !this.contagionRequiresManualAdvance;
 
     this.orgActivationLight.visible = true;
     this.orgActivationLight.intensity = 1.4;
@@ -383,6 +392,14 @@ export class BlockInteriorScene {
         this.contagionPulse.position.set(from.position.x, 0.32, from.position.z);
       }
     }
+  }
+
+  requestOrgContagionAdvance() {
+    if (!this.contagionRunning) return false;
+    if (this.contagionToIndex === null || this.contagionFromIndex === null) return false;
+    if (this.contagionStepT > 0.001 && this.contagionStepT < 0.999) return false;
+    this.contagionAdvanceArmed = true;
+    return true;
   }
 
   update(deltaSeconds: number) {
@@ -776,6 +793,13 @@ export class BlockInteriorScene {
       return;
     }
 
+    if (this.contagionRequiresManualAdvance && !this.contagionAdvanceArmed && this.contagionStepT <= 0.001) {
+      this.contagionPulse.visible = true;
+      this.contagionPulseLight.visible = true;
+      this.contagionPulse.position.set(from.position.x, 0.32, from.position.z);
+      return;
+    }
+
     this.contagionStepT = Math.min(1, this.contagionStepT + deltaSeconds / stepDuration);
     this.contagionPulse.visible = true;
     this.contagionPulseLight.visible = true;
@@ -791,6 +815,7 @@ export class BlockInteriorScene {
           ? (this.contagionOrder[this.contagionCursor] ?? null)
           : null;
       this.contagionStepT = 0;
+      this.contagionAdvanceArmed = !this.contagionRequiresManualAdvance;
     }
   }
 
@@ -904,6 +929,8 @@ export class BlockInteriorScene {
     this.contagionStepT = 0;
     this.contagionHoldSeconds = 0;
     this.contagionOnComplete = null;
+    this.contagionRequiresManualAdvance = false;
+    this.contagionAdvanceArmed = false;
     this.orgActivatedIndices.clear();
     this.contagionPulse.visible = false;
     this.contagionPulseLight.visible = false;

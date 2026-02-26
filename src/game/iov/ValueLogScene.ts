@@ -1286,6 +1286,10 @@ export class ValueLogScene {
     return this.root.localToWorld(target.copy(this.token.position));
   }
 
+  getWellbeingCenterWorldPosition(target: THREE.Vector3) {
+    return this.root.localToWorld(target.set(0, -0.2, 0));
+  }
+
   // --- Restored Original Methods ---
 
   private updatePointerHover() {

@@ -205,7 +205,7 @@ const IovTopologyCanvas = () => {
   const selectedPersonIdRef = useRef<string | null>(null);
   const topologyBuildStepRef = useRef(0);
   const lastSceneTapRef = useRef<{
-    level: "topology" | "block" | "person" | "valuelog";
+    level: "topology" | "block" | "person" | "valuelog" | "orgimpact";
     key: string;
     at: number;
   } | null>(null);
@@ -250,6 +250,7 @@ const IovTopologyCanvas = () => {
   const [lastImpactedPersonId, setLastImpactedPersonId] = useState<string | null>(null);
   const [lastImpactedBrick, setLastImpactedBrick] = useState<SelectedBrickInfo | null>(null);
   const [pendingEmpower, setPendingEmpower] = useState<PendingEmpowerState | null>(null);
+  const [pendingBridgeBreak, setPendingBridgeBreak] = useState(false);
   const [bridgeCollapsed, setBridgeCollapsed] = useState(false);
   const [canReplaySystemImpact, setCanReplaySystemImpact] = useState(false);
   const [topologyActivated, setTopologyActivated] = useState(false);
@@ -648,12 +649,26 @@ const IovTopologyCanvas = () => {
         y =
           (-projectedAnchor.y * 0.5 + 0.5) * clientHeight +
           (isMobileRef.current ? 62 : 56);
-      } else if (stage === "performance_domains" || stage === "performance_intensity") {
-        x = viewportSafe.left + buttonWidth * (isMobileRef.current ? 0.6 : 0.58);
-        y = safeTop + buttonHeight * 0.56;
       } else if (stage === "time_capture") {
         x = clientWidth * 0.5;
         y = safeTop + buttonHeight * 0.58;
+      } else if (
+        stage === "wellbeing_select" ||
+        stage === "intensity_select" ||
+        stage === "performance_domains" ||
+        stage === "performance_intensity"
+      ) {
+        valueLogScene.getWellbeingCenterWorldPosition(valueLogTokenAnchor);
+        projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          dock.style.opacity = "0";
+          dock.style.pointerEvents = "none";
+          return;
+        }
+        x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        y =
+          (-projectedAnchor.y * 0.5 + 0.5) * clientHeight -
+          (isMobileRef.current ? 8 : 12);
       }
 
       x = THREE.MathUtils.clamp(x, safeLeft, safeRight);
@@ -739,7 +754,10 @@ const IovTopologyCanvas = () => {
         blockScene?.clearPointer();
         personScene?.clearPointer();
         valueLogScene?.clearPointer();
-      } else if (semanticLevelRef.current === "block") {
+      } else if (
+        semanticLevelRef.current === "block" ||
+        semanticLevelRef.current === "orgimpact"
+      ) {
         blockScene?.setPointerFromCanvas(x, y, rect.width, rect.height);
         personScene?.clearPointer();
         scene.clearPointer();
@@ -808,6 +826,22 @@ const IovTopologyCanvas = () => {
           lastSceneTapRef.current = { level: "block", key: selected, at: now };
           if (isDoubleTap) {
             handleOpenPersonStub(selected);
+          }
+        } else if (semanticLevelRef.current === "orgimpact") {
+          if (!blockScene) return;
+          const now = window.performance.now();
+          const lastTap = lastSceneTapRef.current;
+          const isDoubleTap =
+            lastTap !== null &&
+            lastTap.level === "orgimpact" &&
+            lastTap.key === "__org_contagion__" &&
+            now - lastTap.at <= DOUBLE_TAP_WINDOW_MS;
+          lastSceneTapRef.current = { level: "orgimpact", key: "__org_contagion__", at: now };
+          if (isDoubleTap) {
+            const advanced = blockScene.requestOrgContagionAdvance();
+            if (advanced) {
+              setPhaseHeadline("Aura moved forward. Double-click again to propagate to the next person.");
+            }
           }
         } else if (semanticLevelRef.current === "person") {
           if (!personScene) return;
@@ -974,6 +1008,12 @@ const IovTopologyCanvas = () => {
   }, [semanticLevel, selectedBrickInfo]);
 
   useEffect(() => {
+    if (bridgeCollapsed) {
+      setPendingBridgeBreak(false);
+    }
+  }, [bridgeCollapsed]);
+
+  useEffect(() => {
     let mounted = true;
     loadIovValues().then((loaded) => {
       if (!mounted) return;
@@ -1005,11 +1045,13 @@ const IovTopologyCanvas = () => {
       : `${getRegionLabel(selectedBrickInfo.regionId)} #${selectedBrickInfo.instanceId + 1}`;
   const canOpenBrick = semanticLevel === "topology" && selectedBrickInfo !== null;
   const canEmpowerCommunity =
-    semanticLevel === "topology" && pendingEmpower !== null && !bridgeCollapsed;
+    semanticLevel === "topology" && (pendingEmpower !== null || pendingBridgeBreak) && !bridgeCollapsed;
   const canReplayImpact = semanticLevel === "topology" && canReplaySystemImpact;
-  const empowerLabel = pendingEmpower
-    ? `Empower Community Pillar (${pendingEmpower.activationCount})`
-    : "Empower Community Pillar";
+  const empowerLabel = pendingBridgeBreak
+    ? "Break Crony Bridge"
+    : pendingEmpower
+      ? `Empower Community Pillar (${pendingEmpower.activationCount})`
+      : "Empower Community Pillar";
   const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const hasValidValueLogTime = isTimeRangeValid(valueLogDraft.startTime, valueLogDraft.endTime);
   const hasValueLogActivity = valueLogDraft.activityLabel.trim().length > 0;
@@ -1157,7 +1199,9 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("Value committed: Impact visualization.");
       // Logic handled via handleValueLogCommit transaction flow
     } else if (level === "orgimpact") {
-      setPhaseHeadline("Organization impact: aura contagion across the team.");
+      setPhaseHeadline(
+        "Organization impact: double-click in the scene to propagate aura from one person to the next."
+      );
     } else if (level === "systemimpact") {
       setPhaseHeadline("System impact: Community grows and applies pressure into the bridge.");
     } else if (level === "valuelog") {
@@ -1575,7 +1619,7 @@ const IovTopologyCanvas = () => {
 
   const startSystemImpactSequence = (
     orgImpactResult: OrgImpactResult,
-    options?: { empowerSurge?: boolean }
+    options?: { empowerSurge?: boolean; deferBridgeBreak?: boolean }
   ) => {
     const scene = sceneRef.current;
     if (!scene) {
@@ -1587,6 +1631,7 @@ const IovTopologyCanvas = () => {
     const openSystemImpact = zoomControllerRef.current.dispatch({ type: "OPEN_SYSTEM_IMPACT" });
     applySemanticTransition(openSystemImpact.level);
     impactEscalationRef.current.dispatch({ type: "START_SYSTEM_IMPACT" });
+    setPendingBridgeBreak(false);
 
     const before = systemImpactModelRef.current;
     scene.playSystemImpact(
@@ -1596,6 +1641,7 @@ const IovTopologyCanvas = () => {
         bridgeStressBefore: before.bridgeStress,
         bridgeStressThreshold: before.bridgeStressThreshold,
         empowerSurge: options?.empowerSurge ?? false,
+        deferBridgeBreak: options?.deferBridgeBreak ?? false,
       },
       (systemImpactResult) => {
         impactEscalationRef.current.dispatch({
@@ -1607,16 +1653,24 @@ const IovTopologyCanvas = () => {
         systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
         setBridgeCollapsed(systemImpactResult.bridgeCollapsed);
         setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
+        const canBreakBridge = scene.isBridgeReadyForManualBreak();
+        setPendingBridgeBreak(canBreakBridge);
 
         const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
         applySemanticTransition(back.level);
         scene.clearSelectedBrick();
         scene.frameSystemOverview();
-        setPhaseHeadline(
-          systemImpactResult.bridgeCollapsed
-            ? "Community pillar impact collapsed the crony bridge."
-            : "Community pillar surged, bridge stress increased."
-        );
+        if (canBreakBridge) {
+          setPhaseHeadline(
+            "Community pillar reached bridge contact. Press Break Crony Bridge to shatter it."
+          );
+        } else {
+          setPhaseHeadline(
+            systemImpactResult.bridgeCollapsed
+              ? "Community pillar impact collapsed the crony bridge."
+              : "Community pillar surged, bridge stress increased."
+          );
+        }
       }
     );
   };
@@ -1638,7 +1692,23 @@ const IovTopologyCanvas = () => {
 
     setPendingEmpower(null);
     setPhaseHeadline("Empowering community pillar...");
-    startSystemImpactSequence(pendingResult, { empowerSurge: true });
+    startSystemImpactSequence(pendingResult, {
+      empowerSurge: true,
+      deferBridgeBreak: true,
+    });
+  };
+
+  const handleBreakBridge = () => {
+    const scene = sceneRef.current;
+    if (!scene || bridgeCollapsed) return;
+    if (!scene.triggerManualBridgeBreak()) return;
+
+    setPendingBridgeBreak(false);
+    setBridgeCollapsed(true);
+    setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
+    scene.clearSelectedBrick();
+    scene.frameSystemOverview();
+    setPhaseHeadline("Bridge shattered. Community standard now rises above the restored pillar.");
   };
 
   const handleReplaySystemImpact = () => {
@@ -1656,6 +1726,7 @@ const IovTopologyCanvas = () => {
       systemImpactModelRef.current.bridgeStress = systemImpactResult.bridgeStressAfter;
       setBridgeCollapsed(systemImpactResult.bridgeCollapsed);
       setCanReplaySystemImpact(scene.hasReplayableSystemImpact());
+      setPendingBridgeBreak(scene.isBridgeReadyForManualBreak());
       scene.clearSelectedBrick();
       scene.frameSystemOverview();
       setPhaseHeadline(
@@ -1737,7 +1808,7 @@ const IovTopologyCanvas = () => {
 
       const back = zoomControllerRef.current.dispatch({ type: "NAV_BACK" });
       applySemanticTransition(back.level);
-    });
+    }, { requireManualAdvance: true });
   };
 
   const handleValueLogCommit = async () => {
@@ -1917,7 +1988,11 @@ function getRegionMeaning(regionId: RegionId) {
           className="iov-system-empower-fab"
           aria-label="System empowerment action"
         >
-          <button className="iov-btn-action" type="button" onClick={handleEmpowerCommunity}>
+          <button
+            className="iov-btn-action"
+            type="button"
+            onClick={pendingBridgeBreak ? handleBreakBridge : handleEmpowerCommunity}
+          >
             {empowerLabel}
           </button>
         </div>

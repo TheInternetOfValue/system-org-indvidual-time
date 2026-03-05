@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { RegionId, SelectedBrickInfo } from "./IovTopologyScene";
+import { IOV_IDENTITY_COLORS } from "./iovNarrativeConfig";
 
 export interface BlockPeopleSummary {
   regionId: RegionId;
@@ -142,6 +143,8 @@ export class BlockInteriorScene {
   private personFocusCueDuration = 0;
   private personFocusCueResolver: (() => void) | null = null;
   private personFocusCueBaseOpacity = 0.92;
+  private elapsedSeconds = 0;
+  private readonly personAnchor = new THREE.Vector3();
 
   constructor(
     private readonly domElement: HTMLElement,
@@ -202,7 +205,8 @@ export class BlockInteriorScene {
     if (!targetId) return null;
     const token = this.personTokens.find((person) => person.id === targetId);
     if (!token) return null;
-    return new THREE.Vector3(token.position.x, 0.78 * token.heightScale, token.position.z);
+    this.personAnchor.set(token.position.x, 0.78 * token.heightScale, token.position.z);
+    return this.personAnchor.clone();
   }
 
   playPersonFocusCue(personId: string, durationMs = 160) {
@@ -403,11 +407,13 @@ export class BlockInteriorScene {
   }
 
   update(deltaSeconds: number) {
+    this.elapsedSeconds += deltaSeconds;
+    const time = this.elapsedSeconds;
     this.controls.update();
     if (this.hasPointer) this.updateHover();
 
     // Small idle sway keeps interior scene alive without expensive animation.
-    this.peopleGroup.position.y = Math.sin(performance.now() * 0.0012) * 0.02;
+    this.peopleGroup.position.y = Math.sin(time * 1.2) * 0.02;
 
     if (this.contagionRunning) {
       this.updateOrgContagion(deltaSeconds);
@@ -415,7 +421,6 @@ export class BlockInteriorScene {
 
     if (this.activationMesh && this.activationMesh.visible) {
       // Pulse the activation aura
-      const time = performance.now() * 0.001;
       this.activationMesh.rotation.z = time;
       const pulse = 1 + Math.sin(time * 3) * 0.2;
       this.activationMesh.scale.set(pulse, pulse, 1);
@@ -423,7 +428,6 @@ export class BlockInteriorScene {
     }
 
     if (this.orgActivated || this.contagionRunning) {
-      const time = performance.now() * 0.001;
       this.orgAuraTokens.forEach(({ mesh, phase }) => {
         if (!mesh.visible) return;
         const pulse = 1 + Math.sin(time * 2.6 + phase) * 0.16;
@@ -435,7 +439,6 @@ export class BlockInteriorScene {
     }
 
     if (this.contagionPulse.visible) {
-      const time = performance.now() * 0.001;
       const pulse = 1 + Math.sin(time * 10) * 0.16;
       this.contagionPulse.scale.setScalar(pulse);
       this.contagionPulseLight.intensity = 1.6 + Math.sin(time * 12) * 0.3;
@@ -1108,10 +1111,10 @@ export class BlockInteriorScene {
 }
 
 const getRegionPeopleColor = (regionId: RegionId) => {
-  if (regionId === "market") return new THREE.Color("#2d63ad");
-  if (regionId === "state") return new THREE.Color("#a15e39");
-  if (regionId === "community") return new THREE.Color("#b89a33");
-  return new THREE.Color("#626872");
+  if (regionId === "market") return new THREE.Color(IOV_IDENTITY_COLORS.market);
+  if (regionId === "state") return new THREE.Color(IOV_IDENTITY_COLORS.state);
+  if (regionId === "community") return new THREE.Color(IOV_IDENTITY_COLORS.community);
+  return new THREE.Color(IOV_IDENTITY_COLORS.bridge);
 };
 
 const toRegionLabel = (regionId: RegionId) => {

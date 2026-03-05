@@ -241,6 +241,17 @@ export class IovTopologyScene {
 
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointerNdc = new THREE.Vector2();
+  private readonly regionAnchorCache: Record<RegionId, THREE.Vector3> = {
+    market: new THREE.Vector3(),
+    state: new THREE.Vector3(),
+    community: new THREE.Vector3(),
+    crony_bridge: new THREE.Vector3(),
+  };
+  private readonly communityEmpowerAnchor = new THREE.Vector3();
+  private readonly brickAnchorMatrix = new THREE.Matrix4();
+  private readonly brickAnchorPosition = new THREE.Vector3();
+  private readonly brickAnchorRotation = new THREE.Quaternion();
+  private readonly brickAnchorScale = new THREE.Vector3();
   private hasPointer = false;
 
   private readonly regions = new Map<RegionId, RegionRuntime>();
@@ -441,19 +452,21 @@ export class IovTopologyScene {
   }
 
   getRegionAnchor(regionId: RegionId) {
+    const anchor = this.regionAnchorCache[regionId];
     if (regionId === "crony_bridge") {
       const marketCenterX = this.regions.get("market")?.center.x ?? MARKET_X;
       const stateCenterX = this.regions.get("state")?.center.x ?? STATE_X;
       const anchorX = THREE.MathUtils.lerp(marketCenterX, stateCenterX, 0.72);
       const anchorY = this.bridgeTopY + STEP_Y * 1.35;
       const anchorZ = TOPOLOGY_Z - STEP_XZ * 0.35;
-      return new THREE.Vector3(anchorX, anchorY, anchorZ);
+      anchor.set(anchorX, anchorY, anchorZ);
+      return anchor;
     }
 
     const runtime = this.regions.get(regionId);
     if (!runtime) return null;
 
-    const anchor = runtime.center.clone();
+    anchor.copy(runtime.center);
     if (regionId === "market" || regionId === "state") {
       anchor.y = runtime.topY + HALF_H * 1.5;
     } else {
@@ -470,7 +483,8 @@ export class IovTopologyScene {
       ((IOV_TOPOLOGY_CONFIG.community.depth - 1) * STEP_XZ) * 0.5 + BRICK_D * 0.5;
     const anchorY = STRUCTURE_LAYER0_Y + BRICK_H * 0.65;
     const anchorZ = runtime.center.z + halfDepth + BRICK_D * 0.24;
-    return new THREE.Vector3(runtime.center.x, anchorY, anchorZ);
+    this.communityEmpowerAnchor.set(runtime.center.x, anchorY, anchorZ);
+    return this.communityEmpowerAnchor;
   }
 
   getSelectedBrickInfo() {
@@ -482,13 +496,13 @@ export class IovTopologyScene {
     if (!runtime) return null;
     if (instanceId < 0 || instanceId >= runtime.currentBricks.length) return null;
 
-    const matrix = new THREE.Matrix4();
-    runtime.mesh.getMatrixAt(instanceId, matrix);
-    const position = new THREE.Vector3();
-    const rotation = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    matrix.decompose(position, rotation, scale);
-    return position;
+    runtime.mesh.getMatrixAt(instanceId, this.brickAnchorMatrix);
+    this.brickAnchorMatrix.decompose(
+      this.brickAnchorPosition,
+      this.brickAnchorRotation,
+      this.brickAnchorScale
+    );
+    return this.brickAnchorPosition.clone();
   }
 
   playBrickFocusCue(regionId: RegionId, instanceId: number, durationMs = 180) {

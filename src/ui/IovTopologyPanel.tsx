@@ -10,18 +10,27 @@ import type {
 } from "@/game/iov/PersonIdentityScene";
 import {
   SAOCOMMONS_DOMAIN_PROMPTS,
-  VALUE_CAPTURE_ACTIVITY_TEMPLATES,
-  VALUE_CAPTURE_PROOF_TEMPLATES,
   WELLBEING_INTENSITY_PROMPTS,
   type ValueLogDraft,
   type ValueLogSummary,
   type WizardStep,
 } from "@/game/iov/ValueLogModel";
 import type { SemanticZoomLevel } from "@/game/iov/IovSemanticZoomController";
+import { IOV_IDENTITY_COLORS } from "@/game/iov/iovNarrativeConfig";
 import {
   type IovValues,
   formatIovValue,
 } from "@/game/iov/iovValues";
+
+type ValueLogActionStage =
+  | "time_capture"
+  | "activity_capture"
+  | "proof_capture"
+  | "wellbeing_select"
+  | "intensity_select"
+  | "performance_domains"
+  | "performance_intensity"
+  | "ready_capture";
 
 interface IovTopologyPanelProps {
   data: IovTopologyData;
@@ -43,6 +52,8 @@ interface IovTopologyPanelProps {
   valueLogDraft: ValueLogDraft;
   valueLogSummary: ValueLogSummary | null;
   valueLogStep: WizardStep;
+  valueLogActionStage: ValueLogActionStage;
+  canContinueTimeSliceFlow: boolean;
   onToggle: (toggleId: ToggleId) => void;
   onBuild: (regionId: RegionId) => void;
   onOpenBrick: () => void;
@@ -51,6 +62,7 @@ interface IovTopologyPanelProps {
   onTogglePresentationMode: () => void;
   onValueLogDraftChange: (patch: Partial<ValueLogDraft>) => void;
   onValueLogCommit: () => void;
+  onAdvanceValueLogActionStage: () => void;
   onOpenValueLog: () => void; // Added for Person Identity view
   canEmpowerCommunity: boolean;
   empowerLabel: string;
@@ -79,6 +91,8 @@ const IovTopologyPanel = ({
   valueLogDraft,
   valueLogSummary,
   valueLogStep,
+  valueLogActionStage,
+  canContinueTimeSliceFlow,
   onToggle,
   onBuild,
   onOpenBrick,
@@ -87,6 +101,7 @@ const IovTopologyPanel = ({
   onTogglePresentationMode,
   onValueLogDraftChange,
   onValueLogCommit,
+  onAdvanceValueLogActionStage,
   onOpenValueLog,
   canEmpowerCommunity,
   empowerLabel,
@@ -100,6 +115,12 @@ const IovTopologyPanel = ({
     setMobileExpanded(!isMobile);
   }, [isMobile]);
 
+  useEffect(() => {
+    if (isMobile && semanticLevel === "valuelog" && valueLogActionStage === "time_capture") {
+      setMobileExpanded(false);
+    }
+  }, [isMobile, semanticLevel, valueLogActionStage]);
+
   const selected = data.regions.find((region) => region.id === selectedRegionId);
   const marketCash =
     values.market.total ??
@@ -110,12 +131,11 @@ const IovTopologyPanel = ({
       ? marketCash + values.market.derivatives_notional
       : null;
   const legendItems = [
-    { id: "market", label: "Market", color: "#1f4c8f" },
-    { id: "state", label: "State", color: "#8c4e2f" },
-    { id: "community", label: "Community", color: "#d9b114" },
-    { id: "bridge", label: "Bridge", color: "#4a4f57" },
+    { id: "market", label: "Market", color: IOV_IDENTITY_COLORS.market },
+    { id: "state", label: "State", color: IOV_IDENTITY_COLORS.state },
+    { id: "community", label: "Community", color: IOV_IDENTITY_COLORS.community },
+    { id: "bridge", label: "Bridge", color: IOV_IDENTITY_COLORS.bridge },
   ] as const;
-  const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const isTopologyContext = semanticLevel === "topology";
   const showTopologyDetails = isTopologyContext && topologyActivated;
   const panelTitle = isTopologyContext
@@ -123,7 +143,11 @@ const IovTopologyPanel = ({
       ? selected?.label ?? "System"
       : "System"
     : formatSemanticLevel(semanticLevel);
+  const headerKicker = isTopologyContext
+    ? "What is the System and its Value?"
+    : "Story Loop Progress";
   const sceneContext = formatSemanticContext(semanticLevel);
+  const sceneStoryLink = formatSceneStoryLink(semanticLevel);
   const isBuildOptionEnabled = (regionId: RegionId) =>
     !nextTopologyBuildRegion || nextTopologyBuildRegion === regionId;
   const bridgeCoupledValue =
@@ -136,6 +160,7 @@ const IovTopologyPanel = ({
     topologyActivated,
     nextTopologyBuildRegion,
     valueLogSummary,
+    valueLogActionStage,
     personSummary,
     canOpenBrick,
     canEmpowerCommunity,
@@ -149,14 +174,24 @@ const IovTopologyPanel = ({
     blockSummary,
     personSummary,
     valueLogSummary,
+    valueLogActionStage,
+    canContinueTimeSliceFlow,
     onOpenBrick,
     onEmpowerCommunity,
     onReplaySystemImpact,
     onOpenPerson,
     onOpenValueLog,
+    onAdvanceValueLogActionStage,
     onValueLogCommit,
     empowerLabel,
   });
+  const valueLogPrimaryAction = getValueLogPrimaryAction({
+    valueLogActionStage,
+    valueLogSummary,
+    canContinueTimeSliceFlow,
+  });
+  const suppressMobilePeekForTimeCapture =
+    isMobile && semanticLevel === "valuelog" && valueLogActionStage === "time_capture";
 
   const renderTopologyValues = () => {
     switch (selectedRegionId) {
@@ -240,6 +275,10 @@ const IovTopologyPanel = ({
     }
   };
 
+  if (suppressMobilePeekForTimeCapture && !mobileExpanded) {
+    return null;
+  }
+
   if (isMobile && !mobileExpanded) {
     return (
       <div
@@ -275,7 +314,7 @@ const IovTopologyPanel = ({
             >
               Exit Presentation
             </button>
-            {isMobile && (
+            {isMobile && !suppressMobilePeekForTimeCapture && (
               <button
                 type="button"
                 className="iov-mobile-expand"
@@ -289,6 +328,7 @@ const IovTopologyPanel = ({
         <div className="iov-panel-content iov-panel-content-presenter">
           <div className="iov-phase-headline">{phaseHeadline}</div>
           <div className="iov-panel-title">{panelTitle}</div>
+          <div className="iov-panel-value-subline">{sceneStoryLink}</div>
           <div className="iov-panel-presenter-cue">{presenterCue}</div>
           {presenterAction && (
             <button
@@ -317,7 +357,7 @@ const IovTopologyPanel = ({
       } ${isMobile && !mobileExpanded ? "is-collapsed" : ""}`}
     >
       <div className="iov-panel-header">
-        <div className="iov-panel-kicker">What is the System and its Value?</div>
+        <div className="iov-panel-kicker">{headerKicker}</div>
         <div className="iov-panel-header-actions">
           <button
             type="button"
@@ -326,7 +366,7 @@ const IovTopologyPanel = ({
           >
             {presentationMode ? "Exit Presentation" : "Presentation Mode"}
           </button>
-          {isMobile && (
+          {isMobile && !suppressMobilePeekForTimeCapture && (
             <button
               type="button"
               className="iov-mobile-expand"
@@ -375,18 +415,17 @@ const IovTopologyPanel = ({
       </div>}
       {isMobile && semanticLevel === "topology" && showTopologyDetails && (
         <div className="iov-mobile-semantic-row">
-          <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
-            Open Organization
-          </button>
-          {canEmpowerCommunity && (
-            <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
-              {empowerLabel}
+          {presenterAction ? (
+            <button
+              type="button"
+              className="iov-btn-action"
+              onClick={presenterAction.onClick}
+              disabled={presenterAction.disabled}
+            >
+              {presenterAction.label}
             </button>
-          )}
-          {canReplaySystemImpact && (
-            <button type="button" onClick={onReplaySystemImpact}>
-              Replay Impact
-            </button>
+          ) : (
+            <span className="iov-panel-value-subline">Use the in-scene region controls.</span>
           )}
         </div>
       )}
@@ -396,9 +435,19 @@ const IovTopologyPanel = ({
             <button type="button" onClick={onBackSemantic}>
               Back to Person
             </button>
-            <button type="button" onClick={onValueLogCommit} disabled={!canValueLogCommit}>
-              Capture
-            </button>
+            {valueLogPrimaryAction && (
+              <button
+                type="button"
+                onClick={
+                  valueLogActionStage === "ready_capture"
+                    ? onValueLogCommit
+                    : onAdvanceValueLogActionStage
+                }
+                disabled={valueLogPrimaryAction.disabled}
+              >
+                {valueLogPrimaryAction.label}
+              </button>
+            )}
           </div>
           {valueLogSummary && (
             <div className="iov-mobile-layer-rail" aria-label="Time slice step">
@@ -410,6 +459,7 @@ const IovTopologyPanel = ({
       <div className="iov-panel-content">
       <div className="iov-phase-headline">{phaseHeadline}</div>
       <div className="iov-panel-title">{panelTitle}</div>
+      <div className="iov-panel-value-subline">{sceneStoryLink}</div>
       <div className="iov-panel-definition">
         {isTopologyContext
           ? showTopologyDetails
@@ -533,21 +583,22 @@ const IovTopologyPanel = ({
               <div className="iov-panel-value-subline">
                 Interaction: double-click selected brick to open organization.
               </div>
-              <div className="iov-panel-buttons">
-                <button type="button" onClick={onOpenBrick} disabled={!canOpenBrick}>
-                  Open Organization
-                </button>
-                {canEmpowerCommunity && (
-                  <button type="button" className="iov-btn-action" onClick={onEmpowerCommunity}>
-                    {empowerLabel}
+              {presenterAction ? (
+                <div className="iov-panel-buttons">
+                  <button
+                    type="button"
+                    className="iov-btn-action"
+                    onClick={presenterAction.onClick}
+                    disabled={presenterAction.disabled}
+                  >
+                    {presenterAction.label}
                   </button>
-                )}
-                {canReplaySystemImpact && (
-                  <button type="button" onClick={onReplaySystemImpact}>
-                    Replay Impact
-                  </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="iov-panel-value-subline">
+                  Primary next step appears here when a scene action is ready.
+                </div>
+              )}
             </>
           ) : (
             <div className="iov-panel-value-subline">
@@ -595,7 +646,7 @@ const IovTopologyPanel = ({
                 <strong>{personSummary.personId}</strong>
               </div>
               <div className="iov-panel-value-subline">
-                Scene-first mode: tap an orbit/facet to focus meaning. Tap empty space, re-tap the same target, or double-click to reveal the next layer. Double-click the person core to open Time Slice.
+                Scene-first mode: tap an orbit/facet to focus meaning. Re-tap or tap empty space to advance one layer at a time. When layers are complete, open Time Slice.
               </div>
               <div className="iov-panel-value-subline">
                 Build progress:{" "}
@@ -673,317 +724,258 @@ const IovTopologyPanel = ({
               <div className="iov-panel-value-subline">
                 Current action: {valueLogSummary.sceneActionHint}
               </div>
-              <div className="iov-panel-log-chain">
-                {valueLogStep === "select_time" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">1) ~ValueCaptureProtocol / ~~TimeSlice</div>
-                    <label className="iov-field-label">
-                      Start
-                      <input
-                        className="iov-field-input"
-                        type="datetime-local"
-                        value={valueLogDraft.startTime}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ startTime: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      End
-                      <input
-                        className="iov-field-input"
-                        type="datetime-local"
-                        value={valueLogDraft.endTime}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ endTime: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      Activity template
-                      <select
-                        className="iov-field-input"
-                        value={valueLogDraft.activityTemplateId}
-                        onChange={(event) => {
-                          const template = VALUE_CAPTURE_ACTIVITY_TEMPLATES.find(
-                            (entry) => entry.id === event.target.value
-                          );
-                          if (!template) return;
-                          onValueLogDraftChange({
-                            activityTemplateId: template.id,
-                            activityLabel: template.activityLabel,
-                            taskType: template.taskType,
-                            intent: template.intent,
-                          });
-                        }}
-                      >
-                        {VALUE_CAPTURE_ACTIVITY_TEMPLATES.map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="iov-field-label">
-                      Proof template
-                      <select
-                        className="iov-field-input"
-                        value={valueLogDraft.proofTemplateId}
-                        onChange={(event) => {
-                          const template = VALUE_CAPTURE_PROOF_TEMPLATES.find(
-                            (entry) => entry.id === event.target.value
-                          );
-                          if (!template) return;
-                          onValueLogDraftChange({
-                            proofTemplateId: template.id,
-                            proofOfActivity: template.proofOfActivity,
-                            artifactType: template.artifactType,
-                            evidenceLink: template.evidenceLink,
-                          });
-                        }}
-                      >
-                        {VALUE_CAPTURE_PROOF_TEMPLATES.map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="iov-field-label">
-                      Activity
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.activityLabel}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ activityLabel: event.target.value })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      Proof of activity
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.proofOfActivity}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ proofOfActivity: event.target.value })
-                        }
-                      />
-                    </label>
-                  </div>
-                )}
-                {valueLogStep === "select_wellbeing" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">2) ~WellbeingProtocol / ~~Context</div>
-                    <label className="iov-field-label">
-                      Primary node
-                      <select
-                        className="iov-field-input"
-                        value={valueLogDraft.wellbeingNode}
-                        onChange={(event) =>
-                          onValueLogDraftChange({
-                            wellbeingNode: event.target.value as ValueLogDraft["wellbeingNode"],
-                          })
-                        }
-                      >
-                        <option value="~~Physiology">Physiology</option>
-                        <option value="~~Emotion">Emotion</option>
-                        <option value="~~Feeling">Feeling</option>
-                        <option value="~~Thought">Thought</option>
-                        <option value="~~Habit">Habit</option>
-                        <option value="~~Performance">Performance</option>
-                      </select>
-                    </label>
-                  </div>
-                )}
-                {valueLogStep === "select_intensity" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">3) Intensity prompt</div>
-                    <div className="iov-panel-value-subline">
-                      {WELLBEING_INTENSITY_PROMPTS[valueLogDraft.wellbeingNode]}
-                    </div>
-                    <label className="iov-field-label">
-                      Intensity ({valueLogDraft.contextIntensity.toFixed(2)})
-                      <input
-                        className="iov-field-range"
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.01}
-                        value={valueLogDraft.contextIntensity}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ contextIntensity: Number(event.target.value) })
-                        }
-                      />
-                    </label>
-                    <label className="iov-field-label">
-                      Context label
-                      <input
-                        className="iov-field-input"
-                        value={valueLogDraft.signalLabel}
-                        onChange={(event) =>
-                          onValueLogDraftChange({ signalLabel: event.target.value })
-                        }
-                      />
-                    </label>
-                    {valueLogDraft.wellbeingNode !== "~~Performance" && (
+              {valueLogActionStage === "time_capture" && (
+                <div className="iov-panel-value-subline">
+                  Use the in-scene Start/End calipers on the day stream. Step 1 sets Start from NOW; Step 2 sets End between Start and NOW.
+                </div>
+              )}
+              {valueLogActionStage === "activity_capture" && (
+                <div className="iov-panel-value-subline">
+                  Set one activity for this time interval in the in-scene dock, then continue.
+                </div>
+              )}
+              {valueLogActionStage === "proof_capture" && (
+                <div className="iov-panel-value-subline">
+                  Attach one proof artifact for this activity in the in-scene dock, then continue.
+                </div>
+              )}
+              {(valueLogActionStage === "wellbeing_select" ||
+                valueLogActionStage === "intensity_select" ||
+                valueLogActionStage === "performance_domains" ||
+                valueLogActionStage === "performance_intensity" ||
+                valueLogActionStage === "ready_capture") && (
+                <div className="iov-panel-log-chain">
+                  {valueLogActionStage === "wellbeing_select" && (
+                    <div className="iov-panel-log-card">
+                      <div className="iov-panel-log-card-title">5) Wellbeing Context</div>
                       <label className="iov-field-label">
-                        Impact direction
+                        Primary node
                         <select
                           className="iov-field-input"
-                          value={valueLogDraft.impactDirection}
+                          value={valueLogDraft.wellbeingNode}
                           onChange={(event) =>
                             onValueLogDraftChange({
-                              impactDirection: event.target.value as ValueLogDraft["impactDirection"],
+                              wellbeingNode: event.target.value as ValueLogDraft["wellbeingNode"],
                             })
                           }
                         >
-                          <option value="increase">Increase</option>
-                          <option value="neutral">Neutral</option>
-                          <option value="decrease">Decrease</option>
+                          <option value="~~Physiology">Physiology</option>
+                          <option value="~~Emotion">Emotion</option>
+                          <option value="~~Feeling">Feeling</option>
+                          <option value="~~Thought">Thought</option>
+                          <option value="~~Habit">Habit</option>
+                          <option value="~~Performance">Performance</option>
                         </select>
                       </label>
-                    )}
-                  </div>
-                )}
-                {valueLogStep === "select_performance" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">4) ~SAOcommons activation (Performance only)</div>
-                    {valueLogDraft.wellbeingNode === "~~Performance" ? (
-                      <>
-                        <label className="iov-field-label">
-                          Skill application
-                          <input
-                            className="iov-field-input"
-                            value={valueLogDraft.skillApplication}
-                            onChange={(event) =>
-                              onValueLogDraftChange({ skillApplication: event.target.value })
-                            }
-                          />
-                        </label>
-                        <div className="iov-panel-checkbox-row">
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={valueLogDraft.learningTag}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ learningTag: event.target.checked })
-                              }
-                            />
-                            Learning
-                          </label>
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={valueLogDraft.earningTag}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ earningTag: event.target.checked })
-                              }
-                            />
-                            Earning
-                          </label>
-                          <label>
-                            <input
-                              type="checkbox"
-                              checked={valueLogDraft.orgBuildingTag}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ orgBuildingTag: event.target.checked })
-                              }
-                            />
-                            OrgBuilding
-                          </label>
-                        </div>
-                        {valueLogDraft.learningTag && (
-                          <label className="iov-field-label">
-                            {SAOCOMMONS_DOMAIN_PROMPTS["~~Learning"]} ({valueLogDraft.learningIntensity.toFixed(2)})
-                            <input
-                              className="iov-field-range"
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              value={valueLogDraft.learningIntensity}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ learningIntensity: Number(event.target.value) })
-                              }
-                            />
-                          </label>
-                        )}
-                        {valueLogDraft.earningTag && (
-                          <label className="iov-field-label">
-                            {SAOCOMMONS_DOMAIN_PROMPTS["~~Earning"]} ({valueLogDraft.earningIntensity.toFixed(2)})
-                            <input
-                              className="iov-field-range"
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              value={valueLogDraft.earningIntensity}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ earningIntensity: Number(event.target.value) })
-                              }
-                            />
-                          </label>
-                        )}
-                        {valueLogDraft.orgBuildingTag && (
-                          <label className="iov-field-label">
-                            {SAOCOMMONS_DOMAIN_PROMPTS["~~OrgBuilding"]} ({valueLogDraft.orgBuildingIntensity.toFixed(2)})
-                            <input
-                              className="iov-field-range"
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.01}
-                              value={valueLogDraft.orgBuildingIntensity}
-                              onChange={(event) =>
-                                onValueLogDraftChange({ orgBuildingIntensity: Number(event.target.value) })
-                              }
-                            />
-                          </label>
-                        )}
-                      </>
-                    ) : (
+                    </div>
+                  )}
+                  {valueLogActionStage === "intensity_select" && (
+                    <div className="iov-panel-log-card">
+                      <div className="iov-panel-log-card-title">6) Context Intensity</div>
                       <div className="iov-panel-value-subline">
-                        Current wellbeing node is non-Performance, so SAOcommons remains gated off.
+                        {WELLBEING_INTENSITY_PROMPTS[valueLogDraft.wellbeingNode]}
                       </div>
-                    )}
+                      <label className="iov-field-label">
+                        Intensity ({valueLogDraft.contextIntensity.toFixed(2)})
+                        <input
+                          className="iov-field-range"
+                          type="range"
+                          min={0}
+                          max={1}
+                          step={0.01}
+                          value={valueLogDraft.contextIntensity}
+                          onChange={(event) =>
+                            onValueLogDraftChange({ contextIntensity: Number(event.target.value) })
+                          }
+                        />
+                      </label>
+                      <label className="iov-field-label">
+                        Context label
+                        <input
+                          className="iov-field-input"
+                          value={valueLogDraft.signalLabel}
+                          onChange={(event) =>
+                            onValueLogDraftChange({ signalLabel: event.target.value })
+                          }
+                        />
+                      </label>
+                      {valueLogDraft.wellbeingNode !== "~~Performance" && (
+                        <label className="iov-field-label">
+                          Impact direction
+                          <select
+                            className="iov-field-input"
+                            value={valueLogDraft.impactDirection}
+                            onChange={(event) =>
+                              onValueLogDraftChange({
+                                impactDirection: event.target.value as ValueLogDraft["impactDirection"],
+                              })
+                            }
+                          >
+                            <option value="increase">Increase</option>
+                            <option value="neutral">Neutral</option>
+                            <option value="decrease">Decrease</option>
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  )}
+                  {(valueLogActionStage === "performance_domains" ||
+                    valueLogActionStage === "performance_intensity") && (
+                    <div className="iov-panel-log-card">
+                      <div className="iov-panel-log-card-title">7) SAOcommons Domain (Performance)</div>
+                      {valueLogDraft.wellbeingNode === "~~Performance" ? (
+                        <>
+                          <label className="iov-field-label">
+                            Skill application
+                            <input
+                              className="iov-field-input"
+                              value={valueLogDraft.skillApplication}
+                              onChange={(event) =>
+                                onValueLogDraftChange({ skillApplication: event.target.value })
+                              }
+                            />
+                          </label>
+                          <div className="iov-panel-checkbox-row">
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={valueLogDraft.learningTag}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ learningTag: event.target.checked })
+                                }
+                              />
+                              Learning
+                            </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={valueLogDraft.earningTag}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ earningTag: event.target.checked })
+                                }
+                              />
+                              Earning
+                            </label>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={valueLogDraft.orgBuildingTag}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ orgBuildingTag: event.target.checked })
+                                }
+                              />
+                              OrgBuilding
+                            </label>
+                          </div>
+                          {valueLogDraft.learningTag && (
+                            <label className="iov-field-label">
+                              {SAOCOMMONS_DOMAIN_PROMPTS["~~Learning"]} ({valueLogDraft.learningIntensity.toFixed(2)})
+                              <input
+                                className="iov-field-range"
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={valueLogDraft.learningIntensity}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ learningIntensity: Number(event.target.value) })
+                                }
+                              />
+                            </label>
+                          )}
+                          {valueLogDraft.earningTag && (
+                            <label className="iov-field-label">
+                              {SAOCOMMONS_DOMAIN_PROMPTS["~~Earning"]} ({valueLogDraft.earningIntensity.toFixed(2)})
+                              <input
+                                className="iov-field-range"
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={valueLogDraft.earningIntensity}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ earningIntensity: Number(event.target.value) })
+                                }
+                              />
+                            </label>
+                          )}
+                          {valueLogDraft.orgBuildingTag && (
+                            <label className="iov-field-label">
+                              {SAOCOMMONS_DOMAIN_PROMPTS["~~OrgBuilding"]} ({valueLogDraft.orgBuildingIntensity.toFixed(2)})
+                              <input
+                                className="iov-field-range"
+                                type="range"
+                                min={0}
+                                max={1}
+                                step={0.01}
+                                value={valueLogDraft.orgBuildingIntensity}
+                                onChange={(event) =>
+                                  onValueLogDraftChange({ orgBuildingIntensity: Number(event.target.value) })
+                                }
+                              />
+                            </label>
+                          )}
+                        </>
+                      ) : (
+                        <div className="iov-panel-value-subline">
+                          Performance domains are only available when node is set to Performance.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {valueLogActionStage === "ready_capture" && (
+                    <div className="iov-panel-log-card">
+                      <div className="iov-panel-log-card-title">8) Outcome Preview</div>
+                      <div className="iov-panel-value-subline">
+                        SAOcommons: {valueLogSummary.outcome.saocommonsEnabled ? "Activated" : "Not activated"}
+                      </div>
+                      <div className="iov-panel-value-subline">
+                        Domains: {valueLogSummary.outcome.saocommonsDomains.map((d) => d.replace("~~", "")).join(", ") || "None"}
+                      </div>
+                      <div className="iov-panel-value-subline">
+                        Signal intensity: {(valueLogSummary.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)}
+                      </div>
+                      <div className="iov-panel-value-subline">
+                        Wellbeing delta: {formatSigned(valueLogSummary.outcome.wellbeingDelta)}
+                      </div>
+                      <div className="iov-panel-value-subline">
+                        Aura delta: {formatSigned(valueLogSummary.outcome.auraDelta)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {(valueLogActionStage === "wellbeing_select" ||
+                valueLogActionStage === "intensity_select" ||
+                valueLogActionStage === "performance_domains" ||
+                valueLogActionStage === "performance_intensity" ||
+                valueLogActionStage === "ready_capture") && (
+                <>
+                  <div className="iov-panel-value-subline">
+                    Active node: {valueLogDraft.wellbeingNode.replace("~~", "")}
                   </div>
-                )}
-                {valueLogStep === "show_outcome" && (
-                  <div className="iov-panel-log-card">
-                    <div className="iov-panel-log-card-title">
-                      5) Outcome
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      SAOcommons: {valueLogSummary.outcome.saocommonsEnabled ? "Activated" : "Not activated"}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      Domains: {valueLogSummary.outcome.saocommonsDomains.map((d) => d.replace("~~", "")).join(", ") || "None"}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      Signal intensity: {(valueLogSummary.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      Wellbeing delta: {formatSigned(valueLogSummary.outcome.wellbeingDelta)}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      Aura delta: {formatSigned(valueLogSummary.outcome.auraDelta)}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      IdentityState delta: {formatSigned(valueLogSummary.outcome.identityStateDelta)}
-                    </div>
-                    <div className="iov-panel-value-subline">
-                      Committed logs in this session: {valueLogSummary.committedCount}
-                    </div>
+                  <div className="iov-panel-value-subline">
+                    Signal: {valueLogDraft.signalLabel} (
+                    {(valueLogSummary?.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)})
                   </div>
-                )}
-              </div>
-              <div className="iov-panel-value-subline">
-                Active node: {valueLogDraft.wellbeingNode.replace("~~", "")}
-              </div>
-              <div className="iov-panel-value-subline">
-                Signal: {valueLogDraft.signalLabel} (
-                {(valueLogSummary?.draft.signalScore ?? valueLogDraft.signalScore).toFixed(2)})
-              </div>
+                </>
+              )}
+              {valueLogPrimaryAction && (
+                <div className="iov-panel-buttons" style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="iov-btn-action"
+                    onClick={
+                      valueLogActionStage === "ready_capture"
+                        ? onValueLogCommit
+                        : onAdvanceValueLogActionStage
+                    }
+                    disabled={valueLogPrimaryAction.disabled}
+                  >
+                    {valueLogPrimaryAction.label}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <div className="iov-panel-buttons">
@@ -997,6 +989,19 @@ const IovTopologyPanel = ({
       {showTopologyDetails && (
         <div className="iov-panel-shortcuts">Shortcuts: 1 Community, 2 State, 3 Market, 4 Bridge</div>
       )}
+      {semanticLevel === "topology" && isMobile && (
+        <div className="iov-panel-attribution">
+          <span className="iov-panel-attribution-label">Movement:</span>{" "}
+          <a href="https://theinternetofvalue.xyz/" target="_blank" rel="noopener noreferrer">
+            The Internet of Value
+          </a>
+          <span className="iov-panel-attribution-sep">|</span>
+          <span className="iov-panel-attribution-label">Author:</span>{" "}
+          <a href="https://www.linkedin.com/in/mosessampaul/" target="_blank" rel="noopener noreferrer">
+            Moses Sam Paul
+          </a>
+        </div>
+      )}
       </div>
     </div>
   );
@@ -1008,6 +1013,7 @@ interface PresenterCueInput {
   topologyActivated: boolean;
   nextTopologyBuildRegion: RegionId | null;
   valueLogSummary: ValueLogSummary | null;
+  valueLogActionStage: ValueLogActionStage;
   personSummary: PersonIdentitySummary | null;
   canOpenBrick: boolean;
   canEmpowerCommunity: boolean;
@@ -1028,11 +1034,14 @@ interface PresenterActionInput {
   blockSummary: BlockPeopleSummary | null;
   personSummary: PersonIdentitySummary | null;
   valueLogSummary: ValueLogSummary | null;
+  valueLogActionStage: ValueLogActionStage;
+  canContinueTimeSliceFlow: boolean;
   onOpenBrick: () => void;
   onEmpowerCommunity: () => void;
   onReplaySystemImpact: () => void;
   onOpenPerson: () => void;
   onOpenValueLog: () => void;
+  onAdvanceValueLogActionStage: () => void;
   onValueLogCommit: () => void;
   empowerLabel: string;
 }
@@ -1043,6 +1052,7 @@ const getPresenterCue = ({
   topologyActivated,
   nextTopologyBuildRegion,
   valueLogSummary,
+  valueLogActionStage,
   personSummary,
   canOpenBrick,
   canEmpowerCommunity,
@@ -1083,6 +1093,18 @@ const getPresenterCue = ({
   }
 
   if (semanticLevel === "valuelog") {
+    if (valueLogActionStage === "time_capture") {
+      return "Lock start, then lock end on the stream. Keep the interval within today.";
+    }
+    if (valueLogActionStage === "activity_capture") {
+      return "Set one activity label for the selected interval.";
+    }
+    if (valueLogActionStage === "proof_capture") {
+      return "Attach one proof artifact for the activity.";
+    }
+    if (valueLogActionStage === "ready_capture") {
+      return "Time slice is fully composed. Capture value to launch impact.";
+    }
     return valueLogSummary?.sceneActionHint ?? "Compose a Time Slice in-scene.";
   }
 
@@ -1112,11 +1134,14 @@ const getPresenterAction = ({
   blockSummary,
   personSummary,
   valueLogSummary,
+  valueLogActionStage,
+  canContinueTimeSliceFlow,
   onOpenBrick,
   onEmpowerCommunity,
   onReplaySystemImpact,
   onOpenPerson,
   onOpenValueLog,
+  onAdvanceValueLogActionStage,
   onValueLogCommit,
   empowerLabel,
 }: PresenterActionInput): PresenterAction | null => {
@@ -1148,6 +1173,16 @@ const getPresenterAction = ({
   }
 
   if (semanticLevel === "valuelog") {
+    if (valueLogActionStage === "time_capture") {
+      return null;
+    }
+    if (valueLogActionStage !== "ready_capture") {
+      return {
+        label: getValueLogPrimaryActionLabel(valueLogActionStage, valueLogSummary),
+        onClick: onAdvanceValueLogActionStage,
+        disabled: !canContinueTimeSliceFlow,
+      };
+    }
     return {
       label: "Capture Value",
       onClick: onValueLogCommit,
@@ -1156,6 +1191,67 @@ const getPresenterAction = ({
   }
 
   return null;
+};
+
+const formatSceneStoryLink = (level: SemanticZoomLevel) => {
+  if (level === "topology") {
+    return "From none | Now: System map | Next: Open organization";
+  }
+  if (level === "block") {
+    return "From System map | Now: Organization interior | Next: Open person";
+  }
+  if (level === "person") {
+    return "From Organization interior | Now: Identity stack | Next: Open time slice";
+  }
+  if (level === "valuelog") {
+    return "From Identity stack | Now: Time slice capture | Next: Commit impact";
+  }
+  if (level === "impact") {
+    return "From Time slice capture | Now: Person impact ripple | Next: Org contagion";
+  }
+  if (level === "orgimpact") {
+    return "From Person impact ripple | Now: Organization activation | Next: System shift";
+  }
+  if (level === "systemimpact") {
+    return "From Organization activation | Now: System realignment | Next: Return to system map";
+  }
+  return "Story link unavailable.";
+};
+
+const getValueLogPrimaryActionLabel = (
+  stage: ValueLogActionStage,
+  summary: ValueLogSummary | null
+) => {
+  if (stage === "time_capture") {
+    return summary?.timeCapturePhase === "start" ? "Lock Start Slice" : "Lock End Slice";
+  }
+  if (stage === "activity_capture") return "Confirm Activity";
+  if (stage === "proof_capture") return "Confirm Proof";
+  if (stage === "wellbeing_select") return "Confirm Context";
+  if (stage === "intensity_select") return "Confirm Intensity";
+  if (stage === "performance_domains" || stage === "performance_intensity") return "Continue";
+  return "Capture Value";
+};
+
+const getValueLogPrimaryAction = ({
+  valueLogActionStage,
+  valueLogSummary,
+  canContinueTimeSliceFlow,
+}: {
+  valueLogActionStage: ValueLogActionStage;
+  valueLogSummary: ValueLogSummary | null;
+  canContinueTimeSliceFlow: boolean;
+}) => {
+  if (valueLogActionStage === "time_capture") {
+    return null;
+  }
+  return {
+    label: getValueLogPrimaryActionLabel(valueLogActionStage, valueLogSummary),
+    disabled:
+      valueLogActionStage === "ready_capture"
+        ? !(valueLogSummary?.canCommit ?? false)
+        : !canContinueTimeSliceFlow,
+  };
 };
 
 const formatSigned = (value: number) => {
@@ -1202,19 +1298,19 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
 const formatSemanticContext = (level: SemanticZoomLevel) => {
   switch (level) {
     case "block":
-      return "Organization interior: select a person and inspect how individual wellbeing signals influence team activation.";
+      return "Organization interior: choose one person at a time, then open person view.";
     case "person":
-      return "Person layer: reveal identity layers and observe wellbeing/aura state before composing a time slice.";
+      return "Person layer: reveal identity layers in order, then open a single time-slice capture.";
     case "valuelog":
-      return "Time Slice composer: convert effort into a structured causal signal linked to wellbeing impact.";
+      return "Time Slice capture: lock start/end, then activity/proof/context, then capture value.";
     case "impact":
-      return "Impact transition: the committed signal propagates from person action into visible energetic change.";
+      return "Impact transition: committed signal becomes a visible person-level ripple.";
     case "orgimpact":
-      return "Org contagion: one person's uplift spreads across the organization and increases collective radiance.";
+      return "Org contagion: one person's uplift propagates through the selected organization.";
     case "systemimpact":
-      return "System impact: organization radiance strengthens community pressure against extractive bridge structures.";
+      return "System impact: organization activation translates into community pressure on bridge structures.";
     case "topology":
-      return "System layer: compare Market, State, Community, and Bridge structures, then open organizations by double-clicking a selected brick.";
+      return "System layer: build the macro view, select one organization, then descend into its people.";
     default:
       return "Scene context is active.";
   }

@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
-import { SSAOPass } from "three/examples/jsm/postprocessing/SSAOPass.js";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader.js";
+import type { EffectComposer as EffectComposerType } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import type { SSAOPass as SSAOPassType } from "three/examples/jsm/postprocessing/SSAOPass.js";
+import type { ShaderPass as ShaderPassType } from "three/examples/jsm/postprocessing/ShaderPass.js";
 import IovTopologyPanel from "@/ui/IovTopologyPanel";
 import topologyRaw from "@/game/iov/iov.topology.json";
 import {
@@ -66,6 +64,10 @@ import {
   loadValueLogSceneModule,
   preloadDeferredIovSceneModules,
 } from "@/game/iov/sceneModules";
+import {
+  IovPerformanceMonitor,
+  type IovPerformanceSnapshot,
+} from "@/game/iov/IovPerformanceMonitor";
 
 const topologyData = topologyRaw as IovTopologyData;
 
@@ -101,6 +103,28 @@ const TOPOLOGY_BUILD_SEQUENCE: ReadonlyArray<RegionId> = [
   "crony_bridge",
 ];
 const DOUBLE_TAP_WINDOW_MS = 340;
+const OVERLAY_ANCHOR_UPDATE_INTERVAL_SECONDS = 1 / 30;
+const QUALITY_EVAL_INTERVAL_SECONDS = 2.4;
+
+const DPR_PROFILE = {
+  desktop: {
+    min: 1,
+    max: 1.7,
+    initial: 1.35,
+    step: 0.125,
+    frameBudgetMs: 16.6,
+  },
+  mobile: {
+    min: 0.9,
+    max: 1.2,
+    initial: 1.0,
+    step: 0.1,
+    frameBudgetMs: 33.3,
+  },
+} as const;
+
+const getDprProfile = (isMobile: boolean) =>
+  isMobile ? DPR_PROFILE.mobile : DPR_PROFILE.desktop;
 
 type ValueLogActionStage =
   | "time_capture"
@@ -138,23 +162,24 @@ const toDomainTagPatch = (domain: SaocommonsDomain, value: boolean): Partial<Val
   return { orgBuildingTag: value };
 };
 
-const minutesFromInput = (value: string) => {
-  const parsed = value.length > 0 ? new Date(value) : new Date();
-  if (Number.isNaN(parsed.getTime())) return 0;
-  return parsed.getHours() * 60 + parsed.getMinutes();
-};
-
 const isTimeRangeValid = (startTime: string, endTime: string) => {
-  const start = minutesFromInput(startTime);
-  const end = minutesFromInput(endTime);
-  const span = end > start ? end - start : end - start + 1440;
-  return span >= 15;
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  const span = end.getTime() - start.getTime();
+  return span >= 5 * 60 * 1000;
 };
 
 const formatShortClock = (input: string) => {
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) return "--:--";
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+};
+
+const formatShortDate = (input: string) => {
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
 };
 
 const mapActionStageToWizardStep = (
@@ -217,6 +242,8 @@ const IovTopologyCanvas = () => {
     left: 12,
   });
   const isMobileRef = useRef(window.innerWidth <= 900);
+  const perfMonitorRef = useRef<IovPerformanceMonitor | null>(null);
+  const perfSnapshotRef = useRef<IovPerformanceSnapshot | null>(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 900);
 
   const [selectedRegionId, setSelectedRegionId] = useState<RegionId>("community");
@@ -242,7 +269,7 @@ const IovTopologyCanvas = () => {
   const [valueLogData, setValueLogData] = useState(DEFAULT_IOV_VALUELOGS);
   const [presentationMode, setPresentationMode] = useState(false);
   const [phaseHeadline, setPhaseHeadline] = useState(
-    "Empty ground - press Community to begin."
+    "System -> Organization: build Community to begin the story loop."
   );
   const [toggles, setToggles] = useState<Record<ToggleId, boolean>>(() =>
     buildInitialToggles(topologyData)
@@ -260,13 +287,40 @@ const IovTopologyCanvas = () => {
     const container = containerRef.current;
     if (!container) return;
 
+    const initialIsMobile = window.innerWidth <= 900;
+    const initialDprProfile = getDprProfile(initialIsMobile);
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    let currentPixelRatio = THREE.MathUtils.clamp(
+      window.devicePixelRatio || 1,
+      initialDprProfile.min,
+      initialDprProfile.max
+    );
+    const setRendererPixelRatio = (nextDpr: number, force = false) => {
+      const profile = getDprProfile(isMobileRef.current);
+      const clamped = THREE.MathUtils.clamp(nextDpr, profile.min, profile.max);
+      if (!force && Math.abs(clamped - currentPixelRatio) < 0.01) return false;
+      currentPixelRatio = clamped;
+      renderer.setPixelRatio(clamped);
+      return true;
+    };
+    setRendererPixelRatio(currentPixelRatio, true);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
+
+    const perfMonitor = new IovPerformanceMonitor({
+      onSnapshot: (snapshot) => {
+        perfSnapshotRef.current = snapshot;
+      },
+    });
+    perfMonitorRef.current = perfMonitor;
+    const perfOverlayEnabled =
+      import.meta.env.DEV && new URLSearchParams(window.location.search).get("perf") === "1";
+    if (perfOverlayEnabled) {
+      perfMonitor.attachOverlay(container);
+    }
 
     const scene = new IovTopologyScene(renderer.domElement, topologyData, {
       onSelectChange: (regionId) => setSelectedRegionId(regionId),
@@ -349,22 +403,61 @@ const IovTopologyCanvas = () => {
     };
     ensureSecondaryScenesRef.current = ensureSecondaryScenes;
 
-    let composer: EffectComposer | null = null;
-    let ssaoPass: SSAOPass | null = null;
-    let fxaaPass: ShaderPass | null = null;
-    if (IOV_TOPOLOGY_CONFIG.render.enablePostprocessing) {
-      composer = new EffectComposer(renderer);
-      composer.addPass(new RenderPass(scene.scene, scene.camera));
+    let composer: EffectComposerType | null = null;
+    let ssaoPass: SSAOPassType | null = null;
+    let fxaaPass: ShaderPassType | null = null;
+    let postprocessingInitPromise: Promise<void> | null = null;
+    let disposed = false;
 
-      ssaoPass = new SSAOPass(scene.scene, scene.camera, 1, 1);
-      ssaoPass.kernelRadius = 7;
-      ssaoPass.minDistance = 0.001;
-      ssaoPass.maxDistance = 0.03;
-      composer.addPass(ssaoPass);
+    const updateFxaResolution = (width: number, height: number) => {
+      if (!fxaaPass) return;
+      const resolutionUniform = fxaaPass.material.uniforms["resolution"];
+      if (!resolutionUniform?.value?.set) return;
+      resolutionUniform.value.set(
+        1 / (Math.max(width, 1) * renderer.getPixelRatio()),
+        1 / (Math.max(height, 1) * renderer.getPixelRatio())
+      );
+    };
 
-      fxaaPass = new ShaderPass(FXAAShader);
-      composer.addPass(fxaaPass);
-    }
+    const ensurePostprocessing = async () => {
+      if (!IOV_TOPOLOGY_CONFIG.render.enablePostprocessing) return;
+      if (composer || postprocessingInitPromise) {
+        await postprocessingInitPromise;
+        return;
+      }
+
+      postprocessingInitPromise = (async () => {
+        const [{ EffectComposer }, { RenderPass }, { SSAOPass }, { ShaderPass }, { FXAAShader }] =
+          await Promise.all([
+            import("three/examples/jsm/postprocessing/EffectComposer.js"),
+            import("three/examples/jsm/postprocessing/RenderPass.js"),
+            import("three/examples/jsm/postprocessing/SSAOPass.js"),
+            import("three/examples/jsm/postprocessing/ShaderPass.js"),
+            import("three/examples/jsm/shaders/FXAAShader.js"),
+          ]);
+        if (disposed) return;
+
+        composer = new EffectComposer(renderer);
+        composer.addPass(new RenderPass(scene.scene, scene.camera));
+
+        ssaoPass = new SSAOPass(scene.scene, scene.camera, 1, 1);
+        ssaoPass.kernelRadius = 7;
+        ssaoPass.minDistance = 0.001;
+        ssaoPass.maxDistance = 0.03;
+        composer.addPass(ssaoPass);
+
+        fxaaPass = new ShaderPass(FXAAShader);
+        composer.addPass(fxaaPass);
+        updateFxaResolution(container.clientWidth, container.clientHeight);
+      })();
+
+      try {
+        await postprocessingInitPromise;
+      } finally {
+        postprocessingInitPromise = null;
+      }
+    };
+    void ensurePostprocessing();
 
     for (const [toggleId, enabled] of Object.entries(toggles)) {
       scene.setToggle(toggleId as ToggleId, enabled);
@@ -412,8 +505,15 @@ const IovTopologyCanvas = () => {
     const resize = () => {
       const { clientWidth, clientHeight } = container;
       const nextIsMobile = clientWidth <= 900;
-      setIsMobile(nextIsMobile);
+      if (isMobileRef.current !== nextIsMobile) {
+        setIsMobile(nextIsMobile);
+      }
       isMobileRef.current = nextIsMobile;
+      const nextProfile = getDprProfile(nextIsMobile);
+      setRendererPixelRatio(
+        THREE.MathUtils.clamp(currentPixelRatio, nextProfile.min, nextProfile.max),
+        true
+      );
       renderer.setSize(clientWidth, clientHeight);
       scene.setViewportProfile(nextIsMobile);
       scene.resize(clientWidth, clientHeight);
@@ -428,16 +528,7 @@ const IovTopologyCanvas = () => {
       if (ssaoPass) {
         ssaoPass.setSize(clientWidth, clientHeight);
       }
-      if (fxaaPass) {
-        const pixelRatio = renderer.getPixelRatio();
-        const resolutionUniform = fxaaPass.material.uniforms["resolution"];
-        if (resolutionUniform?.value?.set) {
-          resolutionUniform.value.set(
-            1 / (clientWidth * pixelRatio),
-            1 / (clientHeight * pixelRatio)
-          );
-        }
-      }
+      updateFxaResolution(clientWidth, clientHeight);
       applyViewportSafeLayout();
     };
     resize();
@@ -458,17 +549,33 @@ const IovTopologyCanvas = () => {
     const timeoutHandle =
       idleHandle === null ? window.setTimeout(() => preloadModules(), 700) : null;
 
-    const clock = new THREE.Clock();
     const projectedAnchor = new THREE.Vector3();
     const valueLogTokenAnchor = new THREE.Vector3();
+    const clock = new THREE.Clock();
     let frame = 0;
     let personSummaryAccumulator = 0;
+    let overlayAnchorAccumulator = OVERLAY_ANCHOR_UPDATE_INTERVAL_SECONDS;
+    let qualityEvalAccumulator = 0;
+    let lastOverlaySemanticLevel = semanticLevelRef.current;
+    let lastOverlayActionStage = valueLogActionStageRef.current;
     const tick = () => {
       const delta = Math.min(clock.getDelta(), 0.05);
       cameraDirectorRef.current.update(delta);
-      updateTopologyRegionActionAnchors();
-      updateValueLogCommitDockAnchor();
-      updateSystemEmpowerDockAnchor();
+      overlayAnchorAccumulator += delta;
+      const semanticLevelNow = semanticLevelRef.current;
+      const actionStageNow = valueLogActionStageRef.current;
+      const semanticChanged = semanticLevelNow !== lastOverlaySemanticLevel;
+      const actionStageChanged = actionStageNow !== lastOverlayActionStage;
+      if (
+        semanticChanged ||
+        actionStageChanged ||
+        overlayAnchorAccumulator >= OVERLAY_ANCHOR_UPDATE_INTERVAL_SECONDS
+      ) {
+        overlayAnchorAccumulator = 0;
+        syncOverlayAnchors(semanticChanged || actionStageChanged);
+        lastOverlaySemanticLevel = semanticLevelNow;
+        lastOverlayActionStage = actionStageNow;
+      }
       if (
         semanticLevelRef.current === "topology" ||
         semanticLevelRef.current === "systemimpact"
@@ -525,6 +632,29 @@ const IovTopologyCanvas = () => {
         } else {
           scene.update(delta);
           scene.render(renderer);
+        }
+      }
+
+      perfMonitor.recordFrame(delta, renderer, semanticLevelRef.current);
+      qualityEvalAccumulator += delta;
+      if (qualityEvalAccumulator >= QUALITY_EVAL_INTERVAL_SECONDS) {
+        qualityEvalAccumulator = 0;
+        const snapshot = perfSnapshotRef.current;
+        const profile = getDprProfile(isMobileRef.current);
+        const budget = profile.frameBudgetMs;
+        if (
+          snapshot &&
+          snapshot.avgFrameMs > budget * 1.2 &&
+          currentPixelRatio > profile.min + 0.01
+        ) {
+          if (setRendererPixelRatio(currentPixelRatio - profile.step)) resize();
+        } else if (
+          snapshot &&
+          snapshot.avgFrameMs < budget * 0.8 &&
+          snapshot.p95FrameMs < budget * 1.08 &&
+          currentPixelRatio < profile.max - 0.01
+        ) {
+          if (setRendererPixelRatio(currentPixelRatio + profile.step)) resize();
         }
       }
       frame = window.requestAnimationFrame(tick);
@@ -636,6 +766,16 @@ const IovTopologyCanvas = () => {
 
       let x = clientWidth * 0.5;
       let y = safeTop + buttonHeight * 0.56;
+      const useMobileBottomDock = isMobileRef.current && stage === "time_capture";
+
+      if (useMobileBottomDock) {
+        dock.style.opacity = "1";
+        dock.style.pointerEvents = "auto";
+        dock.style.left = "";
+        dock.style.top = "";
+        dock.style.transform = "";
+        return;
+      }
 
       if (stage === "ready_capture") {
         valueLogScene.getTokenWorldPosition(valueLogTokenAnchor);
@@ -650,8 +790,17 @@ const IovTopologyCanvas = () => {
           (-projectedAnchor.y * 0.5 + 0.5) * clientHeight +
           (isMobileRef.current ? 62 : 56);
       } else if (stage === "time_capture") {
-        x = clientWidth * 0.5;
-        y = safeTop + buttonHeight * 0.58;
+        valueLogScene.getTimeCaptureUiAnchorWorldPosition(valueLogTokenAnchor);
+        projectedAnchor.copy(valueLogTokenAnchor).project(valueLogScene.camera);
+        if (projectedAnchor.z < -1 || projectedAnchor.z > 1) {
+          dock.style.opacity = "0";
+          dock.style.pointerEvents = "none";
+          return;
+        }
+        x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
+        y =
+          (-projectedAnchor.y * 0.5 + 0.5) * clientHeight -
+          (isMobileRef.current ? 68 : 74);
       } else if (
         stage === "wellbeing_select" ||
         stage === "intensity_select" ||
@@ -736,6 +885,29 @@ const IovTopologyCanvas = () => {
       dock.style.left = `${x}px`;
       dock.style.top = `${y}px`;
       dock.style.transform = "translate(-50%, -50%)";
+    }
+
+    function syncOverlayAnchors(force = false) {
+      const semanticLevelNow = semanticLevelRef.current;
+      if (semanticLevelNow === "topology") {
+        updateTopologyRegionActionAnchors();
+        updateSystemEmpowerDockAnchor();
+        if (force) updateValueLogCommitDockAnchor();
+        return;
+      }
+      if (semanticLevelNow === "valuelog") {
+        updateValueLogCommitDockAnchor();
+        if (force) {
+          updateTopologyRegionActionAnchors();
+          updateSystemEmpowerDockAnchor();
+        }
+        return;
+      }
+      if (force) {
+        updateTopologyRegionActionAnchors();
+        updateSystemEmpowerDockAnchor();
+        updateValueLogCommitDockAnchor();
+      }
     }
 
     const onPointerMove = (event: PointerEvent) => {
@@ -947,6 +1119,7 @@ const IovTopologyCanvas = () => {
     window.addEventListener("keydown", onKeyDown);
 
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
       window.visualViewport?.removeEventListener("resize", applyViewportSafeLayout);
@@ -963,9 +1136,13 @@ const IovTopologyCanvas = () => {
       renderer.domElement.removeEventListener("pointerleave", onPointerLeave);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
 
+      perfMonitor.detachOverlay();
+      perfMonitorRef.current = null;
+      perfSnapshotRef.current = null;
       scene.dispose();
       blockScene?.dispose();
       personScene?.dispose();
+      impactScene?.dispose();
       valueLogScene?.dispose();
       transitionBusyRef.current = false;
       cameraDirectorRef.current.cancelShot();
@@ -976,6 +1153,7 @@ const IovTopologyCanvas = () => {
       sceneRef.current = null;
       blockSceneRef.current = null;
       personSceneRef.current = null;
+      impactSceneRef.current = null;
       valueLogSceneRef.current = null;
     };
   }, []);
@@ -1054,6 +1232,7 @@ const IovTopologyCanvas = () => {
       : "Empower Community Pillar";
   const canValueLogCommit = valueLogSummary?.canCommit ?? false;
   const hasValidValueLogTime = isTimeRangeValid(valueLogDraft.startTime, valueLogDraft.endTime);
+  const timeCapturePhase = valueLogSummary?.timeCapturePhase ?? "start";
   const hasValueLogActivity = valueLogDraft.activityLabel.trim().length > 0;
   const hasValueLogProof = valueLogDraft.proofOfActivity.trim().length > 0;
   const selectedPerformanceDomains = getSelectedPerformanceDomains(valueLogDraft);
@@ -1081,7 +1260,9 @@ const IovTopologyCanvas = () => {
 
   const valueLogTopline =
     valueLogActionStage === "time_capture"
-      ? `Select time window: ${formatShortClock(valueLogDraft.startTime)} -> ${formatShortClock(valueLogDraft.endTime)}`
+      ? timeCapturePhase === "start"
+        ? `Step 1/2: drag the Start caliper left from NOW (${formatShortDate(valueLogDraft.endTime)} ${formatShortClock(valueLogDraft.endTime)}).`
+        : `Step 2/2: drag the End caliper between Start ${formatShortClock(valueLogDraft.startTime)} and NOW ${formatShortClock(valueLogDraft.endTime)}.`
       : valueLogActionStage === "activity_capture"
         ? "What did you do in this time?"
         : valueLogActionStage === "proof_capture"
@@ -1099,20 +1280,22 @@ const IovTopologyCanvas = () => {
                   : "Capture value and drop the photon.";
   const valueLogActionLabel =
     valueLogActionStage === "time_capture"
-      ? "1. Select Time"
+      ? timeCapturePhase === "start"
+        ? "1. Set Start Slice"
+        : "2. Set End Slice"
       : valueLogActionStage === "activity_capture"
-        ? "2. Activity"
+        ? "3. Activity"
         : valueLogActionStage === "proof_capture"
-          ? "3. Proof"
+          ? "4. Proof"
           : valueLogActionStage === "wellbeing_select"
-            ? "4. Wellbeing Context"
+            ? "5. Wellbeing Context"
             : valueLogActionStage === "intensity_select"
-              ? "5. Context Intensity"
+              ? "6. Context Intensity"
               : valueLogActionStage === "performance_domains"
-                ? "5. SAOcommons Domain"
+                ? "6. SAOcommons Domain"
                 : valueLogActionStage === "performance_intensity"
-                  ? "6. Domain Intensity"
-                  : "7. Capture Value";
+                  ? "7. Domain Intensity"
+                  : "8. Capture Value";
 
   const breadcrumb = getSemanticBreadcrumb(zoomControllerRef.current.getState());
   const nextTopologyBuildRegion =
@@ -1133,7 +1316,7 @@ const IovTopologyCanvas = () => {
       : null;
 
   const getBuildOrderHint = (nextRegion: RegionId) =>
-    `Build order: Community -> State -> Market -> Bridge. Next: ${getRegionLabel(nextRegion)}.`;
+    `System setup: Community -> State -> Market -> Bridge. Next: ${getRegionLabel(nextRegion)}.`;
 
   const handleToggle = (toggleId: ToggleId) => {
     setToggles((prev) => {
@@ -1172,7 +1355,7 @@ const IovTopologyCanvas = () => {
     }
 
     setPhaseHeadline(
-      "Bridge laid. Select an organization unit to continue the story from system to organization."
+      "System -> Organization: bridge complete. Select one organization unit to enter."
     );
   };
 
@@ -1182,31 +1365,35 @@ const IovTopologyCanvas = () => {
     setSemanticLevel(level);
     if (level === "topology") {
       const nextRegion = getNextBuildRegion();
-      setPhaseHeadline(nextRegion ? getBuildOrderHint(nextRegion) : "Returned to system layer.");
+      setPhaseHeadline(
+        nextRegion
+          ? getBuildOrderHint(nextRegion)
+          : "Back at System map. Select one organization to continue."
+      );
     } else if (level === "block") {
       setPhaseHeadline(
         selectedBrickLabel
-          ? `Inspecting ${selectedBrickLabel}: organizations are made of people.`
-          : "Inspecting selected organization."
+          ? `System -> Organization: inspecting ${selectedBrickLabel}. Next: open one person.`
+          : "System -> Organization: inspecting selected organization."
       );
     } else if (level === "person") {
-      setPhaseHeadline("Inspecting one person's wellbeing identity.");
+      setPhaseHeadline("Organization -> Person: reveal identity layers, then open Time Slice.");
       
       personSceneRef.current?.setDetailMode("identity");
       // Impact handled by separate scene now
       
     } else if (level === "impact") {
-      setPhaseHeadline("Value committed: Impact visualization.");
+      setPhaseHeadline("Time Slice -> Impact: photon committed, ripple now propagates.");
       // Logic handled via handleValueLogCommit transaction flow
     } else if (level === "orgimpact") {
       setPhaseHeadline(
-        "Organization impact: double-click in the scene to propagate aura from one person to the next."
+        "Person -> Organization impact: advance contagion one person at a time."
       );
     } else if (level === "systemimpact") {
-      setPhaseHeadline("System impact: Community grows and applies pressure into the bridge.");
+      setPhaseHeadline("Organization -> System impact: community pressure rises against the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
-        "Time Slice mode: capture one action at a time, then capture value."
+        "Person -> Time Slice: lock time, add activity/proof, then capture value."
       );
       personSceneRef.current?.setDetailMode("valuelog");
       const sceneStep = mapActionStageToWizardStep(valueLogActionStage, valueLogDraft.wellbeingNode);
@@ -1232,15 +1419,15 @@ const IovTopologyCanvas = () => {
   const getPhaseHeadline = (regionId?: RegionId) => {
     switch (regionId) {
       case "market":
-        return "Market pillar built. Financial scale now sits on top of the foundation.";
+        return "System setup: Market pillar built.";
       case "state":
-        return "State pillar built. Governance capacity now rises from the foundation.";
+        return "System setup: State pillar built.";
       case "community":
-        return "Community foundation built. Now stack institutions on top of people.";
+        return "System setup: Community foundation built.";
       case "crony_bridge":
-        return "Crony Bridge laid across top layers.";
+        return "System setup: Crony Bridge laid.";
       default:
-        return "Build sequence: Community -> State -> Market -> Bridge.";
+        return "System setup: Community -> State -> Market -> Bridge.";
     }
   };
 
@@ -1436,10 +1623,11 @@ const IovTopologyCanvas = () => {
       return;
     }
     setActivePerformanceDomain(null);
-    setValueLogStage("time_capture");
+    const freshDraft = createInitialValueLogDraft();
+    setValueLogDraft(freshDraft);
+    setValueLogStage("time_capture", freshDraft);
     const next = zoomControllerRef.current.dispatch({ type: "OPEN_VALUELOG" });
-    valueLogScene.setDraft(valueLogDraft);
-    valueLogScene.setStep("select_time");
+    valueLogScene.resetTimeCaptureFlow(freshDraft);
     setValueLogSummary(valueLogScene.getSummary());
     applySemanticTransition(next.level);
   };
@@ -1576,9 +1764,22 @@ const IovTopologyCanvas = () => {
     handleValueLogDraftChange(toDomainIntensityPatch(domain, next));
   };
 
+  const advanceTimeCapturePhase = () => {
+    const valueLogScene = valueLogSceneRef.current;
+    if (!valueLogScene) return;
+    valueLogScene.advanceTimeCapturePhase();
+    const summary = valueLogScene.getSummary();
+    setValueLogDraft(summary.draft);
+    setValueLogSummary(summary);
+  };
+
   const advanceValueLogActionStage = () => {
     if (valueLogActionStage === "time_capture") {
       if (!hasValidValueLogTime) return;
+      if (timeCapturePhase === "start") {
+        advanceTimeCapturePhase();
+        return;
+      }
       setValueLogStage("activity_capture");
       return;
     }
@@ -1952,6 +2153,10 @@ function getRegionMeaning(regionId: RegionId) {
             onClick={() => {
               if (cameraDirectorRef.current.isPlaying || transitionBusyRef.current) return;
               if (item.active) return;
+              if (item.level === "valuelog") {
+                void handleOpenValueLog();
+                return;
+              }
               zoomControllerRef.current.dispatch({ type: "SET_LEVEL", level: item.level });
               applySemanticTransition(item.level);
             }}
@@ -2001,8 +2206,8 @@ function getRegionMeaning(regionId: RegionId) {
       {semanticLevel === "topology" && selectedBrickInfo && (
         <>
           <div className="iov-scene-chip">
-            <strong>{selectedBrickLabel ?? "Organization selected"}</strong>
-            <span>Double-click to open organization.</span>
+            <strong>{"System -> Organization"}</strong>
+            <span>{selectedBrickLabel ?? "Organization"} selected. Next: open organization.</span>
           </div>
           <div className="iov-scene-dock">
             <button
@@ -2023,8 +2228,8 @@ function getRegionMeaning(regionId: RegionId) {
       {semanticLevel === "block" && blockSummary && blockSummary.selectedPersonId && (
         <>
           <div className="iov-scene-chip iov-scene-chip-top">
-            <strong>{blockSummary.selectedPersonId}</strong>
-            <span> selected. Double-click to open person.</span>
+            <strong>{"Organization -> Person"}</strong>
+            <span>{blockSummary.selectedPersonId} selected. Next: open person.</span>
           </div>
           <div className="iov-scene-dock">
             <button
@@ -2051,14 +2256,14 @@ function getRegionMeaning(regionId: RegionId) {
       {semanticLevel === "person" && personSummary && (
         <>
           <div className="iov-scene-chip iov-scene-chip-top iov-scene-chip-person">
-            <strong>{personSummary.personId}</strong>
+            <strong>{"Person -> Time Slice"}</strong>
             <span>
               {personSummary.identityBuildMode
                 ? ` Layer: ${personSummary.identityBuildLayerLabel ?? "Initializing"}`
                 : " Identity stack ready. Reveal layers to begin."}
               {presentationMode
                 ? " Follow the highlighted ring."
-                : " Tap ring or facet to focus meaning. Next Layer advances the stack. Double-click the person to open Time Slice."}
+                : " Tap ring or facet to focus meaning. Next Layer advances the stack. Open Time Slice when layers are complete."}
             </span>
           </div>
           <div className="iov-scene-dock iov-scene-dock-person">
@@ -2126,13 +2331,17 @@ function getRegionMeaning(regionId: RegionId) {
 
       {semanticLevel === "valuelog" && valueLogSummary && (
         <>
-          <div className="iov-scene-chip iov-scene-chip-top">
-            <strong>Time Slice</strong>
-            <span>{valueLogTopline}</span>
-          </div>
+          {valueLogActionStage !== "time_capture" && (
+            <div className="iov-scene-chip iov-scene-chip-top">
+              <strong>{"Time Slice -> Impact"}</strong>
+              <span>{valueLogTopline}</span>
+            </div>
+          )}
           <div
             ref={valueLogCommitDockRef}
-            className="iov-scene-dock iov-scene-dock-commit-floating iov-valuelog-dock"
+            className={`iov-scene-dock iov-scene-dock-commit-floating iov-valuelog-dock ${
+              isMobile && valueLogActionStage === "time_capture" ? "is-mobile-docked" : ""
+            }`}
           >
             <div className="iov-valuelog-dock-header">
               <strong>{valueLogActionLabel}</strong>
@@ -2146,7 +2355,7 @@ function getRegionMeaning(regionId: RegionId) {
                 onClick={advanceValueLogActionStage}
                 disabled={!hasValidValueLogTime}
               >
-                Confirm Time Range
+                {timeCapturePhase === "start" ? "Lock Start Slice" : "Lock End Slice"}
               </button>
             )}
 
@@ -2399,6 +2608,30 @@ function getRegionMeaning(regionId: RegionId) {
         </>
       )}
 
+      {semanticLevel === "topology" && (
+        <div className="iov-scene-attribution" aria-label="Movement and author attribution">
+          <span className="iov-scene-attribution-label">Movement:</span>
+          <a
+            className="iov-scene-attribution-link"
+            href="https://theinternetofvalue.xyz/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            The Internet of Value
+          </a>
+          <span className="iov-scene-attribution-sep">|</span>
+          <span className="iov-scene-attribution-label">Author:</span>
+          <a
+            className="iov-scene-attribution-link"
+            href="https://www.linkedin.com/in/mosessampaul/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Moses Sam Paul
+          </a>
+        </div>
+      )}
+
       <IovTopologyPanel
         data={topologyData}
         selectedRegionId={selectedRegionId}
@@ -2423,6 +2656,8 @@ function getRegionMeaning(regionId: RegionId) {
         valueLogDraft={valueLogDraft}
         valueLogSummary={valueLogSummary}
         valueLogStep={valueLogStep}
+        valueLogActionStage={valueLogActionStage}
+        canContinueTimeSliceFlow={canContinueTimeSliceFlow}
         onToggle={handleToggle}
         onBuild={handleBuild}
         onOpenBrick={onOpenBrick}
@@ -2431,6 +2666,7 @@ function getRegionMeaning(regionId: RegionId) {
         onTogglePresentationMode={() => setPresentationMode((p) => !p)}
         onValueLogDraftChange={handleValueLogDraftChange}
         onValueLogCommit={handleValueLogCommit}
+        onAdvanceValueLogActionStage={advanceValueLogActionStage}
         onOpenValueLog={handleOpenValueLog}
         canEmpowerCommunity={canEmpowerCommunity}
         empowerLabel={empowerLabel}

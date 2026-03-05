@@ -54,7 +54,8 @@ describe("computeValueLogOutcome", () => {
 
     const readyPerformance = {
       ...initial,
-      endTime: new Date(Date.now() + 45 * 60 * 1000).toISOString().slice(0, 16),
+      startTime: "2026-03-04T09:00",
+      endTime: "2026-03-04T09:45",
       learningTag: true,
     };
     expect(isValueLogCommitReady(readyPerformance)).toBe(true);

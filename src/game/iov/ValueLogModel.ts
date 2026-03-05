@@ -165,6 +165,7 @@ export interface ValueLogSummary {
   committedCount: number;
   canCommit: boolean;
   sceneActionHint: string;
+  timeCapturePhase?: "start" | "end";
 }
 
 export const createInitialValueLogDraft = (): ValueLogDraft => {
@@ -290,15 +291,9 @@ const minutesFromLocalInput = (value: string) => {
   return date.getHours() * 60 + date.getMinutes();
 };
 
-const normalizeMinuteSpan = (deltaMinutes: number) => {
-  if (deltaMinutes <= 0) {
-    return deltaMinutes + 1440;
-  }
-  return deltaMinutes;
-};
-
 const isValidTimeRange = (startTime: string, endTime: string) => {
-  const startMinutes = minutesFromLocalInput(startTime);
-  const endMinutes = minutesFromLocalInput(endTime);
-  return normalizeMinuteSpan(endMinutes - startMinutes) >= 15;
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+  return end.getTime() - start.getTime() >= 5 * 60 * 1000;
 };

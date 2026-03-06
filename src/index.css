@@ -456,6 +456,27 @@ body {
   padding: 14px;
 }
 
+.iov-panel.is-time-capture-focus {
+  width: min(258px, calc(100vw - 28px));
+  gap: 8px;
+  padding: 10px 11px;
+}
+
+.iov-panel.is-time-capture-focus .iov-panel-presenter-cue,
+.iov-panel.is-time-capture-focus .iov-phase-headline,
+.iov-panel.is-time-capture-focus .iov-panel-value-subline {
+  font-size: 11px;
+}
+
+.iov-panel.is-time-capture-focus .iov-panel-presenter-cue {
+  padding: 7px 8px;
+  line-height: 1.38;
+}
+
+.iov-panel.is-time-capture-focus .iov-panel-buttons {
+  margin-top: 0;
+}
+
 .iov-panel.is-presentation .iov-panel-title {
   font-size: 23px;
 }
@@ -1441,6 +1462,10 @@ body {
   .iov-panel.is-presentation {
     max-height: min(44svh, 360px);
     width: min(340px, calc(100vw - 20px));
+  }
+
+  .iov-panel.is-time-capture-focus {
+    width: min(240px, calc(100vw - 20px));
   }
 
   .iov-stage.is-presentation .iov-scene-chip {

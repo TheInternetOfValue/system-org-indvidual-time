@@ -137,6 +137,13 @@ interface DomainNodeVisual {
   label: THREE.Sprite;
 }
 
+interface TimeScaleTickVisual {
+  minute: number;
+  tier: "major" | "minor";
+  mesh: THREE.Mesh;
+  label: THREE.Sprite | null;
+}
+
 export interface ValueLogDraft {
   startTime: string;
   endTime: string;
@@ -289,7 +296,7 @@ const TIME_STREAM_CONFIG = {
   halfWidth: 5.2,
   baseY: 0.2,
   laneY: 0.36,
-  rangeY: 0.41,
+  rangeY: 0.39,
   minSpanMinutes: 5,
   snapMinutes: 5,
   defaultLiveWindowMinutes: 90,
@@ -302,103 +309,156 @@ export class ValueLogScene {
 
   private readonly root = new THREE.Group();
   private readonly clockGroup = new THREE.Group();
+  private readonly timeInstrumentBackdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(TIME_STREAM_CONFIG.halfWidth * 2 + 0.96, 1.28),
+    new THREE.MeshBasicMaterial({
+      color: "#0c1a33",
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
   private readonly timeStreamBase = new THREE.Mesh(
-    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2 + 0.7, 0.26, 1.28),
+    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2 + 0.42, 0.12, 0.88),
     new THREE.MeshStandardMaterial({
       color: "#10233f",
+      emissive: "#09162a",
+      emissiveIntensity: 0.12,
       roughness: 0.72,
       metalness: 0.08,
     })
   );
   private readonly timeStreamLane = new THREE.Mesh(
-    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2, 0.08, 0.52),
+    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2, 0.1, 0.4),
     new THREE.MeshStandardMaterial({
       color: "#254a78",
       emissive: "#244d80",
-      emissiveIntensity: 0.26,
+      emissiveIntensity: 0.3,
       roughness: 0.42,
       metalness: 0.14,
     })
   );
   private readonly timeRangeMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.1, 0.56),
+    new THREE.BoxGeometry(1, 0.08, 0.34),
     new THREE.MeshStandardMaterial({
       color: "#86ccff",
       emissive: "#4a95cc",
-      emissiveIntensity: 0.34,
+      emissiveIntensity: 0.42,
       roughness: 0.32,
       metalness: 0.12,
+      transparent: true,
+      opacity: 0.92,
     })
   );
   private readonly timeRangeWrapMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.1, 0.56),
+    new THREE.BoxGeometry(1, 0.14, 0.46),
     new THREE.MeshStandardMaterial({
-      color: "#86ccff",
-      emissive: "#4a95cc",
-      emissiveIntensity: 0.34,
-      roughness: 0.32,
-      metalness: 0.12,
+      color: "#9fdcff",
+      emissive: "#6dc6ff",
+      emissiveIntensity: 0.2,
+      roughness: 0.4,
+      metalness: 0.06,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
     })
   );
+  private readonly timeStartMarkerGlyph = createTimelineMarkerSprite("#b9deff", "start");
+  private readonly timeEndMarkerGlyph = createTimelineMarkerSprite("#f0cfaf", "end");
   private readonly timeStartHandle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.68, 0.08),
-    new THREE.MeshStandardMaterial({
-      color: "#d9ebff",
-      emissive: "#5f8fca",
-      emissiveIntensity: 0.52,
-      roughness: 0.22,
-      metalness: 0.38,
+    new THREE.PlaneGeometry(0.032, 0.32),
+    new THREE.MeshBasicMaterial({
+      color: "#b9deff",
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     })
   );
   private readonly timeEndHandle = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.68, 0.08),
-    new THREE.MeshStandardMaterial({
-      color: "#f5dfcb",
-      emissive: "#a7774f",
-      emissiveIntensity: 0.52,
-      roughness: 0.22,
-      metalness: 0.38,
+    new THREE.PlaneGeometry(0.032, 0.32),
+    new THREE.MeshBasicMaterial({
+      color: "#f0cfaf",
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     })
   );
   private readonly timeStartJaw = new THREE.Mesh(
-    new THREE.BoxGeometry(0.22, 0.04, 0.4),
+    new THREE.BoxGeometry(0.16, 0.024, 0.2),
     new THREE.MeshStandardMaterial({
-      color: "#bdd9fb",
-      emissive: "#4c79af",
-      emissiveIntensity: 0.34,
-      roughness: 0.32,
-      metalness: 0.18,
+      color: "#9ecfff",
+      emissive: "#5e96d6",
+      emissiveIntensity: 0.28,
+      roughness: 0.18,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0,
     })
   );
   private readonly timeEndJaw = new THREE.Mesh(
-    new THREE.BoxGeometry(0.22, 0.04, 0.4),
+    new THREE.BoxGeometry(0.16, 0.024, 0.2),
     new THREE.MeshStandardMaterial({
-      color: "#eacfb5",
-      emissive: "#9d6e48",
-      emissiveIntensity: 0.34,
-      roughness: 0.32,
-      metalness: 0.18,
+      color: "#eac7a9",
+      emissive: "#c08a5b",
+      emissiveIntensity: 0.28,
+      roughness: 0.18,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0,
     })
   );
   private readonly timeNowMarker = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.012, 1.95),
+    new THREE.PlaneGeometry(0.012, 0.34),
     new THREE.MeshBasicMaterial({
       color: "#ffd47e",
       transparent: true,
-      opacity: 0.68,
+      opacity: 0.76,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
   private readonly timeNowFootprint = new THREE.Mesh(
-    new THREE.RingGeometry(0.045, 0.09, 20),
+    new THREE.PlaneGeometry(0.08, 0.16),
     new THREE.MeshBasicMaterial({
       color: "#ffd580",
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.16,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
+      side: THREE.DoubleSide,
+    })
+  );
+  private readonly timeStartHitZone = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.7, 0.72),
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    })
+  );
+  private readonly timeEndHitZone = new THREE.Mesh(
+    new THREE.BoxGeometry(0.46, 0.7, 0.72),
+    new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    })
+  );
+  private readonly timeBladeCue = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.12, 0.56),
+    new THREE.MeshBasicMaterial({
+      color: "#f4f8ff",
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
     })
   );
   private readonly timeFutureMaskMesh = new THREE.Mesh(
@@ -429,8 +489,8 @@ export class ValueLogScene {
   );
   private readonly streamFlowNodes: THREE.Mesh[] = [];
   private readonly streamFlowSeeds: number[] = [];
-  private readonly timeScaleTickMeshes: THREE.Mesh[] = [];
-  private readonly timeScaleTickLabels: THREE.Sprite[] = [];
+  private readonly timeScaleTicks: TimeScaleTickVisual[] = [];
+  private readonly timeSnapGuideTicks: THREE.Mesh[] = [];
   private token: THREE.Object3D;
   private tokenTrail: THREE.Mesh[] = [];
 
@@ -448,7 +508,7 @@ export class ValueLogScene {
   private nowReadoutLabel: THREE.Sprite | null = null;
   private streamOriginLabel: THREE.Sprite | null = null;
   private rangeSummaryLabel: THREE.Sprite | null = null;
-  private lastNowMinute = -1;
+  private lastNowClockKey = "";
   private lastNowDayKey = "";
   private lastRangeSummaryKey = "";
   // ...remaining fields...
@@ -1007,8 +1067,8 @@ export class ValueLogScene {
       stepLabel:
         this.step === "select_time"
           ? this.timeCapturePhase === "start"
-            ? "Lock Start Slice"
-            : "Lock End Slice"
+            ? "Mark When It Began"
+            : "Mark When It Ended"
           : stepLabels[this.step],
       draft: this.draft,
       outcome: this.outcome,
@@ -1049,21 +1109,30 @@ export class ValueLogScene {
   }
 
   private buildLayout() {
+    this.timeInstrumentBackdrop.position.set(0, TIME_STREAM_CONFIG.laneY + 0.18, -0.42);
     this.timeStreamBase.position.y = TIME_STREAM_CONFIG.baseY;
     this.timeStreamLane.position.y = TIME_STREAM_CONFIG.laneY;
     this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY;
     this.timeRangeWrapMesh.position.y = TIME_STREAM_CONFIG.rangeY;
-    this.timeStartHandle.position.y = TIME_STREAM_CONFIG.rangeY + 0.35;
-    this.timeEndHandle.position.y = TIME_STREAM_CONFIG.rangeY + 0.35;
+    this.timeStartHandle.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
+    this.timeEndHandle.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
     this.timeStartHandle.rotation.set(0, 0, 0);
     this.timeEndHandle.rotation.set(0, 0, 0);
-    this.timeStartJaw.position.y = TIME_STREAM_CONFIG.rangeY - 0.22;
-    this.timeEndJaw.position.y = TIME_STREAM_CONFIG.rangeY - 0.22;
+    this.timeStartJaw.position.y = TIME_STREAM_CONFIG.laneY + 0.043;
+    this.timeEndJaw.position.y = TIME_STREAM_CONFIG.laneY + 0.043;
     this.timeStartJaw.rotation.set(0, 0, 0);
     this.timeEndJaw.rotation.set(0, 0, 0);
-    this.timeNowMarker.position.y = TIME_STREAM_CONFIG.baseY - 0.02;
-    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.baseY - 0.12;
+    this.timeStartMarkerGlyph.scale.set(0.18, 0.3, 1);
+    this.timeEndMarkerGlyph.scale.set(0.18, 0.3, 1);
+    this.timeStartMarkerGlyph.center.set(0.5, 0.08);
+    this.timeEndMarkerGlyph.center.set(0.5, 0.08);
+    this.timeNowMarker.position.y = TIME_STREAM_CONFIG.laneY + 0.11;
+    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.laneY + 0.005;
     this.timeNowFootprint.rotation.x = -Math.PI / 2;
+    this.timeStartHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
+    this.timeEndHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
+    this.timeBladeCue.position.y = TIME_STREAM_CONFIG.laneY + 0.155;
+    this.timeBladeCue.rotation.z = -0.22;
     this.timeFutureMaskMesh.position.y = TIME_STREAM_CONFIG.rangeY + 0.003;
     this.timeBeforeStartMaskMesh.position.y = TIME_STREAM_CONFIG.rangeY + 0.002;
     const hatchTexture = getHatchTexture();
@@ -1074,54 +1143,83 @@ export class ValueLogScene {
     futureMaskMaterial.needsUpdate = true;
     beforeMaskMaterial.needsUpdate = true;
 
-    // Caliper rails: slender slicers + shallow jaws so the stream remains readable.
+    // Time-slice contract: one day ribbon, one seam for NOW, two thin blade markers.
     this.timeStartHandle.scale.set(1, 1, 1);
     this.timeEndHandle.scale.set(1, 1, 1);
     this.timeStartJaw.scale.set(1, 1, 1);
     this.timeEndJaw.scale.set(1, 1, 1);
 
     this.clockGroup.add(
+      this.timeInstrumentBackdrop,
       this.timeStreamBase,
       this.timeStreamLane,
       this.timeRangeMesh,
       this.timeRangeWrapMesh,
+      this.timeStartMarkerGlyph,
+      this.timeEndMarkerGlyph,
       this.timeStartHandle,
       this.timeEndHandle,
       this.timeStartJaw,
       this.timeEndJaw,
       this.timeNowMarker,
       this.timeNowFootprint,
+      this.timeStartHitZone,
+      this.timeEndHitZone,
+      this.timeBladeCue,
       this.timeFutureMaskMesh,
       this.timeBeforeStartMaskMesh
     );
 
-    const hourTicks = [0, 6, 12, 18, 24] as const;
-    hourTicks.forEach((hour) => {
-      const minute = hour === 24 ? 1440 : hour * 60;
+    for (let minute = 0; minute <= 1440; minute += 30) {
+      const isMajor = minute % 180 === 0 || minute === 1440;
       const x =
-        hour === 24
+        minute === 1440
           ? TIME_STREAM_CONFIG.halfWidth
           : minutesToStreamX(minute, TIME_STREAM_CONFIG.halfWidth);
       const tick = new THREE.Mesh(
-        new THREE.BoxGeometry(0.045, 0.1, 0.3),
-        new THREE.MeshStandardMaterial({
-          color: "#91bde9",
-          emissive: "#2f5178",
-          emissiveIntensity: 0.22,
-          roughness: 0.4,
-          metalness: 0.05,
+        new THREE.PlaneGeometry(isMajor ? 0.016 : 0.008, isMajor ? 0.13 : 0.07),
+        new THREE.MeshBasicMaterial({
+          color: isMajor ? "#9abce7" : "#6c8daf",
+          transparent: true,
+          opacity: isMajor ? 0.78 : 0.42,
+          depthWrite: false,
         })
       );
-      tick.position.set(x, TIME_STREAM_CONFIG.laneY + 0.09, 0);
-      this.timeScaleTickMeshes.push(tick);
+      tick.position.set(x, TIME_STREAM_CONFIG.laneY + (isMajor ? 0.12 : 0.09), 0.18);
       this.clockGroup.add(tick);
 
-      const label = this.createMinimalTextSprite(hour.toString().padStart(2, "0"), 13);
-      label.scale.set(0.56, 0.22, 1);
-      label.position.set(x, TIME_STREAM_CONFIG.laneY - 0.28, 0);
-      this.timeScaleTickLabels.push(label);
-      this.clockGroup.add(label);
-    });
+      let label: THREE.Sprite | null = null;
+      if (isMajor) {
+        const hourLabel = minute === 1440 ? "24" : String(Math.floor(minute / 60)).padStart(2, "0");
+        label = this.createMinimalTextSprite(hourLabel, 11);
+        label.scale.set(0.44, 0.17, 1);
+        label.position.set(x, TIME_STREAM_CONFIG.laneY + 0.24, 0.01);
+        this.clockGroup.add(label);
+      }
+
+      this.timeScaleTicks.push({
+        minute,
+        tier: isMajor ? "major" : "minor",
+        mesh: tick,
+        label,
+      });
+    }
+
+    for (let index = 0; index < 13; index += 1) {
+      const snapTick = new THREE.Mesh(
+        new THREE.BoxGeometry(0.01, 0.075, 0.12),
+        new THREE.MeshBasicMaterial({
+          color: "#d8ecff",
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      snapTick.position.y = TIME_STREAM_CONFIG.laneY + 0.11;
+      this.timeSnapGuideTicks.push(snapTick);
+      this.clockGroup.add(snapTick);
+    }
 
     for (let index = 0; index < 18; index += 1) {
       const particle = new THREE.Mesh(
@@ -1341,87 +1439,181 @@ export class ValueLogScene {
 
     this.timeStartHandle.position.x = startX;
     this.timeEndHandle.position.x = endX;
+    const startGlyphX =
+      this.timeCapturePhase === "start" && !this.startHandleAdjusted ? startX - 0.04 : startX;
+    this.timeStartMarkerGlyph.position.set(startGlyphX, TIME_STREAM_CONFIG.laneY + 0.12, 0.22);
+    this.timeEndMarkerGlyph.position.set(endX, TIME_STREAM_CONFIG.laneY + 0.12, 0.22);
     this.timeStartJaw.position.x = startX;
     this.timeEndJaw.position.x = endX;
+    this.timeStartHitZone.position.x = startX;
+    this.timeEndHitZone.position.x = endX;
     const centerX = (startX + endX) * 0.5;
     const width = Math.max(0.05, Math.abs(endX - startX));
     this.timeRangeMesh.visible = true;
     this.timeRangeMesh.scale.set(width, 1, 1);
     this.timeRangeMesh.position.x = centerX;
-    this.timeRangeWrapMesh.visible = false;
+    this.timeRangeWrapMesh.visible = true;
+    this.timeRangeWrapMesh.scale.set(width + 0.06, 1, 1);
+    this.timeRangeWrapMesh.position.x = centerX;
   }
 
   private updateTimeStreamPulse() {
     const t = this.elapsedSeconds;
     const handlePulse = 1 + Math.sin(t * 3.2) * 0.05;
     const activePulse = 1 + Math.sin(t * 4.5) * 0.08;
+    const activeMinute =
+      this.timeCapturePhase === "start"
+        ? minutesFromLocalInput(this.draft.startTime)
+        : minutesFromLocalInput(this.draft.endTime);
 
     const rangeMaterial = this.timeRangeMesh.material as THREE.MeshStandardMaterial;
     const wrapMaterial = this.timeRangeWrapMesh.material as THREE.MeshStandardMaterial;
     const laneMaterial = this.timeStreamLane.material as THREE.MeshStandardMaterial;
     const futureMaskMaterial = this.timeFutureMaskMesh.material as THREE.MeshStandardMaterial;
     const beforeMaskMaterial = this.timeBeforeStartMaskMesh.material as THREE.MeshStandardMaterial;
-    const startMaterial = this.timeStartHandle.material as THREE.MeshStandardMaterial;
-    const endMaterial = this.timeEndHandle.material as THREE.MeshStandardMaterial;
+    const startMaterial = this.timeStartHandle.material as THREE.MeshBasicMaterial;
+    const endMaterial = this.timeEndHandle.material as THREE.MeshBasicMaterial;
     const startJawMaterial = this.timeStartJaw.material as THREE.MeshStandardMaterial;
     const endJawMaterial = this.timeEndJaw.material as THREE.MeshStandardMaterial;
+    const startGlyphMaterial = this.timeStartMarkerGlyph.material as THREE.SpriteMaterial;
+    const endGlyphMaterial = this.timeEndMarkerGlyph.material as THREE.SpriteMaterial;
     const nowMaterial = this.timeNowMarker.material as THREE.MeshBasicMaterial;
     const nowFootprintMaterial = this.timeNowFootprint.material as THREE.MeshBasicMaterial;
+    const bladeCueMaterial = this.timeBladeCue.material as THREE.MeshBasicMaterial;
 
-    laneMaterial.emissiveIntensity = 0.22 + Math.sin(t * 1.8) * 0.06;
+    laneMaterial.emissiveIntensity = 0.22 + Math.sin(t * 1.8) * 0.05;
     const rangeHot = this.hoveredTimeTarget === "range" || this.activeClockHand === "range";
-    rangeMaterial.emissiveIntensity = (rangeHot ? 0.48 : 0.34) + Math.sin(t * 2.6) * 0.08;
-    wrapMaterial.emissiveIntensity = rangeMaterial.emissiveIntensity;
-    this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY + Math.sin(t * 2.4) * 0.008;
+    rangeMaterial.emissiveIntensity = (rangeHot ? 0.48 : 0.36) + Math.sin(t * 2.6) * 0.06;
+    wrapMaterial.emissiveIntensity = (rangeHot ? 0.3 : 0.18) + Math.sin(t * 2.4) * 0.05;
+    this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY + Math.sin(t * 2.4) * 0.006;
     this.timeRangeWrapMesh.position.y = this.timeRangeMesh.position.y;
     const startSelected = this.timeCapturePhase === "start";
     const endSelected = this.timeCapturePhase === "end";
 
     this.timeStartHandle.scale.set(
       this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.08
+        ? 1.1
         : 1.0,
       this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.08 * activePulse
-        : 1.02 * handlePulse,
+        ? 1.04 * activePulse
+        : 1.01 * handlePulse,
       this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.08
+        ? 1
         : 1.0
     );
     this.timeEndHandle.scale.set(
       this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.08
+        ? 1.1
         : 1.0,
       this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.08 * activePulse
-        : 1.02 * handlePulse,
+        ? 1.04 * activePulse
+        : 1.01 * handlePulse,
       this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.08
+        ? 1
         : 1.0
     );
     this.timeStartJaw.scale.set(
       this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.08
+        ? 1.2
         : 1,
       1,
-      1
+      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 1.08 : 1
     );
     this.timeEndJaw.scale.set(
       this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.08
+        ? 1.2
         : 1,
       1,
+      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 1.08 : 1
+    );
+    startMaterial.opacity = 0;
+    endMaterial.opacity = 0;
+    startJawMaterial.opacity = 0;
+    endJawMaterial.opacity = 0;
+    startJawMaterial.emissiveIntensity = 0;
+    endJawMaterial.emissiveIntensity = 0;
+    startGlyphMaterial.opacity = startSelected ? 0.9 : this.startHandleAdjusted ? 0.8 : 0.62;
+    endGlyphMaterial.opacity = endSelected ? 0.9 : 0.68;
+    this.timeStartMarkerGlyph.scale.set(
+      (this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 0.22 : 0.18) *
+        handlePulse,
+      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 0.36 : 0.3,
       1
     );
-    startMaterial.emissiveIntensity = startSelected ? 0.66 : 0.3;
-    endMaterial.emissiveIntensity = endSelected ? 0.66 : 0.3;
-    startJawMaterial.emissiveIntensity = startSelected ? 0.52 : 0.3;
-    endJawMaterial.emissiveIntensity = endSelected ? 0.52 : 0.3;
-    futureMaskMaterial.opacity = 0.46 + Math.sin(t * 1.1) * 0.04;
-    beforeMaskMaterial.opacity = 0.38 + Math.sin(t * 0.8 + 0.6) * 0.03;
-    nowMaterial.opacity = 0.76 + Math.sin(t * 4.4) * 0.1;
-    this.timeNowMarker.scale.set(1, 1 + Math.sin(t * 2.8) * 0.08, 1);
-    nowFootprintMaterial.opacity = 0.55 + Math.sin(t * 2.9) * 0.12;
+    this.timeEndMarkerGlyph.scale.set(
+      (this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 0.22 : 0.18) *
+        handlePulse,
+      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 0.36 : 0.3,
+      1
+    );
+    futureMaskMaterial.opacity = 0.5 + Math.sin(t * 1.1) * 0.03;
+    beforeMaskMaterial.opacity = 0.4 + Math.sin(t * 0.8 + 0.6) * 0.02;
+    nowMaterial.opacity = 0.68 + Math.sin(t * 4.4) * 0.06;
+    this.timeNowMarker.scale.set(1, 1 + Math.sin(t * 2.8) * 0.03, 1);
+    nowFootprintMaterial.opacity = 0.1 + Math.sin(t * 2.9) * 0.03;
+
+    this.timeScaleTicks.forEach((tick) => {
+      const material = tick.mesh.material as THREE.MeshBasicMaterial;
+      const deltaMinutes = Math.abs(tick.minute - activeMinute);
+      const nearActive = deltaMinutes <= 30;
+      material.opacity =
+        tick.tier === "major"
+          ? nearActive
+            ? 0.96
+            : 0.72
+          : nearActive
+            ? 0.58
+            : 0.26;
+      tick.mesh.scale.y =
+        tick.tier === "major"
+          ? nearActive
+            ? 1.12
+            : 1
+          : nearActive
+            ? 1.08
+            : 1;
+      if (tick.label) {
+        const labelMaterial = tick.label.material as THREE.SpriteMaterial;
+        labelMaterial.opacity = nearActive ? 0.98 : this.isMobileViewport ? 0.7 : 0.84;
+      }
+    });
+
+    const cueTarget =
+      this.activeClockHand === "start" || this.hoveredTimeTarget === "start"
+        ? "start"
+        : this.activeClockHand === "end" || this.hoveredTimeTarget === "end"
+          ? "end"
+          : null;
+    if (cueTarget) {
+      const cueX = cueTarget === "start" ? this.timeStartHandle.position.x : this.timeEndHandle.position.x;
+      const cueColor = cueTarget === "start" ? "#d7ecff" : "#ffe2c7";
+      bladeCueMaterial.color.set(cueColor);
+      bladeCueMaterial.opacity =
+        this.activeClockHand === cueTarget ? 0.62 : 0.32 + Math.sin(t * 3.8) * 0.06;
+      this.timeBladeCue.position.x = cueX + (cueTarget === "start" ? 0.06 : -0.06);
+      this.timeBladeCue.visible = true;
+    } else {
+      this.timeBladeCue.visible = false;
+    }
+
+    const snapCenterX =
+      this.timeCapturePhase === "start" ? this.timeStartHandle.position.x : this.timeEndHandle.position.x;
+    this.timeSnapGuideTicks.forEach((tick, index) => {
+      const offset = index - Math.floor(this.timeSnapGuideTicks.length / 2);
+      const minute = activeMinute + offset * TIME_STREAM_CONFIG.snapMinutes;
+      const x = minutesToStreamX(clamp(0, 1439, minute), TIME_STREAM_CONFIG.halfWidth);
+      tick.position.x = x;
+      const material = tick.material as THREE.MeshBasicMaterial;
+      const distance = Math.abs(offset);
+      const inBounds = x >= -TIME_STREAM_CONFIG.halfWidth && x <= TIME_STREAM_CONFIG.halfWidth;
+      tick.visible =
+        this.step === "select_time" &&
+        inBounds &&
+        (this.activeClockHand !== null || this.hoveredTimeTarget === "start" || this.hoveredTimeTarget === "end");
+      material.opacity = distance === 0 ? 0.96 : Math.max(0, 0.62 - distance * 0.08);
+      tick.scale.y = distance <= 1 ? 1.32 : 1.08;
+      tick.position.z = distance === 0 ? 0.02 : 0;
+    });
   }
 
   private updateLiveTimer() {
@@ -1434,14 +1626,15 @@ export class ValueLogScene {
   }
 
   private updateNowMarkerAndFlow() {
-    const now = snapDateToMinutes(new Date(), TIME_STREAM_CONFIG.snapMinutes);
-    const nowMinute = now.getHours() * 60 + now.getMinutes();
+    const actualNow = new Date();
+    const now = snapDateToMinutes(actualNow, TIME_STREAM_CONFIG.snapMinutes);
+    const nowMinute = minutesFromDate(actualNow) + actualNow.getSeconds() / 60;
     const nowX = minutesToStreamX(nowMinute, TIME_STREAM_CONFIG.halfWidth);
-    const nowMarkerBaseY = TIME_STREAM_CONFIG.baseY - 0.02;
+    const nowMarkerBaseY = TIME_STREAM_CONFIG.laneY + 0.12;
     this.timeNowMarker.position.x = nowX;
     this.timeNowMarker.position.y = nowMarkerBaseY;
     this.timeNowFootprint.position.x = nowX;
-    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.baseY - 0.12;
+    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.laneY + 0.015;
     this.timeNowFootprint.scale.setScalar(1 + Math.sin(this.elapsedSeconds * 3.4) * 0.05);
 
     const futureWidth = Math.max(0.02, TIME_STREAM_CONFIG.halfWidth - nowX);
@@ -1475,43 +1668,48 @@ export class ValueLogScene {
       node.position.z = (index % 3 === 0 ? 0.12 : index % 3 === 1 ? -0.12 : 0);
     });
 
-    const dayKey = formatLocalDate(now);
+    const dayKey = formatLocalDate(actualNow);
     if (dayKey !== this.lastNowDayKey) {
       this.lastNowDayKey = dayKey;
       this.streamOriginLabel = this.replaceReadoutLabel(
         this.streamOriginLabel,
-        `Start 00:00 · ${dayKey}`,
+        `Today · ${dayKey}`,
         { width: 250, height: 46, fontSize: 14, minimal: true },
         this.clockGroup
       );
     }
     if (this.streamOriginLabel) {
-      this.streamOriginLabel.position.set(-TIME_STREAM_CONFIG.halfWidth + 1.1, TIME_STREAM_CONFIG.laneY + 0.31, 0);
+      this.streamOriginLabel.position.set(
+        -TIME_STREAM_CONFIG.halfWidth + 0.78,
+        TIME_STREAM_CONFIG.laneY + 0.26,
+        0
+      );
+      this.streamOriginLabel.scale.set(this.isMobileViewport ? 1.18 : 1.32, 0.18, 1);
     }
 
-    if (nowMinute !== this.lastNowMinute) {
-      this.lastNowMinute = nowMinute;
-      const nowText = this.isMobileViewport
-        ? `NOW ${formatLocalClock(now)}`
-        : `Now ${formatLocalClock(now)}`;
+    const nowClockKey = formatRibbonClock(actualNow, true);
+    if (nowClockKey !== this.lastNowClockKey) {
+      this.lastNowClockKey = nowClockKey;
+      const nowText = `Now ${nowClockKey}`;
       this.nowReadoutLabel = this.replaceReadoutLabel(
         this.nowReadoutLabel,
         nowText,
         {
-          width: this.isMobileViewport ? 280 : 180,
-          height: 44,
-          fontSize: 14,
-          minimal: true,
+          width: this.isMobileViewport ? 176 : 164,
+          height: 30,
+          fontSize: 10,
+          minimal: false,
         },
         this.clockGroup
       );
     }
     if (this.nowReadoutLabel) {
       this.nowReadoutLabel.position.set(
-        clamp(-TIME_STREAM_CONFIG.halfWidth + 1.3, TIME_STREAM_CONFIG.halfWidth - 1.3, nowX),
-        TIME_STREAM_CONFIG.laneY - 0.34,
+        clamp(-TIME_STREAM_CONFIG.halfWidth + 0.95, TIME_STREAM_CONFIG.halfWidth - 0.95, nowX + 0.14),
+        TIME_STREAM_CONFIG.laneY - 0.09,
         0
       );
+      this.nowReadoutLabel.scale.set(this.isMobileViewport ? 0.82 : 0.88, 0.11, 1);
     }
 
     const startDate = parseLocalInputDate(this.draft.startTime) ?? now;
@@ -1519,25 +1717,43 @@ export class ValueLogScene {
     const durationMinutes = Math.max(0, Math.round((endDate.getTime() - startDate.getTime()) / 60000));
     const rangeSummary =
       this.timeCapturePhase === "start"
-        ? `Start ${formatLocalClock(startDate)}`
-        : `${formatDurationLabel(
+        ? ""
+        : `${formatRibbonClock(startDate)} -> ${formatRibbonClock(endDate)}  ·  ${formatDurationLabel(
             Math.max(TIME_STREAM_CONFIG.minSpanMinutes, durationMinutes)
-          )} · ${formatLocalClock(startDate)}-${formatLocalClock(endDate)}`;
+          )}`;
     if (rangeSummary !== this.lastRangeSummaryKey) {
       this.lastRangeSummaryKey = rangeSummary;
-      this.rangeSummaryLabel = this.replaceReadoutLabel(
-        this.rangeSummaryLabel,
-        rangeSummary,
-        { width: 300, height: 44, fontSize: 14, minimal: true },
-        this.clockGroup
-      );
+      if (rangeSummary.length > 0) {
+        this.rangeSummaryLabel = this.replaceReadoutLabel(
+          this.rangeSummaryLabel,
+          rangeSummary,
+          {
+            width: this.isMobileViewport ? 292 : 312,
+            height: 34,
+            fontSize: this.isMobileViewport ? 12 : 13,
+            minimal: false,
+          },
+          this.clockGroup
+        );
+      } else if (this.rangeSummaryLabel) {
+        this.clockGroup.remove(this.rangeSummaryLabel);
+        const material = this.rangeSummaryLabel.material as THREE.SpriteMaterial;
+        material.map?.dispose();
+        material.dispose();
+        this.rangeSummaryLabel = null;
+      }
     }
     if (this.rangeSummaryLabel) {
       this.rangeSummaryLabel.position.set(
-        clamp(-TIME_STREAM_CONFIG.halfWidth + 1.4, TIME_STREAM_CONFIG.halfWidth - 1.4, this.timeRangeMidX),
-        TIME_STREAM_CONFIG.laneY - 0.38,
+        clamp(
+          -TIME_STREAM_CONFIG.halfWidth + 1.5,
+          TIME_STREAM_CONFIG.halfWidth - 1.5,
+          this.timeRangeMidX
+        ),
+        TIME_STREAM_CONFIG.laneY + 0.19,
         0
       );
+      this.rangeSummaryLabel.scale.set(this.isMobileViewport ? 0.96 : 1.02, 0.21, 1);
     }
   }
 
@@ -1639,18 +1855,23 @@ export class ValueLogScene {
 
     // Time stream layer (top layer only during select-time ritual)
     const showClock = this.step === "select_time";
+    this.timeInstrumentBackdrop.visible = showClock;
     this.timeStreamBase.visible = showClock;
     this.timeStreamLane.visible = showClock;
     this.timeNowMarker.visible = showClock;
-    this.timeNowFootprint.visible = false;
+    this.timeNowFootprint.visible = showClock;
     this.streamFlowNodes.forEach((node) => {
       node.visible = showClock;
     });
-    this.timeScaleTickMeshes.forEach((tick) => {
-      tick.visible = showClock;
+    this.timeScaleTicks.forEach((tick) => {
+      tick.mesh.visible = showClock;
+      if (tick.label) {
+        tick.label.visible =
+          showClock && (!this.isMobileViewport || tick.minute % 360 === 0 || tick.minute === 1440);
+      }
     });
-    this.timeScaleTickLabels.forEach((label) => {
-      label.visible = showClock;
+    this.timeSnapGuideTicks.forEach((tick) => {
+      tick.visible = showClock && this.step === "select_time";
     });
     if (showClock) {
       this.updateTimeStreamRange(
@@ -1663,16 +1884,22 @@ export class ValueLogScene {
     }
     this.timeFutureMaskMesh.visible = showClock;
     this.timeBeforeStartMaskMesh.visible = showClock;
-    const showStartHandle = showClock && this.timeCapturePhase === "start";
+    const showStartHandle =
+      showClock && (this.timeCapturePhase === "start" || this.startHandleAdjusted);
     const showEndHandle = showClock && this.timeCapturePhase === "end";
-    this.timeStartHandle.visible = showStartHandle;
-    this.timeEndHandle.visible = showEndHandle;
-    this.timeStartJaw.visible = showStartHandle;
-    this.timeEndJaw.visible = showEndHandle;
+    this.timeStartHandle.visible = false;
+    this.timeEndHandle.visible = false;
+    this.timeStartJaw.visible = false;
+    this.timeEndJaw.visible = false;
+    this.timeStartMarkerGlyph.visible = showStartHandle;
+    this.timeEndMarkerGlyph.visible = showEndHandle;
+    this.timeStartHitZone.visible = showClock && this.timeCapturePhase === "start";
+    this.timeEndHitZone.visible = showClock && this.timeCapturePhase === "end";
+    this.timeBladeCue.visible = false;
     if (this.nowReadoutLabel) this.nowReadoutLabel.visible = showClock;
     if (this.streamOriginLabel) this.streamOriginLabel.visible = showClock;
     if (this.rangeSummaryLabel) {
-      this.rangeSummaryLabel.visible = showClock && this.timeCapturePhase === "end" && !this.isMobileViewport;
+      this.rangeSummaryLabel.visible = showClock && this.timeCapturePhase === "end";
     }
 
     // Wellbeing nodes - visible from step 1 onwards
@@ -1714,6 +1941,18 @@ export class ValueLogScene {
 
   private applyStepCameraPreset() {
     const target = this.getCameraPresetForStep();
+    const desiredFov =
+      this.step === "select_time"
+        ? this.isMobileViewport
+          ? 36
+          : 31
+        : this.isMobileViewport
+          ? 46
+          : 39;
+    if (this.camera.fov !== desiredFov) {
+      this.camera.fov = desiredFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.position.copy(target.position);
     this.cameraLookAt.copy(target.lookAt);
     this.controls.target.copy(target.lookAt);
@@ -1732,11 +1971,11 @@ export class ValueLogScene {
           ? nowX
           : clamp(-TIME_STREAM_CONFIG.halfWidth + 1.8, TIME_STREAM_CONFIG.halfWidth - 1.8, this.timeRangeMidX);
       if (this.isMobileViewport) {
-        position.set(focusX, 4.38, 6.95);
-        lookAt.set(focusX, 4.22, 0);
+        position.set(focusX, 4.02, 5.46);
+        lookAt.set(focusX, 3.96, 0.02);
       } else {
-        position.set(focusX, 4.46, 7.65);
-        lookAt.set(focusX, 4.24, 0);
+        position.set(focusX, 4.06, 5.78);
+        lookAt.set(focusX, 3.98, 0.02);
       }
     } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
@@ -1807,7 +2046,7 @@ export class ValueLogScene {
           : this.timeEndHandle.position.x;
     }
     return this.root.localToWorld(
-      target.set(anchorX, this.clockGroup.position.y + TIME_STREAM_CONFIG.rangeY + 0.92, 0)
+      target.set(anchorX, this.clockGroup.position.y + TIME_STREAM_CONFIG.rangeY + 0.28, 0)
     );
   }
 
@@ -1842,19 +2081,25 @@ export class ValueLogScene {
     const targets: THREE.Object3D[] = [];
     // Prioritize context interaction based on step
     if (this.step === "select_time") {
+        const allowStartHandle = this.timeCapturePhase === "start";
+        const allowEndHandle = this.timeCapturePhase === "end";
+        if (allowStartHandle) {
+          targets.push(this.timeStartHitZone);
+        }
+        if (allowEndHandle) {
+          targets.push(this.timeEndHitZone);
+        }
         targets.push(
-          this.timeStartHandle,
-          this.timeEndHandle,
-          this.timeStartJaw,
-          this.timeEndJaw,
           this.timeRangeMesh,
           this.timeRangeWrapMesh,
           this.timeNowMarker,
-          this.timeFutureMaskMesh,
-          this.timeBeforeStartMaskMesh,
           this.timeStreamLane,
           this.timeStreamBase
         );
+        if (this.timeCapturePhase === "end") {
+          targets.push(this.timeBeforeStartMaskMesh);
+        }
+        targets.push(this.timeFutureMaskMesh);
     }
     
     // Always check context nodes if visible (allow navigation)
@@ -1873,10 +2118,10 @@ export class ValueLogScene {
     const object = intersections[0]?.object;
     if (!object) return null;
 
-    if (object === this.timeStartHandle || object === this.timeStartJaw) {
+    if (object === this.timeStartHitZone) {
       return { type: "clock_hand", hand: "start" };
     }
-    if (object === this.timeEndHandle || object === this.timeEndJaw) {
+    if (object === this.timeEndHitZone) {
       return { type: "clock_hand", hand: "end" };
     }
     if (
@@ -1908,21 +2153,22 @@ export class ValueLogScene {
 
   private raycastClockHand(): "start" | "end" | "range" | null {
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const targets: THREE.Object3D[] = [];
+    if (this.timeCapturePhase === "start") {
+      targets.push(this.timeStartHitZone);
+    }
+    if (this.timeCapturePhase === "end") {
+      targets.push(this.timeEndHitZone);
+    }
+    targets.push(this.timeRangeMesh, this.timeRangeWrapMesh);
     const hits = this.raycaster.intersectObjects(
-      [
-        this.timeStartHandle,
-        this.timeEndHandle,
-        this.timeStartJaw,
-        this.timeEndJaw,
-        this.timeRangeMesh,
-        this.timeRangeWrapMesh,
-      ],
+      targets,
       false
     );
     const first = hits[0]?.object ?? null;
     if (!first) return null;
-    if (first === this.timeStartHandle || first === this.timeStartJaw) return "start";
-    if (first === this.timeEndHandle || first === this.timeEndJaw) return "end";
+    if (first === this.timeStartHitZone) return "start";
+    if (first === this.timeEndHitZone) return "end";
     if (first === this.timeRangeMesh || first === this.timeRangeWrapMesh) return "range";
     return null;
   }
@@ -2382,6 +2628,37 @@ const getHatchTexture = () => {
   return texture;
 };
 
+const createTimelineMarkerSprite = (color: string, direction: "start" | "end") => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 88;
+  canvas.height = 168;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const centerX = direction === "start" ? 30 : 58;
+    const tabLength = 22;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = color;
+    ctx.fillRect(centerX - 4, 18, 8, 92);
+    if (direction === "start") {
+      ctx.fillRect(centerX - 4, 102, tabLength, 8);
+    } else {
+      ctx.fillRect(centerX - tabLength + 4, 102, tabLength, 8);
+    }
+    ctx.globalAlpha = 0.24;
+    ctx.fillRect(centerX - 6, 18, 12, 92);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+  });
+  return new THREE.Sprite(material);
+};
+
 const parseLocalInputDate = (value: string) => {
   const parsed = value.length > 0 ? new Date(value) : new Date();
   return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -2389,6 +2666,14 @@ const parseLocalInputDate = (value: string) => {
 
 const formatLocalClock = (date: Date) =>
   date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+
+const formatRibbonClock = (date: Date, includeSeconds = false) => {
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  if (!includeSeconds) return `${hours}:${minutes}`;
+  const seconds = `${date.getSeconds()}`.padStart(2, "0");
+  return `${hours}:${minutes}:${seconds}`;
+};
 
 const formatLocalDate = (date: Date) =>
   date.toLocaleDateString([], { month: "short", day: "numeric" });
@@ -2460,8 +2745,8 @@ const getSceneActionHint = (
   }
   if (step === "select_time") {
     return timeCapturePhase === "start"
-      ? "Step 1/2: drag the Start caliper backward from NOW."
-      : "Step 2/2: drag the End caliper between Start and NOW.";
+      ? "Step 1/2: drag the blue Begin cut left from Now."
+      : "Step 2/2: place the copper End cut between Begin and Now.";
   }
   if (step === "select_wellbeing") {
     return "Select one wellbeing context node.";

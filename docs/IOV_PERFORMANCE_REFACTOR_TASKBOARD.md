@@ -109,3 +109,46 @@ Make the game lighter (runtime, memory, and bundle/load) while preserving all ex
 - [x] Center select-time camera on active focus (`NOW` in step 1, selected range midpoint in step 2) for desktop and mobile.
 - [x] Suppress mobile side-panel peek/expand controls during `time_capture` to enforce one primary action path.
 - [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).
+
+## Follow-up UX Iteration (Variant D: Day Ribbon + Slice Blades Pass)
+- [x] Reframe `time_capture` around a `day ribbon` contract instead of explicit caliper language.
+- [x] Recast `NOW` as a single seam-plus-glow marker embedded in the ribbon, with the readout placed below it.
+- [x] Replace `Start 00:00` wording with `Today · <date>` so day origin and chosen start no longer conflict.
+- [x] Keep the locked Start blade visible during end selection while limiting interaction to the active End blade.
+- [x] Attach the slice summary chip directly above the selected band so duration/start-end feedback lives in-scene.
+- [x] Tighten time-capture camera framing and dock anchor placement so the active interaction stays central on desktop and mobile.
+- [x] Align canvas/panel copy to `Mark When It Began` / `Mark When It Ended` and `Lock Start` / `Lock End`.
+- [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).
+
+## Follow-up UX Iteration (Variant E: Incision Cue Reset)
+- [x] Remove visible standing caliper/pole interaction dependency and replace it with embedded incision markers on the day ribbon.
+- [x] Introduce invisible drag hit-zones so interaction remains reliable without chunky visible hardware.
+- [x] Shorten Start/End visual markers into seam-like cuts and keep the locked Start incision visible during end placement.
+- [x] Replace the lingering lower gold rod effect by confining the `NOW` seam to the ribbon interaction band.
+- [x] Add a transient angled blade sweep that appears only while a slice boundary is actively hovered/dragged.
+- [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).
+
+## Follow-up UX Iteration (Variant F: Ribbon Scale + Live Now Readout)
+- [x] Replace the sparse ribbon scale with a richer day ruler: major 3-hour marks plus lighter 30-minute ticks.
+- [x] Add local 5-minute snap guides around the active boundary during hover/drag so precision lives in the scene.
+- [x] Convert `NOW` into a live digital seam cue with a small ticking `HH:MM:SS` readout instead of relying on a detached large label.
+- [x] Reformat the in-scene slice summary into a compact digital chip (`start -> end · duration`) attached above the selected band.
+- [x] Keep the transient angled slice cue as the only visible "tool" during interaction and leave resting state hardware-free.
+- [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).
+
+## Follow-up UX Iteration (Variant G: Precision Timeline Pivot)
+- [x] Replace the lingering 3D post read with screen-facing trim-marker glyphs for Begin/End so boundaries read as timeline cuts instead of poles.
+- [x] Add a dedicated timeline backdrop and flatten the ribbon stack so `time_capture` reads like a foreground instrument, not a prop on a stage.
+- [x] Tighten the select-time camera and FOV so the active interval dominates the viewport on desktop and mobile.
+- [x] Pull the floating time-capture dock closer to the active selection instead of leaving it detached above the scene.
+- [x] Collapse the left panel into a compact time-capture cue card so the ribbon remains the primary object during interval selection.
+- [x] Align timeline copy from `Start/End blade` language to `Begin/End cut` semantics.
+- [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).
+
+## Follow-up UX Iteration (Variant H: Precision Timeline Finishing Pass)
+- [x] Shorten Begin/End cut glyphs and reduce bloom so they read as precise trim markers rather than glowing brackets.
+- [x] Make the gold `NOW` seam thinner and attach a smaller explicit `Now HH:MM:SS` label just below the ribbon.
+- [x] Strengthen the local 5-minute snap ruler around the active boundary relative to the global hour scale.
+- [x] Pull the floating `Lock Start/Lock End` dock closer to the active selection for stronger context binding.
+- [x] Reduce the left Time Slice panel to a minimal cue card during `time_capture`.
+- [x] Re-verify with build/test (`npm run build`, `npm run test -- --run`).

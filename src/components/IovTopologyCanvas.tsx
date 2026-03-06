@@ -800,7 +800,7 @@ const IovTopologyCanvas = () => {
         x = (projectedAnchor.x * 0.5 + 0.5) * clientWidth;
         y =
           (-projectedAnchor.y * 0.5 + 0.5) * clientHeight -
-          (isMobileRef.current ? 68 : 74);
+          (isMobileRef.current ? 38 : 32);
       } else if (
         stage === "wellbeing_select" ||
         stage === "intensity_select" ||
@@ -1261,8 +1261,8 @@ const IovTopologyCanvas = () => {
   const valueLogTopline =
     valueLogActionStage === "time_capture"
       ? timeCapturePhase === "start"
-        ? `Step 1/2: drag the Start caliper left from NOW (${formatShortDate(valueLogDraft.endTime)} ${formatShortClock(valueLogDraft.endTime)}).`
-        : `Step 2/2: drag the End caliper between Start ${formatShortClock(valueLogDraft.startTime)} and NOW ${formatShortClock(valueLogDraft.endTime)}.`
+        ? `Step 1/2: drag the blue Begin cut left from Now (${formatShortDate(valueLogDraft.endTime)} ${formatShortClock(valueLogDraft.endTime)}).`
+        : `Step 2/2: place the copper End cut between Begin ${formatShortClock(valueLogDraft.startTime)} and Now ${formatShortClock(valueLogDraft.endTime)}.`
       : valueLogActionStage === "activity_capture"
         ? "What did you do in this time?"
         : valueLogActionStage === "proof_capture"
@@ -1281,8 +1281,8 @@ const IovTopologyCanvas = () => {
   const valueLogActionLabel =
     valueLogActionStage === "time_capture"
       ? timeCapturePhase === "start"
-        ? "1. Set Start Slice"
-        : "2. Set End Slice"
+        ? "1. Mark When It Began"
+        : "2. Mark When It Ended"
       : valueLogActionStage === "activity_capture"
         ? "3. Activity"
         : valueLogActionStage === "proof_capture"
@@ -1393,7 +1393,7 @@ const IovTopologyCanvas = () => {
       setPhaseHeadline("Organization -> System impact: community pressure rises against the bridge.");
     } else if (level === "valuelog") {
       setPhaseHeadline(
-        "Person -> Time Slice: lock time, add activity/proof, then capture value."
+        "Person -> Time Slice: mark begin/end, add activity/proof, then capture value."
       );
       personSceneRef.current?.setDetailMode("valuelog");
       const sceneStep = mapActionStageToWizardStep(valueLogActionStage, valueLogDraft.wellbeingNode);
@@ -2355,7 +2355,7 @@ function getRegionMeaning(regionId: RegionId) {
                 onClick={advanceValueLogActionStage}
                 disabled={!hasValidValueLogTime}
               >
-                {timeCapturePhase === "start" ? "Lock Start Slice" : "Lock End Slice"}
+                {timeCapturePhase === "start" ? "Lock Start" : "Lock End"}
               </button>
             )}
 

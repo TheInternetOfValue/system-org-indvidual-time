@@ -190,6 +190,7 @@ const IovTopologyPanel = ({
     valueLogSummary,
     canContinueTimeSliceFlow,
   });
+  const isFocusedTimeCapture = semanticLevel === "valuelog" && valueLogActionStage === "time_capture";
   const suppressMobilePeekForTimeCapture =
     isMobile && semanticLevel === "valuelog" && valueLogActionStage === "time_capture";
 
@@ -342,6 +343,40 @@ const IovTopologyPanel = ({
           )}
           <div className="iov-panel-value-subline">
             Scene is primary. Use breadcrumb chips at top-right for navigation.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isFocusedTimeCapture) {
+    return (
+      <div
+        className={`iov-panel iov-level-${semanticLevel} is-time-capture-focus ${
+          isMobile ? "is-mobile" : ""
+        }`}
+      >
+        <div className="iov-panel-header">
+          <div className="iov-panel-kicker">Precision Timeline</div>
+          <div className="iov-panel-header-actions">
+            <button
+              type="button"
+              className="iov-presentation-toggle"
+              onClick={onTogglePresentationMode}
+            >
+              Presentation Mode
+            </button>
+          </div>
+        </div>
+        <div className="iov-panel-content iov-panel-content-presenter">
+          <div className="iov-panel-presenter-cue">
+            Gold seam is Now. Blue cut marks Begin. Copper cut marks End. Use the ruler on the
+            ribbon for placement; the chip on the slice confirms exact time.
+          </div>
+          <div className="iov-panel-buttons">
+            <button type="button" className="iov-btn-action" onClick={onBackSemantic}>
+              Back
+            </button>
           </div>
         </div>
       </div>
@@ -726,7 +761,7 @@ const IovTopologyPanel = ({
               </div>
               {valueLogActionStage === "time_capture" && (
                 <div className="iov-panel-value-subline">
-                  Use the in-scene Start/End calipers on the day stream. Step 1 sets Start from NOW; Step 2 sets End between Start and NOW.
+                  Use the in-scene timeline. Step 1 places the blue Begin cut from Now; Step 2 places the copper End cut between Begin and Now.
                 </div>
               )}
               {valueLogActionStage === "activity_capture" && (
@@ -1094,7 +1129,7 @@ const getPresenterCue = ({
 
   if (semanticLevel === "valuelog") {
     if (valueLogActionStage === "time_capture") {
-      return "Lock start, then lock end on the stream. Keep the interval within today.";
+      return "Mark when it began, then mark when it ended. Keep the interval within today.";
     }
     if (valueLogActionStage === "activity_capture") {
       return "Set one activity label for the selected interval.";
@@ -1223,7 +1258,7 @@ const getValueLogPrimaryActionLabel = (
   summary: ValueLogSummary | null
 ) => {
   if (stage === "time_capture") {
-    return summary?.timeCapturePhase === "start" ? "Lock Start Slice" : "Lock End Slice";
+    return summary?.timeCapturePhase === "start" ? "Lock Start" : "Lock End";
   }
   if (stage === "activity_capture") return "Confirm Activity";
   if (stage === "proof_capture") return "Confirm Proof";
@@ -1302,7 +1337,7 @@ const formatSemanticContext = (level: SemanticZoomLevel) => {
     case "person":
       return "Person layer: reveal identity layers in order, then open a single time-slice capture.";
     case "valuelog":
-      return "Time Slice capture: lock start/end, then activity/proof/context, then capture value.";
+      return "Time Slice capture: mark begin/end on today's ribbon, then activity/proof/context, then capture value.";
     case "impact":
       return "Impact transition: committed signal becomes a visible person-level ripple.";
     case "orgimpact":

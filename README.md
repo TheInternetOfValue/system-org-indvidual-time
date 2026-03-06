@@ -1,228 +1,297 @@
-# What is the System and its Value?
+# What Is the System and Its Value?
 
-This repository contains an interactive visualization that models how value accumulates, distributes, and interlocks across three major economic subsystems:
+An interactive Internet of Value simulation built with React and Three.js.
 
-- 📊 **Market** – Public financial markets including equity, credit, and derivatives
-- 🏛️ **State** – Annual economic output (GDP) and governance capacity
-- 🧑‍🤝‍🧑 **Community** – Households, cooperatives, nonprofits, trust networks
-- 🔗 **Crony Bridge** – Top-layer interlock between Market & State (regulatory capture, bailouts, elite coordination)
+This project visualizes how value is created, captured, distorted, and restored across the actual semantic layers used in the Internet of Value experience:
 
-The visualization uses a 3D “brick stack” analogy:
-- Each brick represents a quantifiable unit of value
-- Height encodes concentration
-- Horizontal spread encodes participation
-- Bridge layers encode elite interlock
+- `System`: the topology of `Market`, `State`, `Community`, and the `Crony Bridge`
+- `Organization`: the interior of one institution, company, co-op, or group
+- `Person`: the wellbeing-identity layer of one human being
+- `Time Slice`: the protocol event where one logged action is captured
+- `Impact`: the causal transition from committed action to visible change
 
-The interface includes:
-- Click-to-assemble phases (Market, State, Community, Bridge)
-- Brick transfer interaction (top bricks can be reclaimed into Community)
-- In-scene topology action card anchored near selected brick (`Inspect/Reclaim` + `Open Organization`)
-- In-scene Time Slice action card (`Prev/Next/Back/Commit`) for direct progression without panel dependence
-- Replay control for the latest system-impact cinematic (`Replay Impact`)
-- Automatic camera reset to full-system overview after org/system impact completion
-- Tooltip + left info panel with definitions and values
-- Presentation Mode toggle for cleaner demo/readability view
-- Dynamic phase headline messaging (build/reveal state text)
-- Legend chips for Market/State/Community/Bridge color mapping
-- Log-scale height mapping driven by values data
+It is not just a data visualization. It is a playable causal model.
 
----
+The goal is simple: help people see that value is not only financial, that extraction is structural, and that aligned human action can propagate from a person to an organization to the wider system.
 
-## Scene Inventory (Current)
+If we use economics language at all, the clean mapping is:
 
-- `src/game/iov/IovTopologyScene.ts`  
-  Macro/system scene. Renders Market, State, Community, and Bridge, handles selection/reclaim, transfer counts, brick activation, and bridge shatter behavior.
-- `src/game/iov/BlockInteriorScene.ts`  
-  Organization interior scene. Shows people tokens, profile mix, person hover/select, person activation, and org-level contagion playback (one-by-one aura spread).
-- `src/game/iov/PersonIdentityScene.ts`  
-  Person identity scene. Renders identity layers/facets, wellbeing/aura evolution, and timeline-driven ripple updates.
-- `src/game/iov/ValueLogScene.ts`  
-  Time Slice composition scene. Captures action context, wellbeing node, optional SAOcommons tags, computes outcome deltas, and commits logs.
-- `src/game/iov/PersonImpactScene.ts`  
-  Transition FX scene. Plays the photon-drop impact and ripple before returning to updated person state.
+- `System` is the macro/systemic layer
+- `Organization` is the institutional or meso layer
+- `Person` is the human behavioral and wellbeing layer
 
-Semantic level controller:
-- `src/game/iov/IovSemanticZoomController.ts` manages `topology -> block -> person -> valuelog -> impact -> orgimpact -> block -> topology`, with explicit `OPEN_SYSTEM_IMPACT` playback from topology when empowerment is triggered.
+But the project itself should be named using its own canonical scene vocabulary:
 
-Interaction host:
-- `src/components/IovTopologyCanvas.tsx` wires scene lifecycle, routing, pointer events, and transitions.
+`System -> Organization -> Person -> Time Slice -> Impact`
+
+**Movement:** [The Internet of Value](https://www.TheInternetOfValue.xyz)  
+**Author:** [Moses Sam Paul](https://www.linkedin.com/in/mosessampaul/)
 
 ---
 
-## Interaction Flow (Current Runtime)
+## Why This Project Exists
 
-1. `System` (`IovTopologyScene`): inspect/reclaim organization bricks.
-2. `Organization` (`BlockInteriorScene`): select a person token.
-3. `Person` (`PersonIdentityScene`): inspect identity state and open Time Slice.
-4. `Time Slice` (`ValueLogScene`): compose and commit a value log.
-5. `Impact` (`PersonImpactScene`): photon drop + ripple animation.
-6. `Org Impact` (`BlockInteriorScene`): same org people scene, sequential aura contagion person-to-person.
-7. Return to `System`: org activation is queued and panel shows `Empower Community Pillar (N)`.
-8. `System Impact` (`IovTopologyScene`): on `Empower Community Pillar`, donor bricks are consumed from Market/State, fly into a Community pillar stack, and leave visible source holes.
-9. `Bridge Break` (`IovTopologyScene`): after contact, collapse uses staged timing (`pre-shake -> bang -> wobble/crack -> collapse`) instead of instant fall.
-10. Return to `System`: source brick remains radiant; bridge collapses only when stress threshold is crossed and visible community-to-bridge contact is reached; replay is available from the topology controls.
+Most systems dashboards show outputs after the damage is already done.
 
----
+This project is trying to make something different:
 
-## 🚀 Project Structure
+- a systems map that shows imbalance, not just totals
+- a person-centered model that links lived effort to real wellbeing
+- a narrative loop where one action can move through person, organization, and system
+- a visual language for structural restoration, not only structural extraction
 
-```text
-src/
-  components/
-    IovTopologyCanvas.tsx        # Three.js canvas wiring + render loop
-  game/
-    iov/
-      IovTopologyScene.ts        # System (macro) scene
-      BlockInteriorScene.ts      # Organization (meso) scene
-      PersonIdentityScene.ts     # Person (micro) scene
-      ValueLogScene.ts           # Time Slice action scene
-      PersonImpactScene.ts       # Impact transition FX scene
-      IovCameraDirector.ts       # Cinematic camera shot orchestrator
-      IovSemanticZoomController.ts # Semantic level state machine
-      PersonStateEngine.ts       # Person wellbeing/aura evolution engine
-      iovTimelogs.ts             # Value log loading + resolution
-      iov.topology.json          # Topology regions and UI toggle metadata
-      iovValues.ts               # Values loader + helpers
-      iovNarrativeConfig.ts      # Scale / identity / phase config
-  ui/
-    IovTopologyPanel.tsx         # Left panel UI
-public/
-  data/
-    iov_values.json              # Editable data values (USD trillions)
-docs/
-  IOV_DESIGN.md                  # Coordinate and motion notes
-  IOV_SEMANTIC_ZOOM_PROJECT.md   # Living plan/status for semantic zoom expansion
-  LLM_HANDOFF_CONTEXT.md         # Current handoff brief for the next LLM
-```
+The core thesis is:
+
+> If we can make value legible across scales, we can build systems that reward contribution, coherence, and wellbeing instead of capture.
 
 ---
 
-## 🧠 Data Model
+## What You Experience In The App
 
-Primary data source:
+The runtime is organized as a semantic zoom journey.
+
+### 1. System
+You begin at the macro topology.
+
+You see four major regions:
+
+- `Market`: public financial markets, capital concentration, speculative scale
+- `State`: GDP, institutional coordination, administrative power
+- `Community`: households, co-ops, nonprofits, trust networks, unpaid care
+- `Bridge`: the crony interlock between Market and State
+
+The scene is designed to show structural inequality clearly:
+
+- tower height reflects scale concentration
+- spread reflects participation
+- the bridge shows extraction and elite coordination
+
+### 2. Organization
+You open a brick and enter the interior of an organization or social unit.
+
+This moves the story away from abstraction. The block is not just a number anymore. It contains people.
+
+### 3. Person
+You select a person and inspect the wellbeing-identity protocol layers used by the project.
+
+The current identity stack is not generic Maslow language. It is defined in the repo vocabulary and mirrored from the canonical protocol source.
+
+The eight layers currently rendered are:
+
+- `~~GivenIdentity`
+- `~~EarnedIdentity`
+- `~~RentedIdentity`
+- `~~MoralCompass`
+- `~~Story`
+- `~~Skills`
+- `~~IdentityState`
+- `~~ConsentAndDisclosure`
+
+This is where the project makes its key claim: value must be understood through human wellbeing, identity, and lived context, not just money.
+
+### 4. Time Slice
+You log one concrete action through the project’s protocol cascade.
+
+The Time Slice scene is not just a timer. It is where one action is turned into structured causal input:
+
+- `~ValueCaptureProtocol`
+  - `~~TimeSlice`: `~~~StartTime`, `~~~EndTime`, `~~~Duration`
+  - `~~Activity`: `~~~ActivityLabel`, `~~~TaskType`, `~~~Intent`
+  - `~~Proof`: `~~~ProofOfActivity`, `~~~EvidenceLink`, `~~~ArtifactType`
+  - `~~Attribution`: `~~~Community`, `~~~Project`, `~~~ContributorRole`
+  - `~~Integrity`: `~~~ProofQuality`, `~~~AnomalyFlag`, `~~~FraudRiskSignal`
+- `~WellbeingProtocol`
+  - `~~Context`: primary node, signal label, signal score, impact direction
+  - and, when relevant, `~~Performance`
+- `~SAOcommons`
+  - activated when performance context is selected, including domain and validation flows
+
+In other words, Time Slice is the value-capture event band that feeds wellbeing and commons activation.
+
+### 5. Impact
+The committed action becomes visual impact.
+
+A photon drop, ripple, and return loop update the person state, then flow upward:
+
+- person alignment
+- organization activation
+- system-level restoration
+
+That loop is the heart of the project.
+
+---
+
+## The Full Narrative Loop
+
+1. `System`: see the imbalance and select a brick
+2. `Organization`: enter the block and choose a person
+3. `Person`: inspect the identity stack
+4. `Time Slice`: record a real value action
+5. `Impact`: play the result back into the person
+6. `Organization`: show aura contagion and organizational activation
+7. `System`: return with a radiant brick and visible community uplift
+8. `Bridge`: if enough aligned value accumulates, structural extraction can crack and collapse
+
+This is the project’s working thesis in interactive form:
+
+`personal alignment -> organizational integrity -> systemic restoration`
+
+---
+
+## Core Scene Architecture
+
+### `src/game/iov/IovTopologyScene.ts`
+Macro world map of the system.
+
+Responsibilities:
+
+- render Market / State / Community / Bridge
+- show large-scale imbalance
+- handle reclaim and transfer interactions
+- stage bridge stress and collapse
+- receive activation from lower layers
+
+### `src/game/iov/BlockInteriorScene.ts`
+Organization interior scene.
+
+Responsibilities:
+
+- show people inside one block
+- humanize the institution
+- display activation contagion after person impact
+
+### `src/game/iov/PersonIdentityScene.ts`
+Person wellbeing-identity scene.
+
+Responsibilities:
+
+- show the canonical wellbeing-identity layers
+- reflect wellbeing changes
+- visualize aura strength and identity shifts
+
+### `src/game/iov/ValueLogScene.ts`
+Time Slice and value-capture interface.
+
+Responsibilities:
+
+- capture `~ValueCaptureProtocol`, `~WellbeingProtocol`, and `~SAOcommons` inputs
+- translate lived effort into structured causal input
+- hand off to the impact layer
+
+### `src/game/iov/PersonImpactScene.ts`
+Transition and results scene.
+
+Responsibilities:
+
+- photon drop
+- ripple propagation
+- state update before returning to the person/org/system chain
+
+### `src/game/iov/IovSemanticZoomController.ts`
+Semantic state machine.
+
+Responsibilities:
+
+- move the user through `topology -> block -> person -> valuelog -> impact -> orgimpact -> topology`
+- keep narrative progression coherent
+
+---
+
+## Current Feature Set
+
+- 3D macro topology with Market / State / Community / Bridge regions
+- log-scale value tower mapping
+- organization brick selection and reclaim flow
+- person selection inside block interiors
+- identity stack inspection and wellbeing update loop
+- Time Slice action capture flow
+- photon-drop impact transition
+- organization activation contagion
+- system-impact return flow with visible community uplift
+- bridge break sequence with staged timing
+- presenter mode / cleaner demo framing
+- contextual scene panels and anchored action cards
+- mobile-aware panel behavior and breadcrumb navigation
+
+---
+
+## Data Model
+
+Primary values source:
+
 - `public/data/iov_values.json`
 
-Current schema:
-- `units`
-- `market.cash_equities`
-- `market.bonds`
-- `market.derivatives_notional`
-- `market.total`
-- `state.global_gdp`
-- `state.total`
-- `community.*` estimates and `community.total`
-- `notes.sources`, `notes.last_updated`
+This file drives system-level value representation for:
 
-If a value is `null`, UI renders `TBD`.
+- `market`
+- `state`
+- `community`
+- notes and source metadata
 
----
+Null values render as `TBD`.
 
-## 📏 Scale Mapping
-
-Height mapping uses log scaling:
+Scene scale uses log mapping so very large numbers remain legible in one frame:
 
 ```text
 height = multiplier * log10(value + 1)
 ```
 
-Implementation details:
-- `mapValueToLayers(...)` in `src/game/iov/IovTopologyScene.ts`
-- Market visual height currently uses **cash + derivatives** composite when available
-- Layer count is clamped (`minHeightLayers`, `maxHeightLayers`) so towers remain visible in frame
+---
+
+## Visual Language
+
+Region identity colors:
+
+- `Market`: deep blue
+- `State`: burnt brown
+- `Community`: yellow
+- `Bridge`: graphite
+
+Top-layer and capture cues can use gold accents.
+
+State transitions should read through:
+
+- glow
+- pulse
+- outline
+
+before any recolor logic is applied.
 
 ---
 
-## 🎮 Controls
+## Tech Stack
 
-- **Build buttons** (panel): `Market`, `State`, `Community`, `Bridge`
-- **Keyboard shortcuts**:
-  - `1` Market
-  - `2` State
-  - `3` Community
-  - `4` Bridge
-- **Pointer**:
-  - Hover: tooltip
-  - Click top bricks on Market/State/Bridge: reclaim to Community
+- `React 18`
+- `Three.js`
+- `TypeScript`
+- `Vite`
+- `Vitest`
+
+This repository is intentionally scene-driven. It is not a generic charting app. It is a narrative systems simulation.
 
 ---
 
-## 🏗️ What Has Been Implemented
+## Local Development
 
-- Single shared baseplate topology (common coordinate space)
-- Procedural towers/base/bridge with instancing
-- Bridge anchored to top region logic
-- Community reclaim slots + transfer animation
-- No recolor during flight (source brick color is preserved)
-- Values panel wired from JSON loader
-- Build-phase triggering from UI/keys
-- Presentation Mode toggle in panel (condensed content for demos)
-- Dynamic phase headline updates on build actions (buttons + keyboard)
-- Legend chips for immediate region-color readability
-- Derivatives mist pipeline exists but is currently disabled by default
-- Added non-color split cue for Market cash vs derivatives (white split band guide)
-- Updated region identity palette (deep blue / burnt brown / muted green / graphite)
-
----
-
-## ⚠️ Current Gaps / Known Issues
-
-### 1) Shadow artifacts in dense contact zones
-There have been z-fighting / shadow-acne artifacts near Community connectors.
-
-Current mitigation:
-- shadow bias tuning
-- slot guide overlays disabled by default
-- structure/baseplane separation improvements
-
-Planned stable fix:
-- shadow profile presets (`clean`, `cinematic`) and stricter depth offsets for contact areas
-
-### 2) Derivatives mist toggle is not yet exposed in panel metadata
-The scene supports `derivativesMist`, but `src/game/iov/iov.topology.json` currently exposes only `communityErosion` in panel toggles.
-
-### ✅ 3) Color rendering visibility (RESOLVED)
-Previously, brick faces appeared nearly black despite palette adjustments due to:
-- Material configuration issue (`vertexColors: true` interfering with instanced colors)
-- Insufficient minimum lightness floors for spatial averaging at distance
-
-Fixed in recent update:
-- Removed `vertexColors: true` from `MeshBasicMaterial`
-- Increased min lightness floors (0.65-0.75 range) for all regions
-- Colors now clearly readable at default camera distance in both normal and presentation modes
-
-### ✅ 5) Enhanced visual polish (RESOLVED)
-Added flag poles and refined color palette:
-- Small flag poles extending from top of Market, State, and Community pillars
-- Rectangular flags with text labels for clear identification
-- Reduced pastel intensity by 10-15% for more serious aesthetic  
-- Bridge further darkened for better "sitting above" appearance
-- Added bridge identification text carved into support pillars ("CRONY" and "BRIDGE")
-- Added individual letters carved into each bridge brick spelling "CRONY BRIDGE" in bold red (only on camera-facing bricks, first 12 bricks show letters)
-- All changes maintain existing interactions and performance
-
----
-
-## 🛠️ Development
-
-Install:
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-Run dev server:
+Run the development server:
 
 ```bash
 npm run dev
 ```
 
-Build:
+Build for production:
 
 ```bash
 npm run build
 ```
 
-Tests:
+Run tests:
 
 ```bash
 npm run test -- --run
@@ -230,18 +299,74 @@ npm run test -- --run
 
 ---
 
-## Documentation Trail (Append-Only)
+## Project Structure
 
-- Historical evolution is recorded chronologically in:
-  - `docs/IOV_SEMANTIC_ZOOM_PROJECT.md` (`Change Log` + `Decision Log`)
-  - `docs/LLM_HANDOFF_CONTEXT.md` (`Current pass status` updates)
-- New updates should be appended as dated checkpoints, not rewritten in place.
+```text
+src/
+  components/
+    IovTopologyCanvas.tsx
+  game/
+    iov/
+      IovTopologyScene.ts
+      BlockInteriorScene.ts
+      PersonIdentityScene.ts
+      ValueLogScene.ts
+      PersonImpactScene.ts
+      IovCameraDirector.ts
+      IovSemanticZoomController.ts
+      PersonStateEngine.ts
+      iovTimelogs.ts
+      iov.topology.json
+      iovValues.ts
+      iovNarrativeConfig.ts
+  ui/
+    IovTopologyPanel.tsx
+public/
+  data/
+    iov_values.json
+docs/
+  IOV_DESIGN.md
+  IOV_SEMANTIC_ZOOM_PROJECT.md
+  LLM_HANDOFF_CONTEXT.md
+```
 
 ---
 
-## 🔭 Next Recommended Steps
+## Documentation
 
-1. Add `renderMode: "high_contrast" | "cinematic"` toggle in `IovTopologyScene`.
-2. Add optional stripe/hatch texture for derivatives segment to avoid color-only dependence.
-3. Expose `derivativesMist` toggle in `src/game/iov/iov.topology.json` when ready for demos.
-4. Add screenshot regression checks for known visibility states.
+If you want the deeper design and implementation context, start here:
+
+- [docs/IOV_DESIGN.md](docs/IOV_DESIGN.md)
+- [docs/IOV_SEMANTIC_ZOOM_PROJECT.md](docs/IOV_SEMANTIC_ZOOM_PROJECT.md)
+- [docs/LLM_HANDOFF_CONTEXT.md](docs/LLM_HANDOFF_CONTEXT.md)
+
+---
+
+## Join The Build
+
+This repository is part of a larger attempt to make value legible, participatory, and restorative.
+
+If this resonates with you, join the movement:
+
+- explore and share [The Internet of Value](https://www.TheInternetOfValue.xyz)
+- connect with [Moses Sam Paul](https://www.linkedin.com/in/mosessampaul/)
+- open an issue with ideas, critiques, edge cases, or ecosystem references
+- contribute code, design, systems thinking, narrative design, data modeling, or movement strategy
+
+The strongest contributions to this project will likely come from people working across more than one domain:
+
+- systems thinkers
+- game designers
+- economists
+- civic designers
+- community builders
+- developers
+- storytellers
+
+If you care about building post-extractive systems, this project is for you.
+
+---
+
+## Status
+
+The project is active and evolving. The current priority is improving scene readability, narrative coherence, and the causal clarity of the person-to-system loop.

@@ -116,6 +116,17 @@ export const SAOCOMMONS_DOMAIN_PROMPTS: Record<SaocommonsDomain, string> = {
   "~~OrgBuilding": "Org building intensity: how much durable system capacity improved?",
 };
 
+export const VALUE_LOG_SNAP_MINUTES = 5;
+
+export const DEFAULT_SIGNAL_LABEL_BY_NODE: Record<WellbeingContextNode, string> = {
+  "~~Physiology": "Body baseline quality",
+  "~~Emotion": "Emotional stability shift",
+  "~~Feeling": "Felt-state coherence",
+  "~~Thought": "Cognitive clarity quality",
+  "~~Habit": "Habit streak quality",
+  "~~Performance": "Performance execution quality",
+};
+
 export interface ValueLogDraft {
   startTime: string;
   endTime: string;
@@ -169,13 +180,12 @@ export interface ValueLogSummary {
 }
 
 export const createInitialValueLogDraft = (): ValueLogDraft => {
-  const now = new Date();
-  const end = new Date(now.getTime());
+  const now = snapDateToMinutes(new Date(), VALUE_LOG_SNAP_MINUTES);
   const activityTemplate = VALUE_CAPTURE_ACTIVITY_TEMPLATES[0];
   const proofTemplate = VALUE_CAPTURE_PROOF_TEMPLATES[0];
   return {
     startTime: toLocalInputValue(now),
-    endTime: toLocalInputValue(end),
+    endTime: toLocalInputValue(now),
     activityLabel: activityTemplate?.activityLabel ?? "Focused deep-work sprint",
     activityTemplateId: activityTemplate?.id ?? "deep-work",
     taskType: activityTemplate?.taskType ?? "focused-execution",
@@ -184,7 +194,7 @@ export const createInitialValueLogDraft = (): ValueLogDraft => {
     proofTemplateId: proofTemplate?.id ?? "commit-proof",
     evidenceLink: proofTemplate?.evidenceLink ?? "proof://repo/commit",
     artifactType: proofTemplate?.artifactType ?? "commit-log",
-    community: "GrowthFlow Engineering",
+    community: "IOV Commons",
     project: "IOV Visualization",
     contributorRole: "Contributor",
     proofQuality: 0.82,
@@ -196,7 +206,7 @@ export const createInitialValueLogDraft = (): ValueLogDraft => {
     contextIntensity: 0.68,
     impactDirection: "increase",
     skillApplication: "Business Growth",
-    communityContext: "GrowthFlow Engineering",
+    communityContext: "IOV Commons",
     learningTag: false,
     earningTag: false,
     orgBuildingTag: false,
@@ -274,16 +284,34 @@ export const isValueLogCommitReady = (draft: ValueLogDraft) => {
   return draft.learningTag || draft.earningTag || draft.orgBuildingTag;
 };
 
-const clamp = (min: number, max: number, value: number) => Math.min(max, Math.max(min, value));
+export const deriveSignalScore = (draft: ValueLogDraft) => {
+  const base = clamp(0, 1, draft.contextIntensity);
+  if (draft.wellbeingNode !== "~~Performance") {
+    return base;
+  }
 
-const toLocalInputValue = (date: Date) => {
+  const selected: number[] = [];
+  if (draft.learningTag) selected.push(clamp(0, 1, draft.learningIntensity));
+  if (draft.earningTag) selected.push(clamp(0, 1, draft.earningIntensity));
+  if (draft.orgBuildingTag) selected.push(clamp(0, 1, draft.orgBuildingIntensity));
+  const domainAverage =
+    selected.length > 0
+      ? selected.reduce((sum, value) => sum + value, 0) / selected.length
+      : base;
+  return clamp(0, 1, base * 0.45 + domainAverage * 0.55);
+};
+
+export const clamp = (min: number, max: number, value: number) =>
+  Math.min(max, Math.max(min, value));
+
+export const toLocalInputValue = (date: Date) => {
   const pad = (value: number) => `${value}`.padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
     date.getHours()
   )}:${pad(date.getMinutes())}`;
 };
 
-const minutesFromLocalInput = (value: string) => {
+export const minutesFromLocalInput = (value: string) => {
   const date = value.length > 0 ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) {
     return 0;
@@ -291,9 +319,38 @@ const minutesFromLocalInput = (value: string) => {
   return date.getHours() * 60 + date.getMinutes();
 };
 
-const isValidTimeRange = (startTime: string, endTime: string) => {
+export const isValidTimeRange = (startTime: string, endTime: string) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
   return end.getTime() - start.getTime() >= 5 * 60 * 1000;
+};
+
+const minutesFromDate = (date: Date) => date.getHours() * 60 + date.getMinutes();
+
+const startOfDay = (date: Date) => {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+const minutesToDate = (dayStart: Date, minutes: number) => {
+  const copy = new Date(dayStart);
+  const safeMinutes = clamp(0, 1439, Math.round(minutes));
+  copy.setHours(Math.floor(safeMinutes / 60), safeMinutes % 60, 0, 0);
+  return copy;
+};
+
+const snapMinutes = (minutes: number, step: number) => {
+  if (step <= 1) return minutes;
+  const snapped = Math.round(minutes / step) * step;
+  return ((snapped % 1440) + 1440) % 1440;
+};
+
+const snapDateToMinutes = (date: Date, step: number) => {
+  if (step <= 1) return date;
+  const minutes = minutesFromDate(date);
+  const snappedMinutes = snapMinutes(minutes, step);
+  const dayStart = startOfDay(date);
+  return minutesToDate(dayStart, snappedMinutes);
 };

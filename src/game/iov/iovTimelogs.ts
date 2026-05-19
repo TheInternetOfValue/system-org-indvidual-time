@@ -1,6 +1,9 @@
 import type { RegionId } from "./IovTopologyScene";
 import { IOV_PROTOCOL_VOCABULARY } from "./iovProtocolVocabulary";
 
+export const WELLBECOMING_PROTOCOL_KEY = "~WellbecomingProtocol";
+export const LEGACY_WELLBEING_PROTOCOL_KEY = "~WellbeingProtocol";
+
 export type WellbeingContextNode =
   | "~~Physiology"
   | "~~Emotion"
@@ -71,21 +74,28 @@ interface ValueLogEngineHints {
   aura_delta: number;
 }
 
+interface ProtocolLinkNode {
+  "~~~~ProtocolLinkId": string;
+}
+
+interface WellbecomingProtocolNode extends ProtocolLinkNode {
+  "~~Context": WellbeingContextNodeData;
+  "~~Performance"?: PerformanceNode;
+}
+
 export interface IovValueLogEntry {
   id: string;
   timestamp: string;
-  "~ValueCaptureProtocol": {
+  "~ValueCaptureProtocol": ProtocolLinkNode & {
     "~~TimeSlice": TimeSliceNode;
     "~~Activity": ActivityNode;
     "~~Proof": ProofNode;
     "~~Attribution": AttributionNode;
     "~~Integrity": IntegrityNode;
   };
-  "~WellbeingProtocol": {
-    "~~Context": WellbeingContextNodeData;
-    "~~Performance"?: PerformanceNode;
-  };
-  "~SAOcommons": {
+  "~WellbecomingProtocol": WellbecomingProtocolNode;
+  "~WellbeingProtocol"?: WellbecomingProtocolNode;
+  "~SAOcommons": ProtocolLinkNode & {
     "~~Activation": SaocommonsActivationNode;
     "~~Validation"?: SaocommonsValidationNode;
   };
@@ -185,6 +195,12 @@ export const resolvePersonValuelogs = (
 
 export const resolvePersonTimelogs = resolvePersonValuelogs;
 
+export const getWellbecomingProtocol = (log: IovValueLogEntry) =>
+  log[WELLBECOMING_PROTOCOL_KEY] ?? log[LEGACY_WELLBEING_PROTOCOL_KEY];
+
+export const getProtocolLinkId = (log: IovValueLogEntry) =>
+  log["~ValueCaptureProtocol"]["~~~~ProtocolLinkId"] ?? log.id;
+
 const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
   const roleByRegion: Record<RegionId, string> = {
     market: "Trader",
@@ -207,6 +223,7 @@ const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
       id: `${linkId}`,
       timestamp: start.toISOString(),
       "~ValueCaptureProtocol": {
+        "~~~~ProtocolLinkId": linkId,
         "~~TimeSlice": {
           "~~~StartTime": start.toISOString(),
           "~~~EndTime": end.toISOString(),
@@ -237,7 +254,8 @@ const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
           "~~~FraudRiskSignal": 0.08,
         },
       },
-      "~WellbeingProtocol": {
+      "~WellbecomingProtocol": {
+        "~~~~ProtocolLinkId": linkId,
         "~~Context": {
           "~~~PrimaryNode": isPerformance ? "~~Performance" : "~~Physiology",
           "~~~SignalLabel": isPerformance ? "Work quality" : "Sleep score",
@@ -257,6 +275,7 @@ const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
           : {}),
       },
       "~SAOcommons": {
+        "~~~~ProtocolLinkId": linkId,
         "~~Activation": {
           "~~~Enabled": isPerformance,
           "~~~Trigger": isPerformance ? "~~Performance" : "non-performance",
@@ -285,8 +304,9 @@ const generateFallbackValuelogs = (regionId: RegionId): IovValueLogEntry[] => {
 export const formatValueLogForCaption = (log: IovValueLogEntry | null) => {
   if (!log) return "No active value log";
   const activity = log["~ValueCaptureProtocol"]["~~Activity"]["~~~ActivityLabel"];
-  const node = log["~WellbeingProtocol"]["~~Context"]["~~~PrimaryNode"].replace("~~", "");
-  const score = log["~WellbeingProtocol"]["~~Context"]["~~~SignalScore"];
+  const wellbecoming = getWellbecomingProtocol(log);
+  const node = wellbecoming["~~Context"]["~~~PrimaryNode"].replace("~~", "");
+  const score = wellbecoming["~~Context"]["~~~SignalScore"];
   const enabled = log["~SAOcommons"]["~~Activation"]["~~~Enabled"];
 
   return `${activity} | WB:${node}(${score.toFixed(2)}) | SAO:${enabled ? "on" : "off"}`;
@@ -296,6 +316,6 @@ export const formatLogForCaption = formatValueLogForCaption;
 
 export const protocolPathsForLegend = () => [
   IOV_PROTOCOL_VOCABULARY.valueCapture.l1,
-  IOV_PROTOCOL_VOCABULARY.wellbeing.l1,
+  IOV_PROTOCOL_VOCABULARY.wellbecoming.l1,
   IOV_PROTOCOL_VOCABULARY.saocommons.l1,
 ];

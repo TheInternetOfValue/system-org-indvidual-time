@@ -1,4 +1,4 @@
-import type { IovTimeLogEntry } from "./iovTimelogs";
+import { getWellbecomingProtocol, type IovTimeLogEntry } from "./iovTimelogs";
 
 export interface PersonStateSnapshot {
   processedLogs: number;
@@ -98,7 +98,8 @@ export class PersonStateEngine {
     if (!log) return;
 
     const hint = log._engine;
-    const context = log["~WellbeingProtocol"]["~~Context"];
+    const wellbecoming = getWellbecomingProtocol(log);
+    const context = wellbecoming["~~Context"];
     const signalScore = context["~~~SignalScore"];
     const direction =
       context["~~~ImpactDirection"] === "decrease"
@@ -109,7 +110,7 @@ export class PersonStateEngine {
 
     let computedDelta = direction * ((signalScore - 0.5) * 0.035);
     if (context["~~~PrimaryNode"] === "~~Performance") {
-      const perf = log["~WellbeingProtocol"]["~~Performance"];
+      const perf = wellbecoming["~~Performance"];
       if (perf) {
         const perfScore =
           (perf["~~~LearningOutput"] +

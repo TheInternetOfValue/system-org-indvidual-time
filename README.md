@@ -92,15 +92,16 @@ This is where the project makes its key claim: value must be understood through 
 ### 4. Time Slice
 You log one concrete action through the project’s protocol cascade.
 
-The Time Slice scene is not just a timer. It is where one action is turned into structured causal input:
+The Time Slice scene is not just a timer. It is where one action is turned into structured causal input. Time selection now uses a simplified 2D day-clock overlay: the gold hand is now, the blue hand sets begin, and the copper hand sets end.
 
 - `~ValueCaptureProtocol`
+  - `~~~~ProtocolLinkId`: immutable link generated at capture time
   - `~~TimeSlice`: `~~~StartTime`, `~~~EndTime`, `~~~Duration`
   - `~~Activity`: `~~~ActivityLabel`, `~~~TaskType`, `~~~Intent`
   - `~~Proof`: `~~~ProofOfActivity`, `~~~EvidenceLink`, `~~~ArtifactType`
   - `~~Attribution`: `~~~Community`, `~~~Project`, `~~~ContributorRole`
   - `~~Integrity`: `~~~ProofQuality`, `~~~AnomalyFlag`, `~~~FraudRiskSignal`
-- `~WellbeingProtocol`
+- `~WellbecomingProtocol`
   - `~~Context`: primary node, signal label, signal score, impact direction
   - and, when relevant, `~~Performance`
 - `~SAOcommons`
@@ -174,7 +175,8 @@ Time Slice and value-capture interface.
 
 Responsibilities:
 
-- capture `~ValueCaptureProtocol`, `~WellbeingProtocol`, and `~SAOcommons` inputs
+- capture `~ValueCaptureProtocol`, `~WellbecomingProtocol`, and `~SAOcommons` inputs
+- expose the 2D day-clock time selector through `IovTopologyCanvas`
 - translate lived effort into structured causal input
 - hand off to the impact layer
 
@@ -210,6 +212,7 @@ Responsibilities:
 - system-impact return flow with visible community uplift
 - bridge break sequence with staged timing
 - presenter mode / cleaner demo framing
+- 2D Time Slice day-clock overlay for begin/end capture
 - contextual scene panels and anchored action cards
 - mobile-aware panel behavior and breadcrumb navigation
 
@@ -311,16 +314,19 @@ src/
       BlockInteriorScene.ts
       PersonIdentityScene.ts
       ValueLogScene.ts
+      ValueLogModel.ts
       PersonImpactScene.ts
       IovCameraDirector.ts
       IovSemanticZoomController.ts
       PersonStateEngine.ts
+      iovProtocolVocabulary.ts
       iovTimelogs.ts
       iov.topology.json
       iovValues.ts
       iovNarrativeConfig.ts
   ui/
     IovTopologyPanel.tsx
+    TimeSliceOverlay.tsx
 public/
   data/
     iov_values.json

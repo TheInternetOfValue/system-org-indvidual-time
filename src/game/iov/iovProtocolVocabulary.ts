@@ -26,8 +26,8 @@ export const IOV_PROTOCOL_VOCABULARY = {
       fraudRiskSignal: "~~~FraudRiskSignal",
     },
   },
-  wellbeing: {
-    l1: "~WellbeingProtocol",
+  wellbecoming: {
+    l1: "~WellbecomingProtocol",
     l2: {
       physiology: "~~Physiology",
       emotion: "~~Emotion",
@@ -61,6 +61,9 @@ export const IOV_PROTOCOL_VOCABULARY = {
       skillApplication: "~~~SkillApplication",
       communityContext: "~~~CommunityContext",
     },
+  },
+  wellbeing: {
+    l1: "~WellbecomingProtocol",
   },
   saocommons: {
     l1: "~SAOcommons",

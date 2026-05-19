@@ -23,7 +23,15 @@ export const loadValueLogSceneModule = () => {
   return valueLogSceneModulePromise;
 };
 
-export const preloadDeferredIovSceneModules = async () => {
+export const preloadDeferredIovSceneModules = async (options: { sequential?: boolean } = {}) => {
+  if (options.sequential) {
+    await loadBlockInteriorSceneModule();
+    await loadPersonIdentitySceneModule();
+    await loadPersonImpactSceneModule();
+    await loadValueLogSceneModule();
+    return;
+  }
+
   await Promise.all([
     loadBlockInteriorSceneModule(),
     loadPersonIdentitySceneModule(),

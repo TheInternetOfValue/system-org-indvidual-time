@@ -138,6 +138,7 @@ const IovTopologyPanel = ({
   ] as const;
   const isTopologyContext = semanticLevel === "topology";
   const showTopologyDetails = isTopologyContext && topologyActivated;
+  const isBlockContext = semanticLevel === "block";
   const panelTitle = isTopologyContext
     ? topologyActivated
       ? selected?.label ?? "System"
@@ -190,9 +191,48 @@ const IovTopologyPanel = ({
     valueLogSummary,
     canContinueTimeSliceFlow,
   });
+  const showPanelValueLogPrimaryAction =
+    semanticLevel === "valuelog" && !presentationMode && !isMobile;
   const isFocusedTimeCapture = semanticLevel === "valuelog" && valueLogActionStage === "time_capture";
   const suppressMobilePeekForTimeCapture =
     isMobile && semanticLevel === "valuelog" && valueLogActionStage === "time_capture";
+
+  const renderTopologyPrimaryValue = () => {
+    switch (selectedRegionId) {
+      case "market":
+        return (
+          <>
+            <div className="iov-panel-value-line">
+              <strong>Market visual scale:</strong>{" "}
+              {formatIovValue(marketWithDerivatives, values.units)}
+            </div>
+            <div className="iov-panel-value-subline">
+              Cash + derivatives, matching tower height.
+            </div>
+          </>
+        );
+      case "state":
+        return (
+          <div className="iov-panel-value-line">
+            <strong>State total (GDP):</strong> {formatIovValue(values.state.total, values.units)}
+          </div>
+        );
+      case "community":
+        return (
+          <div className="iov-panel-value-line">
+            <strong>Community total:</strong> {formatIovValue(values.community.total, values.units)}
+          </div>
+        );
+      case "crony_bridge":
+      default:
+        return (
+          <div className="iov-panel-value-line">
+            <strong>Bridge coupled scale:</strong>{" "}
+            {formatIovValue(bridgeCoupledValue, values.units)}
+          </div>
+        );
+    }
+  };
 
   const renderTopologyValues = () => {
     switch (selectedRegionId) {
@@ -357,7 +397,7 @@ const IovTopologyPanel = ({
         }`}
       >
         <div className="iov-panel-header">
-          <div className="iov-panel-kicker">Precision Timeline</div>
+          <div className="iov-panel-kicker">Day Clock</div>
           <div className="iov-panel-header-actions">
             <button
               type="button"
@@ -370,8 +410,8 @@ const IovTopologyPanel = ({
         </div>
         <div className="iov-panel-content iov-panel-content-presenter">
           <div className="iov-panel-presenter-cue">
-            Gold seam is Now. Blue cut marks Begin. Copper cut marks End. Use the ruler on the
-            ribbon for placement; the chip on the slice confirms exact time.
+            Gold hand is Now. Drag the blue Begin hand first, then the copper End hand. The
+            slice chip confirms exact time.
           </div>
           <div className="iov-panel-buttons">
             <button type="button" className="iov-btn-action" onClick={onBackSemantic}>
@@ -470,19 +510,6 @@ const IovTopologyPanel = ({
             <button type="button" onClick={onBackSemantic}>
               Back to Person
             </button>
-            {valueLogPrimaryAction && (
-              <button
-                type="button"
-                onClick={
-                  valueLogActionStage === "ready_capture"
-                    ? onValueLogCommit
-                    : onAdvanceValueLogActionStage
-                }
-                disabled={valueLogPrimaryAction.disabled}
-              >
-                {valueLogPrimaryAction.label}
-              </button>
-            )}
           </div>
           {valueLogSummary && (
             <div className="iov-mobile-layer-rail" aria-label="Time slice step">
@@ -492,16 +519,14 @@ const IovTopologyPanel = ({
         </>
       )}
       <div className="iov-panel-content">
-      <div className="iov-phase-headline">{phaseHeadline}</div>
+      {!showTopologyDetails && !isBlockContext && <div className="iov-phase-headline">{phaseHeadline}</div>}
       <div className="iov-panel-title">{panelTitle}</div>
       <div className="iov-panel-value-subline">{sceneStoryLink}</div>
-      <div className="iov-panel-definition">
-        {isTopologyContext
-          ? showTopologyDetails
-            ? selected?.notes
-            : "System map: choose a region in-scene to begin."
-          : sceneContext}
-      </div>
+      {!(isTopologyContext && showTopologyDetails) && !isBlockContext && (
+        <div className="iov-panel-definition">
+          {isTopologyContext ? "System map: choose a region in-scene to begin." : sceneContext}
+        </div>
+      )}
       {isTopologyContext && !showTopologyDetails && (
         <>
           <div className="iov-panel-meaning">
@@ -513,36 +538,55 @@ const IovTopologyPanel = ({
       )}
       {showTopologyDetails && (
         <>
-          <div className="iov-panel-meaning">{meaningText}</div>
-          <div className="iov-panel-transfer-tip">
-            Tip: click once to select a brick, double-click to open its organization.
-          </div>
           <div className="iov-panel-transfer-count">Community uplift: {transferredCount}</div>
+          <div className="iov-panel-values iov-panel-primary-values">
+            {renderTopologyPrimaryValue()}
+          </div>
           {nextTopologyBuildRegion && (
             <div className="iov-panel-value-subline">
-              Guided build next: <strong>{formatRegionShortLabel(nextTopologyBuildRegion)}</strong>
+              Next: tap <strong>{formatRegionShortLabel(nextTopologyBuildRegion)}</strong> in the scene.
+            </div>
+          )}
+          {selectedBrickLabel && (
+            <div className="iov-panel-value-subline">
+              Selected: <strong>{selectedBrickLabel}</strong>
+            </div>
+          )}
+          {presenterAction && (
+            <div className="iov-panel-buttons">
+              <button
+                type="button"
+                className="iov-btn-action"
+                onClick={presenterAction.onClick}
+                disabled={presenterAction.disabled}
+              >
+                {presenterAction.label}
+              </button>
             </div>
           )}
 
-          <div className="iov-panel-section-label">Legend</div>
-          <div className="iov-panel-legend">
-            {legendItems.map((item) => (
-              <div key={item.id} className="iov-panel-legend-item">
-                <span
-                  className="iov-panel-legend-swatch"
-                  style={{ backgroundColor: item.color }}
-                  aria-hidden="true"
-                />
-                <span>{item.label}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="iov-panel-section-label">Values ({values.units})</div>
-          <div className="iov-panel-values">{renderTopologyValues()}</div>
-
           <details className="iov-panel-advanced">
-            <summary>Advanced controls</summary>
+            <summary>Scene details</summary>
+            <div className="iov-panel-definition">{selected?.notes}</div>
+            <div className="iov-panel-meaning">{meaningText}</div>
+
+            <div className="iov-panel-section-label">Legend</div>
+            <div className="iov-panel-legend">
+              {legendItems.map((item) => (
+                <div key={item.id} className="iov-panel-legend-item">
+                  <span
+                    className="iov-panel-legend-swatch"
+                    style={{ backgroundColor: item.color }}
+                    aria-hidden="true"
+                  />
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="iov-panel-section-label">Value breakdown ({values.units})</div>
+            <div className="iov-panel-values">{renderTopologyValues()}</div>
+
             <div className="iov-panel-section-label">Active Toggles</div>
             <div className="iov-panel-tags">
               {data.toggles.map((toggle) => (
@@ -598,43 +642,20 @@ const IovTopologyPanel = ({
         </>
       )}
 
-      <div className="iov-panel-section-label">
-        {isTopologyContext
-          ? showTopologyDetails
-            ? "System Controls"
-            : "Scene Context"
-          : "Scene Context"}
-      </div>
-      <div className="iov-panel-value-subline">
-        Level: <strong>{formatSemanticLevel(semanticLevel)}</strong>
-      </div>
+      {!(isTopologyContext && showTopologyDetails) && !isBlockContext && (
+        <>
+          <div className="iov-panel-section-label">
+            {isTopologyContext ? "Scene Context" : "Scene Context"}
+          </div>
+          <div className="iov-panel-value-subline">
+            Level: <strong>{formatSemanticLevel(semanticLevel)}</strong>
+          </div>
+        </>
+      )}
       {semanticLevel === "topology" ? (
         <>
           {showTopologyDetails ? (
-            <>
-              <div className="iov-panel-value-subline">
-                Selected organization unit: {selectedBrickLabel ?? "None"}
-              </div>
-              <div className="iov-panel-value-subline">
-                Interaction: double-click selected brick to open organization.
-              </div>
-              {presenterAction ? (
-                <div className="iov-panel-buttons">
-                  <button
-                    type="button"
-                    className="iov-btn-action"
-                    onClick={presenterAction.onClick}
-                    disabled={presenterAction.disabled}
-                  >
-                    {presenterAction.label}
-                  </button>
-                </div>
-              ) : (
-                <div className="iov-panel-value-subline">
-                  Primary next step appears here when a scene action is ready.
-                </div>
-              )}
-            </>
+            null
           ) : (
             <div className="iov-panel-value-subline">
               Use in-scene labels as the primary controls. Context expands after the first build.
@@ -649,13 +670,15 @@ const IovTopologyPanel = ({
                 <strong>{blockSummary.brickLabel}</strong>
               </div>
               <div className="iov-panel-value-subline">
-                People count: {blockSummary.peopleCount}
+                People: <strong>{blockSummary.peopleCount}</strong>
               </div>
               <div className="iov-panel-value-subline">
-                Hovered person: {blockSummary.hoveredPersonId ?? "None"}
+                Selected: <strong>{blockSummary.selectedPersonId ?? "None"}</strong>
               </div>
               <div className="iov-panel-value-subline">
-                Selected person: {blockSummary.selectedPersonId ?? "None"}
+                {blockSummary.selectedPersonId
+                  ? "Next: open this person's wellbeing view."
+                  : "Next: tap one person in the room."}
               </div>
               {blockSummary.selectedPersonId && (
                 <button
@@ -664,15 +687,21 @@ const IovTopologyPanel = ({
                   onClick={onOpenPerson}
                   style={{ marginTop: "8px", width: "100%" }}
                 >
-                  Inspect Person
+                  Open Person
                 </button>
               )}
-              <div className="iov-panel-value-subline">
-                Profile mix:{" "}
-                {Object.entries(blockSummary.profileMix)
-                  .map(([profile, count]) => `${profile} (${count})`)
-                  .join(", ")}
-              </div>
+              <details className="iov-panel-advanced">
+                <summary>Scene details</summary>
+                <div className="iov-panel-value-subline">
+                  Hovered: {blockSummary.hoveredPersonId ?? "None"}
+                </div>
+                <div className="iov-panel-value-subline">
+                  Profile mix:{" "}
+                  {Object.entries(blockSummary.profileMix)
+                    .map(([profile, count]) => `${profile} (${count})`)
+                    .join(", ")}
+                </div>
+              </details>
             </div>
           )}
           {semanticLevel === "person" && personSummary && (
@@ -754,14 +783,14 @@ const IovTopologyPanel = ({
           {semanticLevel === "valuelog" && valueLogSummary && (
             <div className="iov-panel-values">
               <div className="iov-panel-value-line">
-                <strong>Time Slice Composer</strong>
+                <strong>Time Slice: choose one action in time</strong>
               </div>
               <div className="iov-panel-value-subline">
                 Current action: {valueLogSummary.sceneActionHint}
               </div>
               {valueLogActionStage === "time_capture" && (
                 <div className="iov-panel-value-subline">
-                  Use the in-scene timeline. Step 1 places the blue Begin cut from Now; Step 2 places the copper End cut between Begin and Now.
+                  Use the clock hands. Step 1 moves the blue Begin hand; Step 2 moves the copper End hand.
                 </div>
               )}
               {valueLogActionStage === "activity_capture" && (
@@ -995,7 +1024,7 @@ const IovTopologyPanel = ({
                   </div>
                 </>
               )}
-              {valueLogPrimaryAction && (
+              {showPanelValueLogPrimaryAction && valueLogPrimaryAction && (
                 <div className="iov-panel-buttons" style={{ marginTop: "8px" }}>
                   <button
                     type="button"
@@ -1021,8 +1050,8 @@ const IovTopologyPanel = ({
         </>
       )}
 
-      {showTopologyDetails && (
-        <div className="iov-panel-shortcuts">Shortcuts: 1 Community, 2 State, 3 Market, 4 Bridge</div>
+      {showTopologyDetails && !isMobile && (
+        <div className="iov-panel-shortcuts">Keys: 1 Community, 2 State, 3 Market, 4 Bridge</div>
       )}
       {semanticLevel === "topology" && isMobile && (
         <div className="iov-panel-attribution">
@@ -1095,13 +1124,13 @@ const getPresenterCue = ({
 }: PresenterCueInput) => {
   if (semanticLevel === "topology") {
     if (!topologyActivated) {
-      return "Tap Community in-scene to start the story loop.";
+      return "System: build the map so the trapped value pattern becomes visible.";
     }
     if (canEmpowerCommunity) {
-      return "Community uplift is ready. Trigger the empowerment action.";
+      return "Back to System: community uplift is ready to pressure the bridge.";
     }
     if (canOpenBrick) {
-      return "Brick selected. Double-click it in-scene to open organization.";
+      return "System: one organization is selected. Enter it to find the people inside.";
     }
     if (nextTopologyBuildRegion) {
       return `Guided build next: ${formatRegionShortLabel(nextTopologyBuildRegion)}.`;
@@ -1117,42 +1146,42 @@ const getPresenterCue = ({
   }
 
   if (semanticLevel === "person") {
-    if (!personSummary) return "Select a person in-scene.";
+    if (!personSummary) return "Person: select a person in-scene.";
     if (!personSummary.identityBuildMode) {
       return "Reveal identity layers to start the person-level narrative.";
     }
     if (!personSummary.identityBuildComplete) {
       return "Advance one layer at a time. Keep scene focus on the dropping facets.";
     }
-    return "Identity build complete. Open Time Slice from the scene or button below.";
+    return "Identity build complete. Choose one action in time.";
   }
 
   if (semanticLevel === "valuelog") {
     if (valueLogActionStage === "time_capture") {
-      return "Mark when it began, then mark when it ended. Keep the interval within today.";
+      return "Time Slice: drag the clock hands to choose Begin, then End.";
     }
     if (valueLogActionStage === "activity_capture") {
-      return "Set one activity label for the selected interval.";
+      return "Name the one action inside this slice.";
     }
     if (valueLogActionStage === "proof_capture") {
-      return "Attach one proof artifact for the activity.";
+      return "Attach the proof that makes this action real.";
     }
     if (valueLogActionStage === "ready_capture") {
-      return "Time slice is fully composed. Capture value to launch impact.";
+      return "Preview is ready. Capture value to launch the Activity token.";
     }
-    return valueLogSummary?.sceneActionHint ?? "Compose a Time Slice in-scene.";
+    return valueLogSummary?.sceneActionHint ?? "Choose one action in time.";
   }
 
   if (semanticLevel === "impact") {
-    return "Photon drop is propagating into identity impact.";
+    return "Impact: watch value become aura.";
   }
 
   if (semanticLevel === "orgimpact") {
-    return "Org contagion is spreading. Let the scene finish before next step.";
+    return "Back to Organization: wellbeing contagion is spreading.";
   }
 
   if (semanticLevel === "systemimpact") {
-    return "System impact sequence is active. Watch the bridge stress response.";
+    return "Back to System: watch the bridge stress response.";
   }
 
   return phaseHeadline;
@@ -1230,25 +1259,25 @@ const getPresenterAction = ({
 
 const formatSceneStoryLink = (level: SemanticZoomLevel) => {
   if (level === "topology") {
-    return "From none | Now: System map | Next: Open organization";
+    return "Now: System map | Next: Enter one organization";
   }
   if (level === "block") {
-    return "From System map | Now: Organization interior | Next: Open person";
+    return "From System | Now: Organization interior | Next: Choose one person";
   }
   if (level === "person") {
-    return "From Organization interior | Now: Identity stack | Next: Open time slice";
+    return "From Organization | Now: Person wellbeing | Next: Choose one action";
   }
   if (level === "valuelog") {
-    return "From Identity stack | Now: Time slice capture | Next: Commit impact";
+    return "From Person | Now: Time slice | Next: Watch impact";
   }
   if (level === "impact") {
-    return "From Time slice capture | Now: Person impact ripple | Next: Org contagion";
+    return "From Time Slice | Now: Value becomes aura | Next: Org contagion";
   }
   if (level === "orgimpact") {
-    return "From Person impact ripple | Now: Organization activation | Next: System shift";
+    return "From Person impact | Now: Organization activation | Next: System shift";
   }
   if (level === "systemimpact") {
-    return "From Organization activation | Now: System realignment | Next: Return to system map";
+    return "From Organization | Now: System realignment | Next: Return to map";
   }
   return "Story link unavailable.";
 };
@@ -1258,7 +1287,7 @@ const getValueLogPrimaryActionLabel = (
   summary: ValueLogSummary | null
 ) => {
   if (stage === "time_capture") {
-    return summary?.timeCapturePhase === "start" ? "Lock Start" : "Lock End";
+    return summary?.timeCapturePhase === "start" ? "Lock Begin" : "Lock End";
   }
   if (stage === "activity_capture") return "Confirm Activity";
   if (stage === "proof_capture") return "Confirm Proof";
@@ -1333,19 +1362,19 @@ const formatSemanticLevel = (level: SemanticZoomLevel) => {
 const formatSemanticContext = (level: SemanticZoomLevel) => {
   switch (level) {
     case "block":
-      return "Organization interior: choose one person at a time, then open person view.";
+      return "Organization: where people carry the system. Choose one person to humanize the structure.";
     case "person":
-      return "Person layer: reveal identity layers in order, then open a single time-slice capture.";
+      return "Person: where wellbeing changes. Reveal identity layers, then choose one value action.";
     case "valuelog":
-      return "Time Slice capture: mark begin/end on today's ribbon, then activity/proof/context, then capture value.";
+      return "Time Slice: choose one action on today's clock, add proof, then capture value.";
     case "impact":
-      return "Impact transition: committed signal becomes a visible person-level ripple.";
+      return "Impact: the committed action becomes a visible person-level ripple.";
     case "orgimpact":
-      return "Org contagion: one person's uplift propagates through the selected organization.";
+      return "Back to Organization: one person's uplift propagates through the group.";
     case "systemimpact":
-      return "System impact: organization activation translates into community pressure on bridge structures.";
+      return "Back to System: organization activation becomes community pressure on the bridge.";
     case "topology":
-      return "System layer: build the macro view, select one organization, then descend into its people.";
+      return "System: see where value is trapped, select one organization, then descend into its people.";
     default:
       return "Scene context is active.";
   }

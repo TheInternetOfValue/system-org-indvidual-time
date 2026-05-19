@@ -5,6 +5,7 @@
 - `BlockInteriorScene` (`Organization`): people composition and person-level selection.
 - `PersonIdentityScene` (`Person`): wellbeing identity layers and aura/wellbeing evolution.
 - `ValueLogScene` (`Time Slice`): value action composition and outcome calculation.
+- `IovTopologyCanvas` (`Time Slice overlay`): simplified 2D day-clock begin/end capture that writes into the value log draft.
 - `PersonImpactScene` (`Impact`): transition FX between commit and updated person state.
 
 Current semantic zoom chain:
@@ -35,7 +36,7 @@ Current semantic zoom chain:
 - State change feedback uses pulse/outline effects instead of recoloring brick identity.
 - Value commit flow uses explicit transition FX:
   - `ValueLogScene.commit(...)` -> `PersonImpactScene.playImpact(...)` -> return to `PersonIdentityScene`.
-- Time Slice interaction is centered on in-scene composer controls for desktop capture flow; panel controls are secondary/mobile-first.
+- Time Slice time selection is centered on the 2D day-clock overlay so begin/end capture stays static, readable, and mobile-safe. The Three scene remains responsible for protocol staging and outcome visualization after time capture.
 - Wellbeing context helper dock (including Performance domain/intensity) anchors near the infinity center to keep interaction focal and consistent.
 - Post-impact propagation:
   - impacted person activation ring in `BlockInteriorScene`.

@@ -1,122 +1,40 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { IovValueLogEntry, WellbeingContextNode } from "./iovTimelogs";
+import {
+  DEFAULT_SIGNAL_LABEL_BY_NODE,
+  WIZARD_STEP_ORDER,
+  clamp,
+  computeValueLogOutcome,
+  createInitialValueLogDraft,
+  deriveSignalScore,
+  isValueLogCommitReady,
+  minutesFromLocalInput,
+  toLocalInputValue,
+  type SaocommonsDomain,
+  type ValueLogDraft,
+  type ValueLogOutcome,
+  type ValueLogSummary,
+  type WizardStep,
+} from "./ValueLogModel";
 
-export type SaocommonsDomain = "~~Learning" | "~~Earning" | "~~OrgBuilding";
-
-export type WizardStep =
-  | "select_time"
-  | "select_wellbeing"
-  | "select_intensity"
-  | "select_performance"
-  | "show_outcome";
-
-export const WIZARD_STEP_ORDER: WizardStep[] = [
-  "select_time",
-  "select_wellbeing",
-  "select_intensity",
-  "select_performance",
-  "show_outcome",
-];
-
-export interface ValueCaptureActivityTemplate {
-  id: string;
-  label: string;
-  activityLabel: string;
-  taskType: string;
-  intent: string;
-}
-
-export interface ValueCaptureProofTemplate {
-  id: string;
-  label: string;
-  proofOfActivity: string;
-  artifactType: string;
-  evidenceLink: string;
-}
-
-export const VALUE_CAPTURE_ACTIVITY_TEMPLATES: ReadonlyArray<ValueCaptureActivityTemplate> = [
-  {
-    id: "deep-work",
-    label: "Deep Work Sprint",
-    activityLabel: "Focused deep-work sprint",
-    taskType: "focused-execution",
-    intent: "ship-meaningful-progress",
-  },
-  {
-    id: "learning-block",
-    label: "Learning Block",
-    activityLabel: "Skill learning and synthesis block",
-    taskType: "learning",
-    intent: "build-capability",
-  },
-  {
-    id: "team-sync",
-    label: "Team Alignment",
-    activityLabel: "Team alignment and decision sync",
-    taskType: "coordination",
-    intent: "reduce-friction",
-  },
-  {
-    id: "recovery",
-    label: "Recovery Reset",
-    activityLabel: "Recovery reset and energy restoration",
-    taskType: "recovery",
-    intent: "restore-wellbeing",
-  },
-];
-
-export const VALUE_CAPTURE_PROOF_TEMPLATES: ReadonlyArray<ValueCaptureProofTemplate> = [
-  {
-    id: "commit-proof",
-    label: "Commit + Artifact",
-    proofOfActivity: "Code commit with artifact snapshot",
-    artifactType: "commit-log",
-    evidenceLink: "proof://repo/commit",
-  },
-  {
-    id: "note-proof",
-    label: "Meeting Notes",
-    proofOfActivity: "Meeting notes with decisions and actions",
-    artifactType: "meeting-notes",
-    evidenceLink: "proof://docs/notes",
-  },
-  {
-    id: "metric-proof",
-    label: "Metric Screenshot",
-    proofOfActivity: "Metric screenshot tied to action",
-    artifactType: "metric-capture",
-    evidenceLink: "proof://metrics/snapshot",
-  },
-  {
-    id: "journal-proof",
-    label: "Reflection Journal",
-    proofOfActivity: "Short reflection log of activity outcome",
-    artifactType: "reflection-log",
-    evidenceLink: "proof://journal/entry",
-  },
-];
-
-export const WELLBEING_INTENSITY_PROMPTS: Record<WellbeingContextNode, string> = {
-  "~~Physiology":
-    "How strongly did this timeslice improve or drain your body baseline (sleep, nutrition, movement)?",
-  "~~Emotion":
-    "How intense was the emotional shift caused by this action?",
-  "~~Feeling":
-    "How strongly did your felt state move after this action?",
-  "~~Thought":
-    "How much cognitive clarity or overload did this action create?",
-  "~~Habit":
-    "Was this part of a healthy habit streak, and how strongly did it reinforce the habit?",
-  "~~Performance":
-    "How strongly did this action advance real performance outcomes?",
-};
-
-export const SAOCOMMONS_DOMAIN_PROMPTS: Record<SaocommonsDomain, string> = {
-  "~~Learning": "Learning intensity: how much capability growth happened?",
-  "~~Earning": "Earning intensity: how much value capture moved forward?",
-  "~~OrgBuilding": "Org building intensity: how much durable system capacity improved?",
-};
+export {
+  SAOCOMMONS_DOMAIN_PROMPTS,
+  VALUE_CAPTURE_ACTIVITY_TEMPLATES,
+  VALUE_CAPTURE_PROOF_TEMPLATES,
+  WELLBEING_INTENSITY_PROMPTS,
+  WIZARD_STEP_ORDER,
+  computeValueLogOutcome,
+  createInitialValueLogDraft,
+  isValueLogCommitReady,
+  type SaocommonsDomain,
+  type ValueCaptureActivityTemplate,
+  type ValueCaptureProofTemplate,
+  type ValueLogDraft,
+  type ValueLogOutcome,
+  type ValueLogSummary,
+  type WizardStep,
+} from "./ValueLogModel";
 
 interface StageVisual {
   id: "value_capture" | "wellbeing" | "saocommons" | "outcome";
@@ -144,156 +62,16 @@ interface TimeScaleTickVisual {
   label: THREE.Sprite | null;
 }
 
-export interface ValueLogDraft {
-  startTime: string;
-  endTime: string;
-  activityLabel: string;
-  activityTemplateId: string;
-  taskType: string;
-  intent: string;
-  proofOfActivity: string;
-  proofTemplateId: string;
-  evidenceLink: string;
-  artifactType: string;
-  community: string;
-  project: string;
-  contributorRole: string;
-  proofQuality: number;
-  anomalyFlag: boolean;
-  fraudRiskSignal: number;
-  wellbeingNode: WellbeingContextNode;
-  signalLabel: string;
-  signalScore: number;
-  contextIntensity: number;
-  impactDirection: "increase" | "decrease" | "neutral";
-  skillApplication: string;
-  communityContext: string;
-  learningTag: boolean;
-  earningTag: boolean;
-  orgBuildingTag: boolean;
-  learningIntensity: number;
-  earningIntensity: number;
-  orgBuildingIntensity: number;
-}
-
-export interface ValueLogOutcome {
-  wellbeingDelta: number;
-  auraDelta: number;
-  identityStateDelta: number;
-  saocommonsEnabled: boolean;
-  saocommonsDomains: SaocommonsDomain[];
-}
-
-export interface ValueLogSummary {
-  step: WizardStep;
-  stepIndex: number;
-  stepLabel: string;
-  draft: ValueLogDraft;
-  outcome: ValueLogOutcome;
-  committedCount: number;
-  canCommit: boolean;
-  sceneActionHint: string;
-  timeCapturePhase?: "start" | "end";
-}
-
 export interface ValueLogSelection {
   kind: "clock" | "context" | "domain" | null;
   key: string | null;
 }
 
-export const createInitialValueLogDraft = (): ValueLogDraft => {
-  const now = snapDateToMinutes(new Date(), TIME_STREAM_CONFIG.snapMinutes);
-  const activityTemplate = VALUE_CAPTURE_ACTIVITY_TEMPLATES[0];
-  const proofTemplate = VALUE_CAPTURE_PROOF_TEMPLATES[0];
-  return {
-    startTime: toLocalInputValue(now),
-    endTime: toLocalInputValue(now),
-    activityLabel: activityTemplate?.activityLabel ?? "Focused deep-work sprint",
-    activityTemplateId: activityTemplate?.id ?? "deep-work",
-    taskType: activityTemplate?.taskType ?? "focused-execution",
-    intent: activityTemplate?.intent ?? "ship-meaningful-progress",
-    proofOfActivity: proofTemplate?.proofOfActivity ?? "Code commit with artifact snapshot",
-    proofTemplateId: proofTemplate?.id ?? "commit-proof",
-    evidenceLink: proofTemplate?.evidenceLink ?? "proof://repo/commit",
-    artifactType: proofTemplate?.artifactType ?? "commit-log",
-    community: "GrowthFlow Engineering",
-    project: "IOV Visualization",
-    contributorRole: "Contributor",
-    proofQuality: 0.82,
-    anomalyFlag: false,
-    fraudRiskSignal: 0.04,
-    wellbeingNode: "~~Performance",
-    signalLabel: "Performance execution quality",
-    signalScore: 0.68,
-    contextIntensity: 0.68,
-    impactDirection: "increase",
-    skillApplication: "Business Growth",
-    communityContext: "GrowthFlow Engineering",
-    learningTag: false,
-    earningTag: false,
-    orgBuildingTag: false,
-    learningIntensity: 0.64,
-    earningIntensity: 0.62,
-    orgBuildingIntensity: 0.58,
-  };
-};
-
-export const computeValueLogOutcome = (draft: ValueLogDraft): ValueLogOutcome => {
-  const contextIntensity = clamp(0, 1, draft.contextIntensity);
-  const saocommonsEnabled = draft.wellbeingNode === "~~Performance";
-  const domains: SaocommonsDomain[] = [];
-  const selectedDomainIntensities: number[] = [];
-  if (saocommonsEnabled) {
-    if (draft.learningTag) {
-      domains.push("~~Learning");
-      selectedDomainIntensities.push(clamp(0, 1, draft.learningIntensity));
-    }
-    if (draft.earningTag) {
-      domains.push("~~Earning");
-      selectedDomainIntensities.push(clamp(0, 1, draft.earningIntensity));
-    }
-    if (draft.orgBuildingTag) {
-      domains.push("~~OrgBuilding");
-      selectedDomainIntensities.push(clamp(0, 1, draft.orgBuildingIntensity));
-    }
-  }
-
-  const domainAverage =
-    selectedDomainIntensities.length > 0
-      ? selectedDomainIntensities.reduce((sum, value) => sum + value, 0) /
-        selectedDomainIntensities.length
-      : contextIntensity;
-  const effectiveSignal = saocommonsEnabled
-    ? clamp(0, 1, contextIntensity * 0.45 + domainAverage * 0.55)
-    : contextIntensity;
-
-  let base = (effectiveSignal - 0.5) * 0.08;
-  if (draft.impactDirection === "increase") {
-    base = Math.abs(base) + 0.004;
-  } else if (draft.impactDirection === "decrease") {
-    base = -Math.abs(base) - 0.01;
-  } else {
-    base *= 0.2;
-  }
-
-  const domainBonus = saocommonsEnabled
-    ? selectedDomainIntensities.reduce((sum, value) => sum + (value - 0.5) * 0.01, 0)
-    : 0;
-  const wellbeingDelta = clamp(-0.08, 0.09, base + domainBonus);
-  const auraDelta = clamp(-0.11, 0.13, wellbeingDelta * 1.65);
-  const identityStateDelta = clamp(-0.1, 0.11, wellbeingDelta * 1.24);
-
-  return {
-    wellbeingDelta,
-    auraDelta,
-    identityStateDelta,
-    saocommonsEnabled,
-    saocommonsDomains: domains,
-  };
-};
-
 const TIME_STREAM_CONFIG = {
   halfWidth: 5.2,
+  clockRadius: 2.35,
+  clockInnerRadius: 1.62,
+  clockOuterRadius: 2.42,
   baseY: 0.2,
   laneY: 0.36,
   rangeY: 0.39,
@@ -310,80 +88,94 @@ export class ValueLogScene {
   private readonly root = new THREE.Group();
   private readonly clockGroup = new THREE.Group();
   private readonly timeInstrumentBackdrop = new THREE.Mesh(
-    new THREE.PlaneGeometry(TIME_STREAM_CONFIG.halfWidth * 2 + 0.96, 1.28),
+    new THREE.CircleGeometry(TIME_STREAM_CONFIG.clockOuterRadius + 0.48, 128),
     new THREE.MeshBasicMaterial({
-      color: "#0c1a33",
+      color: "#dfe4ea",
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.96,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
   private readonly timeStreamBase = new THREE.Mesh(
-    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2 + 0.42, 0.12, 0.88),
+    new THREE.RingGeometry(
+      TIME_STREAM_CONFIG.clockOuterRadius + 0.02,
+      TIME_STREAM_CONFIG.clockOuterRadius + 0.08,
+      128
+    ),
     new THREE.MeshStandardMaterial({
-      color: "#10233f",
-      emissive: "#09162a",
-      emissiveIntensity: 0.12,
+      color: "#8d97a3",
+      emissive: "#000000",
+      emissiveIntensity: 0,
       roughness: 0.72,
-      metalness: 0.08,
+      metalness: 0.02,
     })
   );
   private readonly timeStreamLane = new THREE.Mesh(
-    new THREE.BoxGeometry(TIME_STREAM_CONFIG.halfWidth * 2, 0.1, 0.4),
+    new THREE.RingGeometry(TIME_STREAM_CONFIG.clockRadius - 0.02, TIME_STREAM_CONFIG.clockRadius + 0.02, 128),
     new THREE.MeshStandardMaterial({
-      color: "#254a78",
-      emissive: "#244d80",
-      emissiveIntensity: 0.3,
-      roughness: 0.42,
-      metalness: 0.14,
+      color: "#6d7682",
+      emissive: "#000000",
+      emissiveIntensity: 0,
+      roughness: 0.62,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.42,
     })
   );
   private readonly timeRangeMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.08, 0.34),
+    createClockArcGeometry(
+      0,
+      TIME_STREAM_CONFIG.minSpanMinutes,
+      0.1,
+      TIME_STREAM_CONFIG.clockRadius - 0.22
+    ),
     new THREE.MeshStandardMaterial({
-      color: "#86ccff",
-      emissive: "#4a95cc",
-      emissiveIntensity: 0.42,
+      color: "#7f8c99",
+      emissive: "#000000",
+      emissiveIntensity: 0,
       roughness: 0.32,
       metalness: 0.12,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.14,
     })
   );
   private readonly timeRangeWrapMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.14, 0.46),
+    createClockArcGeometry(
+      0,
+      TIME_STREAM_CONFIG.minSpanMinutes,
+      0.1,
+      TIME_STREAM_CONFIG.clockRadius - 0.22
+    ),
     new THREE.MeshStandardMaterial({
       color: "#9fdcff",
       emissive: "#6dc6ff",
-      emissiveIntensity: 0.2,
+      emissiveIntensity: 0,
       roughness: 0.4,
       metalness: 0.06,
       transparent: true,
-      opacity: 0.2,
+      opacity: 0,
       depthWrite: false,
     })
   );
   private readonly timeStartMarkerGlyph = createTimelineMarkerSprite("#b9deff", "start");
   private readonly timeEndMarkerGlyph = createTimelineMarkerSprite("#f0cfaf", "end");
   private readonly timeStartHandle = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.032, 0.32),
+    createClockHandGeometry(0.09, TIME_STREAM_CONFIG.clockRadius - 0.28),
     new THREE.MeshBasicMaterial({
-      color: "#b9deff",
+      color: "#5da6ff",
       transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.96,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
   private readonly timeEndHandle = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.032, 0.32),
+    createClockHandGeometry(0.09, TIME_STREAM_CONFIG.clockRadius - 0.28),
     new THREE.MeshBasicMaterial({
-      color: "#f0cfaf",
+      color: "#5da6ff",
       transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.96,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
@@ -413,18 +205,17 @@ export class ValueLogScene {
     })
   );
   private readonly timeNowMarker = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.012, 0.34),
+    createClockHandGeometry(0.035, TIME_STREAM_CONFIG.clockRadius - 0.2),
     new THREE.MeshBasicMaterial({
-      color: "#ffd47e",
+      color: "#f1c766",
       transparent: true,
-      opacity: 0.76,
-      blending: THREE.AdditiveBlending,
+      opacity: 0.88,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
   private readonly timeNowFootprint = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.08, 0.16),
+    new THREE.RingGeometry(TIME_STREAM_CONFIG.clockOuterRadius + 0.14, TIME_STREAM_CONFIG.clockOuterRadius + 0.28, 96),
     new THREE.MeshBasicMaterial({
       color: "#ffd580",
       transparent: true,
@@ -435,7 +226,7 @@ export class ValueLogScene {
     })
   );
   private readonly timeStartHitZone = new THREE.Mesh(
-    new THREE.BoxGeometry(0.46, 0.7, 0.72),
+    new THREE.SphereGeometry(0.44, 16, 12),
     new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
@@ -443,7 +234,7 @@ export class ValueLogScene {
     })
   );
   private readonly timeEndHitZone = new THREE.Mesh(
-    new THREE.BoxGeometry(0.46, 0.7, 0.72),
+    new THREE.SphereGeometry(0.44, 16, 12),
     new THREE.MeshBasicMaterial({
       transparent: true,
       opacity: 0,
@@ -451,18 +242,22 @@ export class ValueLogScene {
     })
   );
   private readonly timeBladeCue = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.12, 0.56),
+    new THREE.PlaneGeometry(0.1, 0.62),
     new THREE.MeshBasicMaterial({
       color: "#f4f8ff",
       transparent: true,
       opacity: 0.72,
-      blending: THREE.AdditiveBlending,
       depthWrite: false,
       side: THREE.DoubleSide,
     })
   );
   private readonly timeFutureMaskMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.1, 0.58),
+    createClockArcGeometry(
+      0,
+      1,
+      TIME_STREAM_CONFIG.clockInnerRadius,
+      TIME_STREAM_CONFIG.clockOuterRadius
+    ),
     new THREE.MeshStandardMaterial({
       color: "#07101d",
       emissive: "#0a1627",
@@ -475,7 +270,12 @@ export class ValueLogScene {
     })
   );
   private readonly timeBeforeStartMaskMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.1, 0.58),
+    createClockArcGeometry(
+      0,
+      1,
+      TIME_STREAM_CONFIG.clockInnerRadius,
+      TIME_STREAM_CONFIG.clockOuterRadius
+    ),
     new THREE.MeshStandardMaterial({
       color: "#060c17",
       emissive: "#09121f",
@@ -508,9 +308,14 @@ export class ValueLogScene {
   private nowReadoutLabel: THREE.Sprite | null = null;
   private streamOriginLabel: THREE.Sprite | null = null;
   private rangeSummaryLabel: THREE.Sprite | null = null;
+  private startReadoutLabel: THREE.Sprite | null = null;
+  private endReadoutLabel: THREE.Sprite | null = null;
   private lastNowClockKey = "";
   private lastNowDayKey = "";
   private lastRangeSummaryKey = "";
+  private lastStartReadoutKey = "";
+  private lastEndReadoutKey = "";
+  private lastMaskGeometryKey = "";
   // ...remaining fields...
 
   private readonly deltaBars = {
@@ -542,6 +347,7 @@ export class ValueLogScene {
   private outcome: ValueLogOutcome = computeValueLogOutcome(this.draft);
   private elapsedSeconds = 0;
   private timeRangeMidX = 0;
+  private timeRangeMidZ = 0;
   private isMobileViewport = false;
   private readonly cameraLookAt = new THREE.Vector3(0, 0.65, 0);
   private readonly raycaster = new THREE.Raycaster();
@@ -772,6 +578,14 @@ export class ValueLogScene {
 
   beginPointerInteraction() {
     if (!this.hasPointer || this.step !== "select_time") return;
+    this.raycaster.setFromCamera(this.pointerNdc, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(
+      this.clockInteractionPlane,
+      this.clockInteractionPoint
+    );
+    if (hit) {
+      this.clockInteractionLocal.copy(this.clockInteractionPoint).sub(this.clockGroup.position);
+    }
     let nextHand = this.raycastClockHand();
     if (nextHand === "range") {
       nextHand = this.timeCapturePhase;
@@ -795,7 +609,7 @@ export class ValueLogScene {
       this.dragStartMinutes = startMinutes;
       this.dragEndMinutes = endMinutes;
       this.dragAnchorMinutes = snapMinutes(
-        streamXToMinutes(this.clockInteractionLocal.x, TIME_STREAM_CONFIG.halfWidth),
+        clockPointToMinutes(this.clockInteractionLocal.x, this.clockInteractionLocal.z),
         TIME_STREAM_CONFIG.snapMinutes
       );
       this.updateClockHandFromPointer();
@@ -805,8 +619,14 @@ export class ValueLogScene {
   endPointerInteraction() {
     if (this.step === "select_time" && this.activeClockHand === "start") {
       this.startHandleAdjusted = true;
-      this.timeCapturePhase = "end";
     }
+    this.activeClockHand = null;
+    this.updateTimeStreamPulse();
+  }
+
+  returnToBeginTimeCapture() {
+    if (this.step !== "select_time") return;
+    this.timeCapturePhase = "start";
     this.activeClockHand = null;
     this.updateTimeStreamPulse();
   }
@@ -915,7 +735,7 @@ export class ValueLogScene {
       targetPos.set(
         this.timeRangeMidX,
         4.64 + Math.sin(this.elapsedSeconds * 1.15) * 0.05,
-        Math.sin(this.elapsedSeconds * 0.82) * 0.22
+        this.timeRangeMidZ
       );
     } else if (this.step === "select_wellbeing") {
       if (this.hoveredContext) {
@@ -1067,8 +887,8 @@ export class ValueLogScene {
       stepLabel:
         this.step === "select_time"
           ? this.timeCapturePhase === "start"
-            ? "Mark When It Began"
-            : "Mark When It Ended"
+            ? "Choose Begin"
+            : "Choose End"
           : stepLabels[this.step],
       draft: this.draft,
       outcome: this.outcome,
@@ -1109,32 +929,39 @@ export class ValueLogScene {
   }
 
   private buildLayout() {
-    this.timeInstrumentBackdrop.position.set(0, TIME_STREAM_CONFIG.laneY + 0.18, -0.42);
+    const clockPlaneRotation = -Math.PI / 2;
+    this.timeInstrumentBackdrop.position.set(0, TIME_STREAM_CONFIG.baseY - 0.04, 0);
+    this.timeInstrumentBackdrop.rotation.x = clockPlaneRotation;
     this.timeStreamBase.position.y = TIME_STREAM_CONFIG.baseY;
+    this.timeStreamBase.rotation.x = clockPlaneRotation;
     this.timeStreamLane.position.y = TIME_STREAM_CONFIG.laneY;
+    this.timeStreamLane.rotation.x = clockPlaneRotation;
     this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY;
-    this.timeRangeWrapMesh.position.y = TIME_STREAM_CONFIG.rangeY;
-    this.timeStartHandle.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
-    this.timeEndHandle.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
-    this.timeStartHandle.rotation.set(0, 0, 0);
-    this.timeEndHandle.rotation.set(0, 0, 0);
-    this.timeStartJaw.position.y = TIME_STREAM_CONFIG.laneY + 0.043;
-    this.timeEndJaw.position.y = TIME_STREAM_CONFIG.laneY + 0.043;
-    this.timeStartJaw.rotation.set(0, 0, 0);
-    this.timeEndJaw.rotation.set(0, 0, 0);
-    this.timeStartMarkerGlyph.scale.set(0.18, 0.3, 1);
-    this.timeEndMarkerGlyph.scale.set(0.18, 0.3, 1);
+    this.timeRangeMesh.rotation.x = clockPlaneRotation;
+    this.timeRangeWrapMesh.position.y = TIME_STREAM_CONFIG.rangeY - 0.002;
+    this.timeRangeWrapMesh.rotation.x = clockPlaneRotation;
+    this.timeStartHandle.position.set(0, TIME_STREAM_CONFIG.laneY + 0.2, 0);
+    this.timeStartHandle.rotation.x = clockPlaneRotation;
+    this.timeEndHandle.position.set(0, TIME_STREAM_CONFIG.laneY + 0.21, 0);
+    this.timeEndHandle.rotation.x = clockPlaneRotation;
+    this.timeStartJaw.visible = false;
+    this.timeEndJaw.visible = false;
+    this.timeStartMarkerGlyph.scale.set(0.28, 0.42, 1);
+    this.timeEndMarkerGlyph.scale.set(0.28, 0.42, 1);
     this.timeStartMarkerGlyph.center.set(0.5, 0.08);
     this.timeEndMarkerGlyph.center.set(0.5, 0.08);
-    this.timeNowMarker.position.y = TIME_STREAM_CONFIG.laneY + 0.11;
-    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.laneY + 0.005;
-    this.timeNowFootprint.rotation.x = -Math.PI / 2;
-    this.timeStartHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
-    this.timeEndHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.12;
-    this.timeBladeCue.position.y = TIME_STREAM_CONFIG.laneY + 0.155;
-    this.timeBladeCue.rotation.z = -0.22;
+    this.timeNowMarker.position.set(0, TIME_STREAM_CONFIG.laneY + 0.22, 0);
+    this.timeNowMarker.rotation.x = clockPlaneRotation;
+    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.laneY + 0.004;
+    this.timeNowFootprint.rotation.x = clockPlaneRotation;
+    this.timeStartHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.16;
+    this.timeEndHitZone.position.y = TIME_STREAM_CONFIG.laneY + 0.16;
+    this.timeBladeCue.position.y = TIME_STREAM_CONFIG.laneY + 0.24;
+    this.timeBladeCue.rotation.x = clockPlaneRotation;
     this.timeFutureMaskMesh.position.y = TIME_STREAM_CONFIG.rangeY + 0.003;
+    this.timeFutureMaskMesh.rotation.x = clockPlaneRotation;
     this.timeBeforeStartMaskMesh.position.y = TIME_STREAM_CONFIG.rangeY + 0.002;
+    this.timeBeforeStartMaskMesh.rotation.x = clockPlaneRotation;
     const hatchTexture = getHatchTexture();
     const futureMaskMaterial = this.timeFutureMaskMesh.material as THREE.MeshStandardMaterial;
     const beforeMaskMaterial = this.timeBeforeStartMaskMesh.material as THREE.MeshStandardMaterial;
@@ -1143,11 +970,9 @@ export class ValueLogScene {
     futureMaskMaterial.needsUpdate = true;
     beforeMaskMaterial.needsUpdate = true;
 
-    // Time-slice contract: one day ribbon, one seam for NOW, two thin blade markers.
+    // Time-slice contract: one familiar clock face, one fixed NOW hand, two draggable boundary hands.
     this.timeStartHandle.scale.set(1, 1, 1);
     this.timeEndHandle.scale.set(1, 1, 1);
-    this.timeStartJaw.scale.set(1, 1, 1);
-    this.timeEndJaw.scale.set(1, 1, 1);
 
     this.clockGroup.add(
       this.timeInstrumentBackdrop,
@@ -1170,44 +995,35 @@ export class ValueLogScene {
       this.timeBeforeStartMaskMesh
     );
 
-    for (let minute = 0; minute <= 1440; minute += 30) {
-      const isMajor = minute % 180 === 0 || minute === 1440;
-      const x =
-        minute === 1440
-          ? TIME_STREAM_CONFIG.halfWidth
-          : minutesToStreamX(minute, TIME_STREAM_CONFIG.halfWidth);
+    for (let minute = 0; minute < 720; minute += 5) {
+      const isMajor = minute % 60 === 0;
+      const isCardinal = minute % 180 === 0;
+      const pos = minuteToClockPosition(minute, TIME_STREAM_CONFIG.clockRadius + 0.02);
       const tick = new THREE.Mesh(
-        new THREE.PlaneGeometry(isMajor ? 0.016 : 0.008, isMajor ? 0.13 : 0.07),
+        new THREE.PlaneGeometry(isCardinal ? 0.02 : 0.006, isCardinal ? 0.26 : 0.08),
         new THREE.MeshBasicMaterial({
-          color: isMajor ? "#9abce7" : "#6c8daf",
+          color: isCardinal ? "#25303d" : "#6f7c8a",
           transparent: true,
-          opacity: isMajor ? 0.78 : 0.42,
+          opacity: isCardinal ? 0.78 : 0,
           depthWrite: false,
         })
       );
-      tick.position.set(x, TIME_STREAM_CONFIG.laneY + (isMajor ? 0.12 : 0.09), 0.18);
+      tick.position.set(pos.x, TIME_STREAM_CONFIG.laneY + 0.06, pos.z);
+      tick.rotation.x = clockPlaneRotation;
+      tick.rotation.z = minuteToClockAngle(minute === 1440 ? 0 : minute) + Math.PI / 2;
       this.clockGroup.add(tick);
-
-      let label: THREE.Sprite | null = null;
-      if (isMajor) {
-        const hourLabel = minute === 1440 ? "24" : String(Math.floor(minute / 60)).padStart(2, "0");
-        label = this.createMinimalTextSprite(hourLabel, 11);
-        label.scale.set(0.44, 0.17, 1);
-        label.position.set(x, TIME_STREAM_CONFIG.laneY + 0.24, 0.01);
-        this.clockGroup.add(label);
-      }
 
       this.timeScaleTicks.push({
         minute,
         tier: isMajor ? "major" : "minor",
         mesh: tick,
-        label,
+        label: null,
       });
     }
 
     for (let index = 0; index < 13; index += 1) {
       const snapTick = new THREE.Mesh(
-        new THREE.BoxGeometry(0.01, 0.075, 0.12),
+        new THREE.PlaneGeometry(0.014, 0.16),
         new THREE.MeshBasicMaterial({
           color: "#d8ecff",
           transparent: true,
@@ -1216,25 +1032,10 @@ export class ValueLogScene {
           depthWrite: false,
         })
       );
-      snapTick.position.y = TIME_STREAM_CONFIG.laneY + 0.11;
+      snapTick.position.y = TIME_STREAM_CONFIG.laneY + 0.09;
+      snapTick.rotation.x = clockPlaneRotation;
       this.timeSnapGuideTicks.push(snapTick);
       this.clockGroup.add(snapTick);
-    }
-
-    for (let index = 0; index < 18; index += 1) {
-      const particle = new THREE.Mesh(
-        new THREE.SphereGeometry(0.04, 10, 8),
-        new THREE.MeshBasicMaterial({
-          color: "#8fd0ff",
-          transparent: true,
-          opacity: 0.42,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      this.streamFlowSeeds.push(Math.random() * 1440);
-      this.streamFlowNodes.push(particle);
-      this.clockGroup.add(particle);
     }
 
     this.root.add(this.token); // Add token to root for global positioning
@@ -1408,7 +1209,9 @@ export class ValueLogScene {
     const endMinutes = minutesFromLocalInput(this.draft.endTime);
     const minuteSpan = Math.max(TIME_STREAM_CONFIG.minSpanMinutes, endMinutes - startMinutes);
     const midMinutes = startMinutes + minuteSpan * 0.5;
-    this.timeRangeMidX = minutesToStreamX(midMinutes, TIME_STREAM_CONFIG.halfWidth);
+    const midPos = minuteToClockPosition(midMinutes, TIME_STREAM_CONFIG.clockRadius);
+    this.timeRangeMidX = midPos.x;
+    this.timeRangeMidZ = midPos.z;
 
     this.updateTimeStreamRange(startMinutes, endMinutes);
     this.updateNowMarkerAndFlow();
@@ -1434,33 +1237,82 @@ export class ValueLogScene {
   }
 
   private updateTimeStreamRange(startMinutes: number, endMinutes: number) {
-    const startX = minutesToStreamX(startMinutes, TIME_STREAM_CONFIG.halfWidth);
-    const endX = minutesToStreamX(endMinutes, TIME_STREAM_CONFIG.halfWidth);
+    const startPos = minuteToClockPosition(startMinutes, TIME_STREAM_CONFIG.clockRadius);
+    const endPos = minuteToClockPosition(endMinutes, TIME_STREAM_CONFIG.clockRadius);
+    const startGlyphPos = minuteToClockPosition(startMinutes, TIME_STREAM_CONFIG.clockOuterRadius + 0.22);
+    const endGlyphPos = minuteToClockPosition(endMinutes, TIME_STREAM_CONFIG.clockOuterRadius + 0.22);
+    const startAngle = minuteToClockAngle(startMinutes);
+    const endAngle = minuteToClockAngle(endMinutes);
 
-    this.timeStartHandle.position.x = startX;
-    this.timeEndHandle.position.x = endX;
-    const startGlyphX =
-      this.timeCapturePhase === "start" && !this.startHandleAdjusted ? startX - 0.04 : startX;
-    this.timeStartMarkerGlyph.position.set(startGlyphX, TIME_STREAM_CONFIG.laneY + 0.12, 0.22);
-    this.timeEndMarkerGlyph.position.set(endX, TIME_STREAM_CONFIG.laneY + 0.12, 0.22);
-    this.timeStartJaw.position.x = startX;
-    this.timeEndJaw.position.x = endX;
-    this.timeStartHitZone.position.x = startX;
-    this.timeEndHitZone.position.x = endX;
-    const centerX = (startX + endX) * 0.5;
-    const width = Math.max(0.05, Math.abs(endX - startX));
+    this.timeStartHandle.position.set(0, TIME_STREAM_CONFIG.laneY + 0.2, 0);
+    this.timeStartHandle.rotation.z = startAngle - Math.PI / 2;
+    this.timeEndHandle.position.set(0, TIME_STREAM_CONFIG.laneY + 0.21, 0);
+    this.timeEndHandle.rotation.z = endAngle - Math.PI / 2;
+    this.timeStartMarkerGlyph.position.set(startGlyphPos.x, TIME_STREAM_CONFIG.laneY + 0.36, startGlyphPos.z);
+    this.timeEndMarkerGlyph.position.set(endGlyphPos.x, TIME_STREAM_CONFIG.laneY + 0.36, endGlyphPos.z);
+    this.timeStartHitZone.position.set(startPos.x, TIME_STREAM_CONFIG.laneY + 0.16, startPos.z);
+    this.timeEndHitZone.position.set(endPos.x, TIME_STREAM_CONFIG.laneY + 0.16, endPos.z);
+    this.updateHandReadoutLabels(startMinutes, endMinutes, startPos, endPos);
+
+    replaceClockArcGeometry(
+      this.timeRangeMesh,
+      startMinutes,
+      endMinutes,
+      0.1,
+      TIME_STREAM_CONFIG.clockRadius - 0.22
+    );
+    replaceClockArcGeometry(
+      this.timeRangeWrapMesh,
+      startMinutes,
+      endMinutes,
+      0.1,
+      TIME_STREAM_CONFIG.clockRadius - 0.22
+    );
     this.timeRangeMesh.visible = true;
-    this.timeRangeMesh.scale.set(width, 1, 1);
-    this.timeRangeMesh.position.x = centerX;
     this.timeRangeWrapMesh.visible = true;
-    this.timeRangeWrapMesh.scale.set(width + 0.06, 1, 1);
-    this.timeRangeWrapMesh.position.x = centerX;
+  }
+
+  private updateHandReadoutLabels(
+    startMinutes: number,
+    endMinutes: number,
+    startPos: { x: number; z: number },
+    endPos: { x: number; z: number }
+  ) {
+    const startKey = `Begin ${formatRibbonClock(minutesToDate(startOfDay(new Date()), startMinutes))}`;
+    const endKey = `End ${formatRibbonClock(minutesToDate(startOfDay(new Date()), endMinutes))}`;
+
+    if (startKey !== this.lastStartReadoutKey) {
+      this.lastStartReadoutKey = startKey;
+      this.startReadoutLabel = this.replaceReadoutLabel(
+        this.startReadoutLabel,
+        startKey,
+        { width: 154, height: 30, fontSize: 12, minimal: false },
+        this.clockGroup
+      );
+    }
+    if (endKey !== this.lastEndReadoutKey) {
+      this.lastEndReadoutKey = endKey;
+      this.endReadoutLabel = this.replaceReadoutLabel(
+        this.endReadoutLabel,
+        endKey,
+        { width: 136, height: 30, fontSize: 12, minimal: false },
+        this.clockGroup
+      );
+    }
+
+    if (this.startReadoutLabel) {
+      const scale = Math.max(1, (TIME_STREAM_CONFIG.clockRadius + 0.34) / Math.hypot(startPos.x, startPos.z));
+      this.startReadoutLabel.position.set(startPos.x * scale, TIME_STREAM_CONFIG.laneY + 0.32, startPos.z * scale);
+      this.startReadoutLabel.scale.set(0.66, 0.13, 1);
+    }
+    if (this.endReadoutLabel) {
+      const scale = Math.max(1, (TIME_STREAM_CONFIG.clockRadius + 0.34) / Math.hypot(endPos.x, endPos.z));
+      this.endReadoutLabel.position.set(endPos.x * scale, TIME_STREAM_CONFIG.laneY + 0.32, endPos.z * scale);
+      this.endReadoutLabel.scale.set(0.6, 0.13, 1);
+    }
   }
 
   private updateTimeStreamPulse() {
-    const t = this.elapsedSeconds;
-    const handlePulse = 1 + Math.sin(t * 3.2) * 0.05;
-    const activePulse = 1 + Math.sin(t * 4.5) * 0.08;
     const activeMinute =
       this.timeCapturePhase === "start"
         ? minutesFromLocalInput(this.draft.startTime)
@@ -1473,143 +1325,59 @@ export class ValueLogScene {
     const beforeMaskMaterial = this.timeBeforeStartMaskMesh.material as THREE.MeshStandardMaterial;
     const startMaterial = this.timeStartHandle.material as THREE.MeshBasicMaterial;
     const endMaterial = this.timeEndHandle.material as THREE.MeshBasicMaterial;
-    const startJawMaterial = this.timeStartJaw.material as THREE.MeshStandardMaterial;
-    const endJawMaterial = this.timeEndJaw.material as THREE.MeshStandardMaterial;
     const startGlyphMaterial = this.timeStartMarkerGlyph.material as THREE.SpriteMaterial;
     const endGlyphMaterial = this.timeEndMarkerGlyph.material as THREE.SpriteMaterial;
     const nowMaterial = this.timeNowMarker.material as THREE.MeshBasicMaterial;
     const nowFootprintMaterial = this.timeNowFootprint.material as THREE.MeshBasicMaterial;
-    const bladeCueMaterial = this.timeBladeCue.material as THREE.MeshBasicMaterial;
 
-    laneMaterial.emissiveIntensity = 0.22 + Math.sin(t * 1.8) * 0.05;
-    const rangeHot = this.hoveredTimeTarget === "range" || this.activeClockHand === "range";
-    rangeMaterial.emissiveIntensity = (rangeHot ? 0.48 : 0.36) + Math.sin(t * 2.6) * 0.06;
-    wrapMaterial.emissiveIntensity = (rangeHot ? 0.3 : 0.18) + Math.sin(t * 2.4) * 0.05;
-    this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY + Math.sin(t * 2.4) * 0.006;
-    this.timeRangeWrapMesh.position.y = this.timeRangeMesh.position.y;
+    laneMaterial.emissiveIntensity = 0;
+    rangeMaterial.emissiveIntensity = 0;
+    wrapMaterial.emissiveIntensity = 0;
+    this.timeRangeMesh.position.y = TIME_STREAM_CONFIG.rangeY;
+    this.timeRangeWrapMesh.position.y = TIME_STREAM_CONFIG.rangeY - 0.002;
     const startSelected = this.timeCapturePhase === "start";
     const endSelected = this.timeCapturePhase === "end";
+    const startHot = this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected;
+    const endHot = this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected;
 
-    this.timeStartHandle.scale.set(
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.1
-        : 1.0,
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.04 * activePulse
-        : 1.01 * handlePulse,
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1
-        : 1.0
-    );
-    this.timeEndHandle.scale.set(
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.1
-        : 1.0,
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.04 * activePulse
-        : 1.01 * handlePulse,
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1
-        : 1.0
-    );
-    this.timeStartJaw.scale.set(
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected
-        ? 1.2
-        : 1,
-      1,
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 1.08 : 1
-    );
-    this.timeEndJaw.scale.set(
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected
-        ? 1.2
-        : 1,
-      1,
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 1.08 : 1
-    );
-    startMaterial.opacity = 0;
-    endMaterial.opacity = 0;
-    startJawMaterial.opacity = 0;
-    endJawMaterial.opacity = 0;
-    startJawMaterial.emissiveIntensity = 0;
-    endJawMaterial.emissiveIntensity = 0;
-    startGlyphMaterial.opacity = startSelected ? 0.9 : this.startHandleAdjusted ? 0.8 : 0.62;
-    endGlyphMaterial.opacity = endSelected ? 0.9 : 0.68;
-    this.timeStartMarkerGlyph.scale.set(
-      (this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 0.22 : 0.18) *
-        handlePulse,
-      this.hoveredTimeTarget === "start" || this.activeClockHand === "start" || startSelected ? 0.36 : 0.3,
-      1
-    );
-    this.timeEndMarkerGlyph.scale.set(
-      (this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 0.22 : 0.18) *
-        handlePulse,
-      this.hoveredTimeTarget === "end" || this.activeClockHand === "end" || endSelected ? 0.36 : 0.3,
-      1
-    );
-    futureMaskMaterial.opacity = 0.5 + Math.sin(t * 1.1) * 0.03;
-    beforeMaskMaterial.opacity = 0.4 + Math.sin(t * 0.8 + 0.6) * 0.02;
-    nowMaterial.opacity = 0.68 + Math.sin(t * 4.4) * 0.06;
-    this.timeNowMarker.scale.set(1, 1 + Math.sin(t * 2.8) * 0.03, 1);
-    nowFootprintMaterial.opacity = 0.1 + Math.sin(t * 2.9) * 0.03;
+    this.timeStartHandle.scale.set(1, startHot ? 1.05 : 1, 1);
+    this.timeEndHandle.scale.set(1, endHot ? 1.05 : 1, 1);
+    startMaterial.color.set(startSelected ? "#4b9cff" : "#687789");
+    endMaterial.color.set(endSelected ? "#4b9cff" : "#687789");
+    startMaterial.opacity = startSelected || this.startHandleAdjusted ? 0.92 : 0.58;
+    endMaterial.opacity = endSelected ? 0.94 : 0.42;
+    startGlyphMaterial.opacity = 0;
+    endGlyphMaterial.opacity = 0;
+    futureMaskMaterial.opacity = 0;
+    beforeMaskMaterial.opacity = 0;
+    nowMaterial.opacity = 0.78;
+    this.timeNowMarker.scale.set(1, 1, 1);
+    nowFootprintMaterial.opacity = 0;
 
     this.timeScaleTicks.forEach((tick) => {
       const material = tick.mesh.material as THREE.MeshBasicMaterial;
-      const deltaMinutes = Math.abs(tick.minute - activeMinute);
-      const nearActive = deltaMinutes <= 30;
-      material.opacity =
-        tick.tier === "major"
-          ? nearActive
-            ? 0.96
-            : 0.72
-          : nearActive
-            ? 0.58
-            : 0.26;
-      tick.mesh.scale.y =
-        tick.tier === "major"
-          ? nearActive
-            ? 1.12
-            : 1
-          : nearActive
-            ? 1.08
-            : 1;
+      const isCardinal = tick.minute % 180 === 0;
+      material.opacity = isCardinal ? 0.72 : 0;
+      tick.mesh.scale.y = 1;
       if (tick.label) {
         const labelMaterial = tick.label.material as THREE.SpriteMaterial;
-        labelMaterial.opacity = nearActive ? 0.98 : this.isMobileViewport ? 0.7 : 0.84;
+        labelMaterial.opacity = 0;
       }
     });
 
-    const cueTarget =
-      this.activeClockHand === "start" || this.hoveredTimeTarget === "start"
-        ? "start"
-        : this.activeClockHand === "end" || this.hoveredTimeTarget === "end"
-          ? "end"
-          : null;
-    if (cueTarget) {
-      const cueX = cueTarget === "start" ? this.timeStartHandle.position.x : this.timeEndHandle.position.x;
-      const cueColor = cueTarget === "start" ? "#d7ecff" : "#ffe2c7";
-      bladeCueMaterial.color.set(cueColor);
-      bladeCueMaterial.opacity =
-        this.activeClockHand === cueTarget ? 0.62 : 0.32 + Math.sin(t * 3.8) * 0.06;
-      this.timeBladeCue.position.x = cueX + (cueTarget === "start" ? 0.06 : -0.06);
-      this.timeBladeCue.visible = true;
-    } else {
-      this.timeBladeCue.visible = false;
-    }
+    this.timeBladeCue.visible = false;
 
-    const snapCenterX =
-      this.timeCapturePhase === "start" ? this.timeStartHandle.position.x : this.timeEndHandle.position.x;
     this.timeSnapGuideTicks.forEach((tick, index) => {
       const offset = index - Math.floor(this.timeSnapGuideTicks.length / 2);
       const minute = activeMinute + offset * TIME_STREAM_CONFIG.snapMinutes;
-      const x = minutesToStreamX(clamp(0, 1439, minute), TIME_STREAM_CONFIG.halfWidth);
-      tick.position.x = x;
+      const boundedMinute = clamp(0, 1439, minute);
+      const pos = minuteToClockPosition(boundedMinute, TIME_STREAM_CONFIG.clockRadius);
+      tick.position.set(pos.x, TIME_STREAM_CONFIG.laneY + 0.1, pos.z);
+      tick.rotation.z = minuteToClockAngle(boundedMinute) + Math.PI / 2;
       const material = tick.material as THREE.MeshBasicMaterial;
       const distance = Math.abs(offset);
-      const inBounds = x >= -TIME_STREAM_CONFIG.halfWidth && x <= TIME_STREAM_CONFIG.halfWidth;
-      tick.visible =
-        this.step === "select_time" &&
-        inBounds &&
-        (this.activeClockHand !== null || this.hoveredTimeTarget === "start" || this.hoveredTimeTarget === "end");
+      const inBounds = boundedMinute >= 0 && boundedMinute <= 1439;
+      tick.visible = false;
       material.opacity = distance === 0 ? 0.96 : Math.max(0, 0.62 - distance * 0.08);
       tick.scale.y = distance <= 1 ? 1.32 : 1.08;
       tick.position.z = distance === 0 ? 0.02 : 0;
@@ -1629,87 +1397,60 @@ export class ValueLogScene {
     const actualNow = new Date();
     const now = snapDateToMinutes(actualNow, TIME_STREAM_CONFIG.snapMinutes);
     const nowMinute = minutesFromDate(actualNow) + actualNow.getSeconds() / 60;
-    const nowX = minutesToStreamX(nowMinute, TIME_STREAM_CONFIG.halfWidth);
-    const nowMarkerBaseY = TIME_STREAM_CONFIG.laneY + 0.12;
-    this.timeNowMarker.position.x = nowX;
-    this.timeNowMarker.position.y = nowMarkerBaseY;
-    this.timeNowFootprint.position.x = nowX;
-    this.timeNowFootprint.position.y = TIME_STREAM_CONFIG.laneY + 0.015;
-    this.timeNowFootprint.scale.setScalar(1 + Math.sin(this.elapsedSeconds * 3.4) * 0.05);
-
-    const futureWidth = Math.max(0.02, TIME_STREAM_CONFIG.halfWidth - nowX);
-    this.timeFutureMaskMesh.scale.set(futureWidth, 1, 1);
-    this.timeFutureMaskMesh.position.x = nowX + futureWidth * 0.5;
-    this.timeFutureMaskMesh.visible = this.step === "select_time" && nowMinute < 1439;
+    const nowPos = minuteToClockPosition(nowMinute, TIME_STREAM_CONFIG.clockRadius);
+    const nowAngle = minuteToClockAngle(nowMinute);
+    this.timeNowMarker.position.set(0, TIME_STREAM_CONFIG.laneY + 0.22, 0);
+    this.timeNowMarker.rotation.z = nowAngle - Math.PI / 2;
+    this.timeNowFootprint.position.set(0, TIME_STREAM_CONFIG.laneY + 0.004, 0);
+    this.timeNowFootprint.scale.setScalar(1);
 
     const startMinutes = minutesFromLocalInput(this.draft.startTime);
-    const startX = minutesToStreamX(startMinutes, TIME_STREAM_CONFIG.halfWidth);
-    const beforeWidth = Math.max(0.02, startX + TIME_STREAM_CONFIG.halfWidth);
-    const showBeforeMask =
-      this.step === "select_time" &&
-      this.timeCapturePhase === "end" &&
-      this.startHandleAdjusted &&
-      beforeWidth > 0.04;
-    this.timeBeforeStartMaskMesh.visible = showBeforeMask;
-    if (showBeforeMask) {
-      this.timeBeforeStartMaskMesh.scale.set(beforeWidth, 1, 1);
-      this.timeBeforeStartMaskMesh.position.x = -TIME_STREAM_CONFIG.halfWidth + beforeWidth * 0.5;
+    const maskGeometryKey = `${Math.floor(nowMinute)}:${startMinutes}:${this.timeCapturePhase}:${this.startHandleAdjusted}`;
+    if (maskGeometryKey !== this.lastMaskGeometryKey) {
+      this.lastMaskGeometryKey = maskGeometryKey;
     }
+    this.timeFutureMaskMesh.visible = false;
 
-    this.streamFlowNodes.forEach((node, index) => {
-      const seed = this.streamFlowSeeds[index] ?? 0;
-      const minutes = (seed + this.elapsedSeconds * (22 + (index % 5) * 4)) % 1440;
-      node.visible = minutes <= nowMinute;
-      node.position.x = minutesToStreamX(minutes, TIME_STREAM_CONFIG.halfWidth);
-      node.position.y =
-        TIME_STREAM_CONFIG.laneY +
-        Math.sin(this.elapsedSeconds * 2.6 + index * 0.35) * 0.02 +
-        (index % 2 === 0 ? 0.03 : -0.03);
-      node.position.z = (index % 3 === 0 ? 0.12 : index % 3 === 1 ? -0.12 : 0);
+    this.timeBeforeStartMaskMesh.visible = false;
+
+    this.streamFlowNodes.forEach((node) => {
+      node.visible = false;
     });
 
     const dayKey = formatLocalDate(actualNow);
     if (dayKey !== this.lastNowDayKey) {
       this.lastNowDayKey = dayKey;
-      this.streamOriginLabel = this.replaceReadoutLabel(
-        this.streamOriginLabel,
-        `Today · ${dayKey}`,
-        { width: 250, height: 46, fontSize: 14, minimal: true },
-        this.clockGroup
-      );
+      this.lastNowClockKey = "";
     }
     if (this.streamOriginLabel) {
-      this.streamOriginLabel.position.set(
-        -TIME_STREAM_CONFIG.halfWidth + 0.78,
-        TIME_STREAM_CONFIG.laneY + 0.26,
-        0
-      );
-      this.streamOriginLabel.scale.set(this.isMobileViewport ? 1.18 : 1.32, 0.18, 1);
+      this.streamOriginLabel.position.set(0, TIME_STREAM_CONFIG.laneY + 0.28, TIME_STREAM_CONFIG.clockRadius * 0.45);
+      this.streamOriginLabel.scale.set(this.isMobileViewport ? 0.95 : 1.08, 0.16, 1);
     }
 
     const nowClockKey = formatRibbonClock(actualNow, true);
     if (nowClockKey !== this.lastNowClockKey) {
       this.lastNowClockKey = nowClockKey;
-      const nowText = `Now ${nowClockKey}`;
-      this.nowReadoutLabel = this.replaceReadoutLabel(
-        this.nowReadoutLabel,
-        nowText,
+      this.streamOriginLabel = this.replaceReadoutLabel(
+        this.streamOriginLabel,
+        `${dayKey} · Now ${formatRibbonClock(actualNow)}`,
         {
-          width: this.isMobileViewport ? 176 : 164,
-          height: 30,
-          fontSize: 10,
-          minimal: false,
+          width: this.isMobileViewport ? 260 : 280,
+          height: 34,
+          fontSize: this.isMobileViewport ? 12 : 13,
+          minimal: true,
         },
         this.clockGroup
       );
     }
     if (this.nowReadoutLabel) {
-      this.nowReadoutLabel.position.set(
-        clamp(-TIME_STREAM_CONFIG.halfWidth + 0.95, TIME_STREAM_CONFIG.halfWidth - 0.95, nowX + 0.14),
-        TIME_STREAM_CONFIG.laneY - 0.09,
-        0
-      );
+      const labelPos = minuteToClockPosition(nowMinute, TIME_STREAM_CONFIG.clockOuterRadius + 0.24);
+      this.nowReadoutLabel.position.set(labelPos.x, TIME_STREAM_CONFIG.laneY + 0.24, labelPos.z);
       this.nowReadoutLabel.scale.set(this.isMobileViewport ? 0.82 : 0.88, 0.11, 1);
+      this.nowReadoutLabel.visible = false;
+    }
+    if (this.streamOriginLabel) {
+      this.streamOriginLabel.position.set(0, TIME_STREAM_CONFIG.laneY + 0.28, TIME_STREAM_CONFIG.clockRadius * 0.45);
+      this.streamOriginLabel.scale.set(this.isMobileViewport ? 0.95 : 1.08, 0.16, 1);
     }
 
     const startDate = parseLocalInputDate(this.draft.startTime) ?? now;
@@ -1744,14 +1485,13 @@ export class ValueLogScene {
       }
     }
     if (this.rangeSummaryLabel) {
+      const targetRadius = TIME_STREAM_CONFIG.clockOuterRadius + 0.58;
+      const flatLength = Math.hypot(this.timeRangeMidX, this.timeRangeMidZ) || 1;
+      const scale = Math.max(1, targetRadius / flatLength);
       this.rangeSummaryLabel.position.set(
-        clamp(
-          -TIME_STREAM_CONFIG.halfWidth + 1.5,
-          TIME_STREAM_CONFIG.halfWidth - 1.5,
-          this.timeRangeMidX
-        ),
-        TIME_STREAM_CONFIG.laneY + 0.19,
-        0
+        this.timeRangeMidX * scale,
+        TIME_STREAM_CONFIG.laneY + 0.32,
+        this.timeRangeMidZ * scale
       );
       this.rangeSummaryLabel.scale.set(this.isMobileViewport ? 0.96 : 1.02, 0.21, 1);
     }
@@ -1854,7 +1594,7 @@ export class ValueLogScene {
     const stepIndex = WIZARD_STEP_ORDER.indexOf(this.step);
 
     // Time stream layer (top layer only during select-time ritual)
-    const showClock = this.step === "select_time";
+    const showClock = false;
     this.timeInstrumentBackdrop.visible = showClock;
     this.timeStreamBase.visible = showClock;
     this.timeStreamLane.visible = showClock;
@@ -1864,10 +1604,9 @@ export class ValueLogScene {
       node.visible = showClock;
     });
     this.timeScaleTicks.forEach((tick) => {
-      tick.mesh.visible = showClock;
+      tick.mesh.visible = showClock && tick.minute % 180 === 0;
       if (tick.label) {
-        tick.label.visible =
-          showClock && (!this.isMobileViewport || tick.minute % 360 === 0 || tick.minute === 1440);
+        tick.label.visible = false;
       }
     });
     this.timeSnapGuideTicks.forEach((tick) => {
@@ -1882,24 +1621,31 @@ export class ValueLogScene {
       this.timeRangeMesh.visible = false;
       this.timeRangeWrapMesh.visible = false;
     }
-    this.timeFutureMaskMesh.visible = showClock;
-    this.timeBeforeStartMaskMesh.visible = showClock;
+    this.timeFutureMaskMesh.visible = false;
+    this.timeBeforeStartMaskMesh.visible = false;
     const showStartHandle =
       showClock && (this.timeCapturePhase === "start" || this.startHandleAdjusted);
     const showEndHandle = showClock && this.timeCapturePhase === "end";
-    this.timeStartHandle.visible = false;
-    this.timeEndHandle.visible = false;
+    this.timeStartHandle.visible = showStartHandle;
+    this.timeEndHandle.visible = showEndHandle;
     this.timeStartJaw.visible = false;
     this.timeEndJaw.visible = false;
-    this.timeStartMarkerGlyph.visible = showStartHandle;
-    this.timeEndMarkerGlyph.visible = showEndHandle;
-    this.timeStartHitZone.visible = showClock && this.timeCapturePhase === "start";
+    this.timeStartMarkerGlyph.visible = false;
+    this.timeEndMarkerGlyph.visible = false;
+    this.timeStartHitZone.visible = showClock && (this.timeCapturePhase === "start" || this.startHandleAdjusted);
     this.timeEndHitZone.visible = showClock && this.timeCapturePhase === "end";
     this.timeBladeCue.visible = false;
-    if (this.nowReadoutLabel) this.nowReadoutLabel.visible = showClock;
+    this.timeNowFootprint.visible = false;
+    if (this.nowReadoutLabel) this.nowReadoutLabel.visible = false;
     if (this.streamOriginLabel) this.streamOriginLabel.visible = showClock;
+    if (this.startReadoutLabel) {
+      this.startReadoutLabel.visible = showClock && (this.timeCapturePhase === "start" || this.startHandleAdjusted);
+    }
+    if (this.endReadoutLabel) {
+      this.endReadoutLabel.visible = showClock && this.timeCapturePhase === "end";
+    }
     if (this.rangeSummaryLabel) {
-      this.rangeSummaryLabel.visible = showClock && this.timeCapturePhase === "end";
+      this.rangeSummaryLabel.visible = false;
     }
 
     // Wellbeing nodes - visible from step 1 onwards
@@ -1917,7 +1663,7 @@ export class ValueLogScene {
     });
 
     // Strings - visible if the layer they connect to is visible
-    this.stringsGroup.visible = showWellbeing;
+    this.stringsGroup.visible = false;
 
     // Outcome elements - only visible during outcome review
     const showOutcome = false;
@@ -1944,8 +1690,8 @@ export class ValueLogScene {
     const desiredFov =
       this.step === "select_time"
         ? this.isMobileViewport
-          ? 36
-          : 31
+          ? 42
+          : 38
         : this.isMobileViewport
           ? 46
           : 39;
@@ -1953,9 +1699,16 @@ export class ValueLogScene {
       this.camera.fov = desiredFov;
       this.camera.updateProjectionMatrix();
     }
+    const isClockStep = this.step === "select_time";
+    this.camera.up.set(0, isClockStep ? 0 : 1, isClockStep ? 1 : 0);
+    this.controls.enabled = !isClockStep;
+    this.controls.enableRotate = !isClockStep;
+    this.controls.enablePan = !isClockStep;
+    this.controls.enableZoom = !isClockStep;
     this.camera.position.copy(target.position);
     this.cameraLookAt.copy(target.lookAt);
     this.controls.target.copy(target.lookAt);
+    this.camera.lookAt(target.lookAt);
     this.controls.update();
   }
 
@@ -1965,17 +1718,12 @@ export class ValueLogScene {
     lookAt.set(0, 0, 0);
 
     if (this.step === "select_time") {
-      const nowX = this.getNowFocusX();
-      const focusX =
-        this.timeCapturePhase === "start"
-          ? nowX
-          : clamp(-TIME_STREAM_CONFIG.halfWidth + 1.8, TIME_STREAM_CONFIG.halfWidth - 1.8, this.timeRangeMidX);
       if (this.isMobileViewport) {
-        position.set(focusX, 4.02, 5.46);
-        lookAt.set(focusX, 3.96, 0.02);
+        position.set(0, 14.5, 0.001);
+        lookAt.set(0, this.clockGroup.position.y + TIME_STREAM_CONFIG.baseY, 0);
       } else {
-        position.set(focusX, 4.06, 5.78);
-        lookAt.set(focusX, 3.98, 0.02);
+        position.set(0, 13.4, 0.001);
+        lookAt.set(0, this.clockGroup.position.y + TIME_STREAM_CONFIG.baseY, 0);
       }
     } else if (this.step === "select_wellbeing") {
       if (this.isMobileViewport) {
@@ -2011,11 +1759,10 @@ export class ValueLogScene {
     return { position, lookAt };
   }
 
-  private getNowFocusX() {
+  private getNowFocusPoint() {
     const now = snapDateToMinutes(new Date(), TIME_STREAM_CONFIG.snapMinutes);
     const nowMinute = now.getHours() * 60 + now.getMinutes();
-    const nowX = minutesToStreamX(nowMinute, TIME_STREAM_CONFIG.halfWidth);
-    return clamp(-TIME_STREAM_CONFIG.halfWidth + 1.4, TIME_STREAM_CONFIG.halfWidth - 1.4, nowX);
+    return minuteToClockPosition(nowMinute, TIME_STREAM_CONFIG.clockRadius);
   }
 
   getDraft() {
@@ -2031,22 +1778,22 @@ export class ValueLogScene {
   }
 
   getTimeCaptureUiAnchorWorldPosition(target: THREE.Vector3) {
-    let anchorX =
+    let anchor =
       this.timeCapturePhase === "start"
-        ? this.timeStartHandle.position.x
-        : this.timeEndHandle.position.x;
+        ? this.timeStartHandle.position
+        : this.timeEndHandle.position;
     if (this.activeClockHand === "start" || this.hoveredTimeTarget === "start") {
-      anchorX = this.timeStartHandle.position.x;
+      anchor = this.timeStartHandle.position;
     } else if (this.activeClockHand === "end" || this.hoveredTimeTarget === "end") {
-      anchorX = this.timeEndHandle.position.x;
+      anchor = this.timeEndHandle.position;
     } else if (this.activeClockHand === "range") {
-      anchorX =
+      anchor =
         this.timeCapturePhase === "start"
-          ? this.timeStartHandle.position.x
-          : this.timeEndHandle.position.x;
+          ? this.timeStartHandle.position
+          : this.timeEndHandle.position;
     }
     return this.root.localToWorld(
-      target.set(anchorX, this.clockGroup.position.y + TIME_STREAM_CONFIG.rangeY + 0.28, 0)
+      target.set(anchor.x, this.clockGroup.position.y + TIME_STREAM_CONFIG.rangeY + 0.95, anchor.z)
     );
   }
 
@@ -2081,7 +1828,7 @@ export class ValueLogScene {
     const targets: THREE.Object3D[] = [];
     // Prioritize context interaction based on step
     if (this.step === "select_time") {
-        const allowStartHandle = this.timeCapturePhase === "start";
+        const allowStartHandle = this.timeCapturePhase === "start" || this.startHandleAdjusted;
         const allowEndHandle = this.timeCapturePhase === "end";
         if (allowStartHandle) {
           targets.push(this.timeStartHitZone);
@@ -2154,13 +1901,13 @@ export class ValueLogScene {
   private raycastClockHand(): "start" | "end" | "range" | null {
     this.raycaster.setFromCamera(this.pointerNdc, this.camera);
     const targets: THREE.Object3D[] = [];
-    if (this.timeCapturePhase === "start") {
+    if (this.timeCapturePhase === "start" || this.startHandleAdjusted) {
       targets.push(this.timeStartHitZone);
     }
     if (this.timeCapturePhase === "end") {
       targets.push(this.timeEndHitZone);
     }
-    targets.push(this.timeRangeMesh, this.timeRangeWrapMesh);
+    targets.push(this.timeRangeMesh, this.timeRangeWrapMesh, this.timeInstrumentBackdrop, this.timeStreamLane, this.timeStreamBase);
     const hits = this.raycaster.intersectObjects(
       targets,
       false
@@ -2169,7 +1916,15 @@ export class ValueLogScene {
     if (!first) return null;
     if (first === this.timeStartHitZone) return "start";
     if (first === this.timeEndHitZone) return "end";
-    if (first === this.timeRangeMesh || first === this.timeRangeWrapMesh) return "range";
+    if (
+      first === this.timeRangeMesh ||
+      first === this.timeRangeWrapMesh ||
+      first === this.timeInstrumentBackdrop ||
+      first === this.timeStreamLane ||
+      first === this.timeStreamBase
+    ) {
+      return "range";
+    }
     return null;
   }
 
@@ -2183,8 +1938,8 @@ export class ValueLogScene {
     if (!hit) return;
 
     this.clockInteractionLocal.copy(this.clockInteractionPoint).sub(this.clockGroup.position);
-    const snappedMinutes = snapMinutes(
-      streamXToMinutes(this.clockInteractionLocal.x, TIME_STREAM_CONFIG.halfWidth),
+    const snappedFaceMinutes = snapMinutes(
+      clockPointToMinutes(this.clockInteractionLocal.x, this.clockInteractionLocal.z),
       TIME_STREAM_CONFIG.snapMinutes
     );
     const currentStart = minutesFromLocalInput(this.draft.startTime);
@@ -2193,7 +1948,12 @@ export class ValueLogScene {
     const minSpan = TIME_STREAM_CONFIG.minSpanMinutes;
 
     if (this.activeClockHand === "start") {
-      const nextStart = clamp(0, Math.max(0, nowMinutes - minSpan), snappedMinutes);
+      const nextStart = resolveClockFaceMinute(
+        snappedFaceMinutes,
+        0,
+        Math.max(0, nowMinutes - minSpan),
+        currentStart
+      );
       const nextEnd = nowMinutes;
       this.applyClockRange(nextStart, nextEnd);
       return;
@@ -2202,7 +1962,7 @@ export class ValueLogScene {
     if (this.activeClockHand === "end") {
       const nextStart = currentStart;
       const minEnd = Math.min(nowMinutes, nextStart + minSpan);
-      const nextEnd = clamp(minEnd, nowMinutes, snappedMinutes);
+      const nextEnd = resolveClockFaceMinute(snappedFaceMinutes, minEnd, nowMinutes, currentEnd);
       this.applyClockRange(nextStart, nextEnd);
       return;
     }
@@ -2323,9 +2083,7 @@ export class ValueLogScene {
         : clamp(startMinutes + minSpan, nowMinutes, endMinutesRaw);
 
     this.startHandleAdjusted = startMinutes < nowMinutes;
-    if (this.startHandleAdjusted && this.timeCapturePhase === "start") {
-      this.timeCapturePhase = "end";
-    } else if (!this.startHandleAdjusted) {
+    if (!this.startHandleAdjusted) {
       this.timeCapturePhase = "start";
     }
 
@@ -2354,10 +2112,13 @@ export class ValueLogScene {
       Math.max(0, new Date(endIso).getTime() - new Date(startIso).getTime()) / 3600000;
     const enabled = outcome.saocommonsEnabled;
 
+    const protocolLinkId = `${personId}-${Date.now()}`;
+
     return {
-      id: `${personId}-${Date.now()}`,
+      id: protocolLinkId,
       timestamp: startIso,
       "~ValueCaptureProtocol": {
+        "~~~~ProtocolLinkId": protocolLinkId,
         "~~TimeSlice": {
           "~~~StartTime": startIso,
           "~~~EndTime": endIso,
@@ -2384,7 +2145,8 @@ export class ValueLogScene {
           "~~~FraudRiskSignal": this.draft.fraudRiskSignal,
         },
       },
-      "~WellbeingProtocol": {
+      "~WellbecomingProtocol": {
+        "~~~~ProtocolLinkId": protocolLinkId,
         "~~Context": {
           "~~~PrimaryNode": this.draft.wellbeingNode,
           "~~~SignalLabel": this.draft.signalLabel,
@@ -2404,6 +2166,7 @@ export class ValueLogScene {
           : {}),
       },
       "~SAOcommons": {
+        "~~~~ProtocolLinkId": protocolLinkId,
         "~~Activation": {
           "~~~Enabled": enabled,
           "~~~Trigger": enabled ? "~~Performance" : "non-performance",
@@ -2479,7 +2242,7 @@ export class ValueLogScene {
     return sprite;
   }
 
-  private createMinimalTextSprite(text: string, fontSize = 15) {
+  private createMinimalTextSprite(text: string, fontSize = 15, color = "rgba(220,238,255,0.94)") {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     canvas.width = 360;
@@ -2487,7 +2250,7 @@ export class ValueLogScene {
 
     if (ctx) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "rgba(220,238,255,0.94)";
+      ctx.fillStyle = color;
       ctx.font = `700 ${fontSize}px Avenir Next`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -2540,26 +2303,9 @@ export class ValueLogScene {
   }
 }
 
-const clamp = (min: number, max: number, value: number) => Math.min(max, Math.max(min, value));
-
-const toLocalInputValue = (date: Date) => {
-  const pad = (value: number) => `${value}`.padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
-};
-
 const toIsoOrNow = (value: string) => {
   const date = value.length > 0 ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
-};
-
-const minutesFromLocalInput = (value: string) => {
-  const date = value.length > 0 ? new Date(value) : new Date();
-  if (Number.isNaN(date.getTime())) {
-    return 0;
-  }
-  return date.getHours() * 60 + date.getMinutes();
 };
 
 const minutesFromDate = (date: Date) => date.getHours() * 60 + date.getMinutes();
@@ -2577,15 +2323,72 @@ const minutesToDate = (dayStart: Date, minutes: number) => {
   return copy;
 };
 
-const minutesToStreamX = (minutes: number, halfWidth: number) => {
-  const normalized = (((minutes % 1440) + 1440) % 1440) / 1440;
-  return -halfWidth + normalized * halfWidth * 2;
+const minuteToClockAngle = (minutes: number) => {
+  const normalized = (((minutes % 720) + 720) % 720) / 720;
+  return Math.PI / 2 - normalized * Math.PI * 2;
 };
 
-const streamXToMinutes = (x: number, halfWidth: number) => {
-  const clamped = clamp(-halfWidth, halfWidth, x);
-  const normalized = (clamped + halfWidth) / (halfWidth * 2);
-  return Math.round(normalized * 1440) % 1440;
+const minuteToClockPosition = (minutes: number, radius: number) => {
+  const angle = minuteToClockAngle(minutes);
+  return {
+    x: Math.cos(angle) * radius,
+    z: Math.sin(angle) * radius,
+  };
+};
+
+const clockPointToMinutes = (x: number, z: number) => {
+  const angle = Math.atan2(z, x);
+  const normalized = ((Math.PI / 2 - angle) / (Math.PI * 2) + 1) % 1;
+  return Math.round(normalized * 720) % 720;
+};
+
+const circularMinuteDistance = (a: number, b: number) => {
+  const raw = Math.abs((((a % 720) + 720) % 720) - (((b % 720) + 720) % 720));
+  return Math.min(raw, 720 - raw);
+};
+
+const resolveClockFaceMinute = (faceMinutes: number, min: number, max: number, prefer: number) => {
+  const normalizedFace = ((faceMinutes % 720) + 720) % 720;
+  const candidates = [normalizedFace, normalizedFace + 720].filter(
+    (candidate) => candidate >= min && candidate <= max
+  );
+  if (candidates.length === 0) {
+    return clamp(min, max, normalizedFace);
+  }
+  return candidates.reduce((best, candidate) =>
+    Math.abs(candidate - prefer) < Math.abs(best - prefer) ? candidate : best
+  );
+};
+
+const createClockHandGeometry = (width: number, length: number) => {
+  const geometry = new THREE.PlaneGeometry(width, length);
+  geometry.translate(0, length * 0.5, 0);
+  return geometry;
+};
+
+const createClockArcGeometry = (
+  startMinutes: number,
+  endMinutes: number,
+  innerRadius: number,
+  outerRadius: number
+) => {
+  const safeStart = clamp(0, 1440, startMinutes);
+  const safeEnd = clamp(safeStart + 0.5, 1440, endMinutes);
+  const thetaStart = minuteToClockAngle(safeEnd);
+  const thetaLength = Math.min(Math.PI * 2, ((safeEnd - safeStart) / 720) * Math.PI * 2);
+  return new THREE.RingGeometry(innerRadius, outerRadius, 96, 1, thetaStart, thetaLength);
+};
+
+const replaceClockArcGeometry = (
+  mesh: THREE.Mesh,
+  startMinutes: number,
+  endMinutes: number,
+  innerRadius: number,
+  outerRadius: number
+) => {
+  const previous = mesh.geometry;
+  mesh.geometry = createClockArcGeometry(startMinutes, endMinutes, innerRadius, outerRadius);
+  previous.dispose();
 };
 
 const snapMinutes = (minutes: number, step: number) => {
@@ -2686,54 +2489,6 @@ const formatDurationLabel = (minutes: number) => {
   return `${hours}h ${mins}m`;
 };
 
-const DEFAULT_SIGNAL_LABEL_BY_NODE: Record<WellbeingContextNode, string> = {
-  "~~Physiology": "Body baseline quality",
-  "~~Emotion": "Emotional stability shift",
-  "~~Feeling": "Felt-state coherence",
-  "~~Thought": "Cognitive clarity quality",
-  "~~Habit": "Habit streak quality",
-  "~~Performance": "Performance execution quality",
-};
-
-const deriveSignalScore = (draft: ValueLogDraft) => {
-  const base = clamp(0, 1, draft.contextIntensity);
-  if (draft.wellbeingNode !== "~~Performance") {
-    return base;
-  }
-
-  const selected: number[] = [];
-  if (draft.learningTag) selected.push(clamp(0, 1, draft.learningIntensity));
-  if (draft.earningTag) selected.push(clamp(0, 1, draft.earningIntensity));
-  if (draft.orgBuildingTag) selected.push(clamp(0, 1, draft.orgBuildingIntensity));
-  const domainAverage =
-    selected.length > 0
-      ? selected.reduce((sum, value) => sum + value, 0) / selected.length
-      : base;
-  return clamp(0, 1, base * 0.45 + domainAverage * 0.55);
-};
-
-const isValidTimeRange = (startTime: string, endTime: string) => {
-  const start = parseLocalInputDate(startTime);
-  const end = parseLocalInputDate(endTime);
-  if (!start || !end) return false;
-  const spanMs = end.getTime() - start.getTime();
-  return spanMs >= TIME_STREAM_CONFIG.minSpanMinutes * 60 * 1000;
-};
-
-export const isValueLogCommitReady = (draft: ValueLogDraft) => {
-  const hasValueCapture =
-    isValidTimeRange(draft.startTime, draft.endTime) &&
-    draft.activityLabel.trim().length > 0 &&
-    draft.proofOfActivity.trim().length > 0;
-  if (!hasValueCapture) return false;
-
-  if (draft.wellbeingNode !== "~~Performance") {
-    return draft.contextIntensity >= 0;
-  }
-
-  return draft.learningTag || draft.earningTag || draft.orgBuildingTag;
-};
-
 const getSceneActionHint = (
   step: WizardStep,
   draft: ValueLogDraft,
@@ -2745,8 +2500,8 @@ const getSceneActionHint = (
   }
   if (step === "select_time") {
     return timeCapturePhase === "start"
-      ? "Step 1/2: drag the blue Begin cut left from Now."
-      : "Step 2/2: place the copper End cut between Begin and Now.";
+      ? "Step 1/2: drag the blue Begin hand to when the action started."
+      : "Step 2/2: drag the copper End hand between Begin and Now.";
   }
   if (step === "select_wellbeing") {
     return "Select one wellbeing context node.";
@@ -2757,5 +2512,5 @@ const getSceneActionHint = (
   if (step === "select_performance") {
     return "Select SAOcommons domains and set domain intensity.";
   }
-  return "Capture value to trigger the photon drop.";
+  return "Capture value to launch the Activity token.";
 };

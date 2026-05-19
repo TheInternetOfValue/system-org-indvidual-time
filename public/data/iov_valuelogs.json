@@ -4,7 +4,7 @@
   "notes": {
     "sources": [
       "the-internet-of-value-spec/specs/protocols/value-capture/spec.md",
-      "the-internet-of-value-spec/specs/protocols/wellbeing/spec.md",
+      "the-internet-of-value-spec/specs/protocols/wellbecoming/spec.md",
       "the-internet-of-value-spec/specs/protocols/saocommons/spec.md"
     ],
     "last_updated": "2026-02-22"
@@ -39,26 +39,29 @@
             "~~~ProofQuality": 0.84,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.02
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Context": {
-            "~~~PrimaryNode": "~~Physiology",
-            "~~~SignalLabel": "Sleep score",
-            "~~~SignalScore": 0.41,
-            "~~~ImpactDirection": "decrease"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-sleep-1"
         },
         "~SAOcommons": {
           "~~Activation": {
             "~~~Enabled": false,
             "~~~Trigger": "non-performance",
             "~~~Domains": []
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-sleep-1"
         },
         "_engine": {
           "wellbeing_delta": -0.018,
           "aura_delta": -0.026
+        },
+        "~WellbecomingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Physiology",
+            "~~~SignalLabel": "Sleep score",
+            "~~~SignalScore": 0.41,
+            "~~~ImpactDirection": "decrease"
+          },
+          "~~~~ProtocolLinkId": "trader-sleep-1"
         }
       },
       {
@@ -81,7 +84,7 @@
             "~~~ArtifactType": "scene-output"
           },
           "~~Attribution": {
-            "~~~Community": "GrowthFlow Engineering",
+            "~~~Community": "IOV Commons",
             "~~~Project": "IOV Visualization",
             "~~~ContributorRole": "Trader"
           },
@@ -89,9 +92,30 @@
             "~~~ProofQuality": 0.89,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.03
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-work-2"
         },
-        "~WellbeingProtocol": {
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": true,
+            "~~~Trigger": "~~Performance",
+            "~~~Domains": [
+              "~~Learning",
+              "~~Earning"
+            ]
+          },
+          "~~Validation": {
+            "~~~EvidenceReview": "peer-reviewed",
+            "~~~ReviewerSet": "iov-review-3",
+            "~~~ValidationDecision": "approved"
+          },
+          "~~~~ProtocolLinkId": "trader-work-2"
+        },
+        "_engine": {
+          "wellbeing_delta": 0.024,
+          "aura_delta": 0.035
+        },
+        "~WellbecomingProtocol": {
           "~~Context": {
             "~~~PrimaryNode": "~~Performance",
             "~~~SignalLabel": "Business growth skill execution",
@@ -103,24 +127,9 @@
             "~~~EarningOutput": 0.64,
             "~~~OrgBuildingOutput": 0.58,
             "~~~SkillApplication": "Business Growth",
-            "~~~CommunityContext": "GrowthFlow Engineering"
-          }
-        },
-        "~SAOcommons": {
-          "~~Activation": {
-            "~~~Enabled": true,
-            "~~~Trigger": "~~Performance",
-            "~~~Domains": ["~~Learning", "~~Earning"]
+            "~~~CommunityContext": "IOV Commons"
           },
-          "~~Validation": {
-            "~~~EvidenceReview": "peer-reviewed",
-            "~~~ReviewerSet": "gfe-review-3",
-            "~~~ValidationDecision": "approved"
-          }
-        },
-        "_engine": {
-          "wellbeing_delta": 0.024,
-          "aura_delta": 0.035
+          "~~~~ProtocolLinkId": "trader-work-2"
         }
       }
     ]
@@ -155,26 +164,29 @@
             "~~~ProofQuality": 0.8,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.02
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Context": {
-            "~~~PrimaryNode": "~~Physiology",
-            "~~~SignalLabel": "Sleep score",
-            "~~~SignalScore": 0.45,
-            "~~~ImpactDirection": "decrease"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader17-sleep"
         },
         "~SAOcommons": {
           "~~Activation": {
             "~~~Enabled": false,
             "~~~Trigger": "non-performance",
             "~~~Domains": []
-          }
+          },
+          "~~~~ProtocolLinkId": "trader17-sleep"
         },
         "_engine": {
           "wellbeing_delta": -0.016,
           "aura_delta": -0.02
+        },
+        "~WellbecomingProtocol": {
+          "~~Context": {
+            "~~~PrimaryNode": "~~Physiology",
+            "~~~SignalLabel": "Sleep score",
+            "~~~SignalScore": 0.45,
+            "~~~ImpactDirection": "decrease"
+          },
+          "~~~~ProtocolLinkId": "trader17-sleep"
         }
       },
       {
@@ -197,7 +209,7 @@
             "~~~ArtifactType": "output"
           },
           "~~Attribution": {
-            "~~~Community": "GrowthFlow Engineering",
+            "~~~Community": "IOV Commons",
             "~~~Project": "IOV Scene",
             "~~~ContributorRole": "Trader"
           },
@@ -205,9 +217,30 @@
             "~~~ProofQuality": 0.9,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.03
-          }
+          },
+          "~~~~ProtocolLinkId": "trader17-work"
         },
-        "~WellbeingProtocol": {
+        "~SAOcommons": {
+          "~~Activation": {
+            "~~~Enabled": true,
+            "~~~Trigger": "~~Performance",
+            "~~~Domains": [
+              "~~Learning",
+              "~~Earning"
+            ]
+          },
+          "~~Validation": {
+            "~~~EvidenceReview": "peer-reviewed",
+            "~~~ReviewerSet": "gfe-2",
+            "~~~ValidationDecision": "approved"
+          },
+          "~~~~ProtocolLinkId": "trader17-work"
+        },
+        "_engine": {
+          "wellbeing_delta": 0.026,
+          "aura_delta": 0.038
+        },
+        "~WellbecomingProtocol": {
           "~~Context": {
             "~~~PrimaryNode": "~~Performance",
             "~~~SignalLabel": "Business growth skill",
@@ -219,24 +252,9 @@
             "~~~EarningOutput": 0.62,
             "~~~OrgBuildingOutput": 0.57,
             "~~~SkillApplication": "Business Growth",
-            "~~~CommunityContext": "GrowthFlow Engineering"
-          }
-        },
-        "~SAOcommons": {
-          "~~Activation": {
-            "~~~Enabled": true,
-            "~~~Trigger": "~~Performance",
-            "~~~Domains": ["~~Learning", "~~Earning"]
+            "~~~CommunityContext": "IOV Commons"
           },
-          "~~Validation": {
-            "~~~EvidenceReview": "peer-reviewed",
-            "~~~ReviewerSet": "gfe-2",
-            "~~~ValidationDecision": "approved"
-          }
-        },
-        "_engine": {
-          "wellbeing_delta": 0.026,
-          "aura_delta": 0.038
+          "~~~~ProtocolLinkId": "trader17-work"
         }
       }
     ]

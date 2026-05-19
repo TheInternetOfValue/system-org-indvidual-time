@@ -4,6 +4,7 @@ import type { RegionId } from "./IovTopologyScene";
 import { PersonStateEngine } from "./PersonStateEngine";
 import {
   formatValueLogForCaption,
+  getWellbecomingProtocol,
   type IovTimeLogEntry,
   type WellbeingContextNode,
 } from "./iovTimelogs";
@@ -883,7 +884,7 @@ export class PersonIdentityScene {
 
   private extractActivityImpact(log: IovTimeLogEntry | null) {
     if (!log) return 0.4;
-    const context = log["~WellbeingProtocol"]["~~Context"];
+    const context = getWellbecomingProtocol(log)["~~Context"];
     const base = Math.min(1, Math.max(0.1, context["~~~SignalScore"]));
     if (context["~~~ImpactDirection"] === "decrease") return -base;
     if (context["~~~ImpactDirection"] === "neutral") return 0.1;
@@ -900,7 +901,7 @@ export class PersonIdentityScene {
       return;
     }
 
-    const context = log["~WellbeingProtocol"]["~~Context"];
+    const context = getWellbecomingProtocol(log)["~~Context"];
     const activation = log["~SAOcommons"]["~~Activation"];
     this.wellbeingContextNode = context["~~~PrimaryNode"];
     this.saocommonsEnabled = activation["~~~Enabled"];

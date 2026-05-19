@@ -209,6 +209,16 @@ export class BlockInteriorScene {
     return this.personAnchor.clone();
   }
 
+  getPeopleCueAnchor() {
+    if (this.personTokens.length === 0) return null;
+
+    const focus = this.personTokens[Math.floor(this.personTokens.length * 0.52)] ?? this.personTokens[0];
+    if (!focus) return null;
+
+    this.personAnchor.set(focus.position.x, 1.25 * focus.heightScale, focus.position.z);
+    return this.personAnchor.clone();
+  }
+
   playPersonFocusCue(personId: string, durationMs = 160) {
     const token = this.personTokens.find((person) => person.id === personId);
     if (!token) return Promise.resolve();

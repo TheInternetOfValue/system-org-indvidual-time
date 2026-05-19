@@ -4,7 +4,7 @@
   "notes": {
     "sources": [
       "the-internet-of-value-spec/specs/protocols/value-capture/spec.md",
-      "the-internet-of-value-spec/specs/protocols/wellbeing/spec.md",
+      "the-internet-of-value-spec/specs/protocols/wellbecoming/spec.md",
       "the-internet-of-value-spec/specs/protocols/saocommons/spec.md"
     ],
     "last_updated": "2026-02-22"
@@ -39,27 +39,30 @@
             "~~~ProofQuality": 0.78,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.11
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.64,
-            "~~~EarningOutput": 0.58,
-            "~~~OrgBuildingOutput": 0.41,
-            "~~~SkillApplication": "Risk communication",
-            "~~~CommunityContext": "Shared review loop"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-log-1"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "peer-reviewed",
             "~~~ReviewerSet": "market-council-3",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-log-1"
         },
         "_engine": {
           "wellbeing_delta": 0.016,
           "aura_delta": 0.03
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.64,
+            "~~~EarningOutput": 0.58,
+            "~~~OrgBuildingOutput": 0.41,
+            "~~~SkillApplication": "Risk communication",
+            "~~~CommunityContext": "Shared review loop"
+          },
+          "~~~~ProtocolLinkId": "trader-log-1"
         }
       },
       {
@@ -90,27 +93,30 @@
             "~~~ProofQuality": 0.82,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.09
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.68,
-            "~~~EarningOutput": 0.51,
-            "~~~OrgBuildingOutput": 0.62,
-            "~~~SkillApplication": "Coaching",
-            "~~~CommunityContext": "Shared learning pod"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-log-2"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "validated",
             "~~~ReviewerSet": "learning-node-4",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader-log-2"
         },
         "_engine": {
           "wellbeing_delta": 0.02,
           "aura_delta": 0.035
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.68,
+            "~~~EarningOutput": 0.51,
+            "~~~OrgBuildingOutput": 0.62,
+            "~~~SkillApplication": "Coaching",
+            "~~~CommunityContext": "Shared learning pod"
+          },
+          "~~~~ProtocolLinkId": "trader-log-2"
         }
       }
     ],
@@ -143,27 +149,30 @@
             "~~~ProofQuality": 0.74,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.07
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.57,
-            "~~~EarningOutput": 0.43,
-            "~~~OrgBuildingOutput": 0.66,
-            "~~~SkillApplication": "Process design",
-            "~~~CommunityContext": "Service team"
-          }
+          },
+          "~~~~ProtocolLinkId": "state-log-1"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "team-review",
             "~~~ReviewerSet": "office-panel-3",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "state-log-1"
         },
         "_engine": {
           "wellbeing_delta": 0.014,
           "aura_delta": 0.026
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.57,
+            "~~~EarningOutput": 0.43,
+            "~~~OrgBuildingOutput": 0.66,
+            "~~~SkillApplication": "Process design",
+            "~~~CommunityContext": "Service team"
+          },
+          "~~~~ProtocolLinkId": "state-log-1"
         }
       }
     ],
@@ -196,27 +205,30 @@
             "~~~ProofQuality": 0.8,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.04
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.49,
-            "~~~EarningOutput": 0.31,
-            "~~~OrgBuildingOutput": 0.72,
-            "~~~SkillApplication": "Coordination",
-            "~~~CommunityContext": "Neighborhood collective"
-          }
+          },
+          "~~~~ProtocolLinkId": "community-log-1"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "community-validation",
             "~~~ReviewerSet": "care-circle-5",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "community-log-1"
         },
         "_engine": {
           "wellbeing_delta": 0.017,
           "aura_delta": 0.031
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.49,
+            "~~~EarningOutput": 0.31,
+            "~~~OrgBuildingOutput": 0.72,
+            "~~~SkillApplication": "Coordination",
+            "~~~CommunityContext": "Neighborhood collective"
+          },
+          "~~~~ProtocolLinkId": "community-log-1"
         }
       }
     ]
@@ -251,27 +263,30 @@
             "~~~ProofQuality": 0.88,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.05
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.73,
-            "~~~EarningOutput": 0.62,
-            "~~~OrgBuildingOutput": 0.69,
-            "~~~SkillApplication": "Market protocol design",
-            "~~~CommunityContext": "Cross-pillar design review"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader13-log-1"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "cross-review",
             "~~~ReviewerSet": "bridge-panel-6",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader13-log-1"
         },
         "_engine": {
           "wellbeing_delta": 0.026,
           "aura_delta": 0.046
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.73,
+            "~~~EarningOutput": 0.62,
+            "~~~OrgBuildingOutput": 0.69,
+            "~~~SkillApplication": "Market protocol design",
+            "~~~CommunityContext": "Cross-pillar design review"
+          },
+          "~~~~ProtocolLinkId": "trader13-log-1"
         }
       },
       {
@@ -302,27 +317,30 @@
             "~~~ProofQuality": 0.84,
             "~~~AnomalyFlag": false,
             "~~~FraudRiskSignal": 0.06
-          }
-        },
-        "~WellbeingProtocol": {
-          "~~Performance": {
-            "~~~LearningOutput": 0.78,
-            "~~~EarningOutput": 0.44,
-            "~~~OrgBuildingOutput": 0.74,
-            "~~~SkillApplication": "Facilitation",
-            "~~~CommunityContext": "Cross-pillar mentoring"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader13-log-2"
         },
         "~SAOcommons": {
           "~~Validation": {
             "~~~EvidenceReview": "mentor-review",
             "~~~ReviewerSet": "commons-panel-4",
             "~~~ValidationDecision": "approved"
-          }
+          },
+          "~~~~ProtocolLinkId": "trader13-log-2"
         },
         "_engine": {
           "wellbeing_delta": 0.023,
           "aura_delta": 0.04
+        },
+        "~WellbecomingProtocol": {
+          "~~Performance": {
+            "~~~LearningOutput": 0.78,
+            "~~~EarningOutput": 0.44,
+            "~~~OrgBuildingOutput": 0.74,
+            "~~~SkillApplication": "Facilitation",
+            "~~~CommunityContext": "Cross-pillar mentoring"
+          },
+          "~~~~ProtocolLinkId": "trader13-log-2"
         }
       }
     ]

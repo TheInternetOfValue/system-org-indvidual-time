@@ -12,6 +12,7 @@ If you are new to the repo, read the files in this order.
 ## 2. Product And Story
 
 - [`IOV_SEMANTIC_ZOOM_PROJECT.md`](IOV_SEMANTIC_ZOOM_PROJECT.md): living project document for the semantic zoom journey from System to Organization to Person to Time Slice to Impact.
+- [`WELLBEING_IDENTITY_APP_CONCEPT.md`](WELLBEING_IDENTITY_APP_CONCEPT.md): concept document for turning the Person identity screen into a standalone wellbeing identity exploration app.
 - [`LLM_HANDOFF_CONTEXT.md`](LLM_HANDOFF_CONTEXT.md): concise handoff brief for future AI/dev passes, including current narrative vocabulary and implementation map.
 
 ## 3. Scene Quality Rules
@@ -67,4 +68,3 @@ Use this short checklist:
 npm run test -- --run
 npm run build
 ```
-

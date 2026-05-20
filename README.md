@@ -340,11 +340,17 @@ docs/
 
 ## Documentation
 
-If you want the deeper design and implementation context, start here:
+If you want the deeper design and implementation context, start with the documentation index:
+
+- [docs/README.md](docs/README.md)
+
+Key references:
 
 - [docs/IOV_DESIGN.md](docs/IOV_DESIGN.md)
 - [docs/IOV_SEMANTIC_ZOOM_PROJECT.md](docs/IOV_SEMANTIC_ZOOM_PROJECT.md)
 - [docs/LLM_HANDOFF_CONTEXT.md](docs/LLM_HANDOFF_CONTEXT.md)
+- [docs/IOV_SCENE_VET_RULES.md](docs/IOV_SCENE_VET_RULES.md)
+- [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ---
 
